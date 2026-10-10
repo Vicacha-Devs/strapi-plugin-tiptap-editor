@@ -20,6 +20,19 @@ export default {
     app.customFields.register(
       richTextField as unknown as Parameters<typeof app.customFields.register>[0]
     );
+
+    if (typeof (app as Record<string, any>).addSettingsLink === 'function') {
+      app.addSettingsLink('global', {
+        intlLabel: {
+          id: `${PLUGIN_ID}.settings.title`,
+          defaultMessage: 'Tiptap Editor',
+        },
+        id: `${PLUGIN_ID}-settings`,
+        to: `/${PLUGIN_ID}`,
+        Component: () => import('./pages/SettingsPage'),
+        permissions: [],
+      });
+    }
   },
 
   async bootstrap(app: StrapiApp) {

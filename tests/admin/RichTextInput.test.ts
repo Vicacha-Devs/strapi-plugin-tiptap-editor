@@ -118,6 +118,107 @@ vi.mock('../../admin/src/extensions/Image', () => ({
   StrapiImage: { configure: vi.fn(() => ({})) },
 }));
 
+vi.mock('../../admin/src/extensions/Video', () => ({
+  useVideo: () => ({ videoButton: null, videoDialog: null }),
+  StrapiVideo: { configure: vi.fn(() => ({})) },
+}));
+
+vi.mock('../../admin/src/extensions/Audio', () => ({
+  useAudio: () => ({ audioButton: null, audioDialog: null }),
+  StrapiAudio: { configure: vi.fn(() => ({})) },
+}));
+
+vi.mock('../../admin/src/extensions/Attachment', () => ({
+  useAttachment: () => ({ attachmentButton: null, attachmentDialog: null }),
+  StrapiAttachment: { configure: vi.fn(() => ({})) },
+}));
+
+vi.mock('../../admin/src/extensions/Iframe', () => ({
+  useIframe: () => ({ iframeButton: null, iframeDialog: null }),
+  StrapiIframe: { configure: vi.fn(() => ({})) },
+}));
+
+vi.mock('../../admin/src/extensions/Linker', () => ({
+  useLinker: () => ({ linkerButton: null, linkerDialog: null }),
+  StrapiLinker: { configure: vi.fn(() => ({})) },
+}));
+
+vi.mock('../../admin/src/extensions/TypographyControls', () => ({
+  useTypographyControls: () => ({
+    fontFamilySelect: null,
+    fontSizeSelect: null,
+    lineHeightSelect: null,
+    clearFormattingButton: null,
+  }),
+}));
+
+vi.mock('../../admin/src/extensions/SemanticMarks', () => ({
+  useSemanticMarks: () => ({
+    leadParagraphButton: null,
+    abbrButton: null,
+    abbrDialog: null,
+    languageButton: null,
+    languageDialog: null,
+  }),
+}));
+
+vi.mock('../../admin/src/extensions/InformationPane', () => ({
+  useInformationPane: () => ({
+    informationPaneButton: null,
+  }),
+}));
+
+vi.mock('../../admin/src/extensions/StructuredBlocks', () => ({
+  useStructuredBlocks: () => ({
+    accordionButton: null,
+    columnsButton: null,
+    taskListButton: null,
+    conversationHistoryButton: null,
+    pageBreakButton: null,
+    tableOfContentsButton: null,
+  }),
+}));
+
+vi.mock('../../admin/src/extensions/Mathematics', () => ({
+  useMathematics: () => ({ mathematicsButton: null, mathematicsDialog: null }),
+}));
+
+vi.mock('../../admin/src/extensions/EmojiPicker', () => ({
+  useEmojiPicker: () => ({ emojiButton: null }),
+}));
+
+vi.mock('../../admin/src/extensions/SpeechTools', () => ({
+  useSpeechTools: () => ({
+    speechToTextButton: null,
+    textToSpeechButton: null,
+    speechLiveRegion: null,
+  }),
+}));
+
+vi.mock('../../admin/src/components/EditorFooterAndModes', () => ({
+  useEditorModes: () => ({
+    isFullscreen: false,
+    fullscreenButton: null,
+    previewButton: null,
+    sourceButton: null,
+    inspectorDrawer: null,
+    characterCountFooter: null,
+  }),
+}));
+
+vi.mock('../../admin/src/hooks/useKeyboardNavigation', () => ({
+  useKeyboardNavigation: () => ({
+    toolbarRef: { current: null },
+    handleToolbarKeyDown: vi.fn(),
+  }),
+}));
+
+vi.mock('../../admin/src/hooks/useRelationalSync', () => ({
+  useRelationalSync: () => ({
+    syncRelationsFromDoc: vi.fn(),
+  }),
+}));
+
 // ─── Mock components ──────────────────────────────────────────────────────────
 vi.mock('../../admin/src/components/BaseTiptapInput', () => ({
   default: 'BaseTiptapInput',

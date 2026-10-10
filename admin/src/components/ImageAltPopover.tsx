@@ -9,17 +9,27 @@ import { ToolbarButton } from './ToolbarButton';
 import { TextAlignLeft } from '../icons/TextAlignLeft';
 import { TextAlignCenter } from '../icons/TextAlignCenter';
 import { TextAlignRight } from '../icons/TextAlignRight';
+import { ImageEditorModal } from './ImageEditorModal';
 
-export function ImageNodeView({ node, updateAttributes, deleteNode, selected, extension }: NodeViewProps) {
+export function ImageNodeView({
+  node,
+  updateAttributes,
+  deleteNode,
+  selected,
+  extension,
+}: NodeViewProps) {
   const { formatMessage } = useIntl();
   const [isPopoverOpen, setIsPopoverOpen] = useState(false);
+  const [isEditorOpen, setIsEditorOpen] = useState(false);
   const [altText, setAltText] = useState<string>(node.attrs.alt ?? '');
+  const [captionText, setCaptionText] = useState<string>(node.attrs.caption ?? '');
   const imgRef = useRef<HTMLImageElement>(null);
   const isResizingRef = useRef(false);
   const resizeCleanupRef = useRef<(() => void) | null>(null);
 
   const rawResize = (extension.options as ImageOptions).resize;
-  const resizeEnabled = typeof rawResize === 'object' && !!rawResize ? rawResize.enabled : !!rawResize;
+  const resizeEnabled =
+    typeof rawResize === 'object' && !!rawResize ? rawResize.enabled : !!rawResize;
   const resizeOpts = resizeEnabled && typeof rawResize === 'object' ? rawResize : undefined;
   const preserveAspectRatio = resizeOpts?.alwaysPreserveAspectRatio ?? true;
   const minWidth = resizeOpts?.minWidth ?? 50;
@@ -28,12 +38,18 @@ export function ImageNodeView({ node, updateAttributes, deleteNode, selected, ex
   const currentWidth = node.attrs.width;
   const currentHeight = node.attrs.height;
   const [widthInput, setWidthInput] = useState<string>(currentWidth ? String(currentWidth) : '');
-  const [heightInput, setHeightInput] = useState<string>(currentHeight ? String(currentHeight) : '');
+  const [heightInput, setHeightInput] = useState<string>(
+    currentHeight ? String(currentHeight) : ''
+  );
 
-  // Sync local alt text state when node attrs change externally (undo/redo safety)
+  // Sync local alt & caption text state when node attrs change externally (undo/redo safety)
   useEffect(() => {
     setAltText(node.attrs.alt ?? '');
   }, [node.attrs.alt]);
+
+  useEffect(() => {
+    setCaptionText(node.attrs.caption ?? '');
+  }, [node.attrs.caption]);
 
   // Sync dimension inputs when node attrs change (undo/redo, resize handle)
   useEffect(() => {
@@ -68,6 +84,10 @@ export function ImageNodeView({ node, updateAttributes, deleteNode, selected, ex
 
   function handleCommit() {
     updateAttributes({ alt: altText });
+  }
+
+  function handleCaptionCommit() {
+    updateAttributes({ caption: captionText || null });
   }
 
   function handleKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
@@ -131,9 +151,8 @@ export function ImageNodeView({ node, updateAttributes, deleteNode, selected, ex
       const img = imgRef.current;
       if (!img) return;
       const startWidth = img.offsetWidth;
-      const ratio = img.naturalWidth && img.naturalHeight
-        ? img.naturalWidth / img.naturalHeight
-        : null;
+      const ratio =
+        img.naturalWidth && img.naturalHeight ? img.naturalWidth / img.naturalHeight : null;
 
       function onMouseMove(moveEvent: MouseEvent) {
         const diff = moveEvent.clientX - startX;
@@ -160,7 +179,6 @@ export function ImageNodeView({ node, updateAttributes, deleteNode, selected, ex
             height: Math.round(img.offsetHeight),
           });
         }
-        // Delay clearing so the click handler on img doesn't fire
         requestAnimationFrame(() => {
           isResizingRef.current = false;
         });
@@ -170,16 +188,17 @@ export function ImageNodeView({ node, updateAttributes, deleteNode, selected, ex
       document.addEventListener('mouseup', onMouseUp);
       resizeCleanupRef.current = cleanup;
     },
-    [updateAttributes, preserveAspectRatio, minWidth],
+    [updateAttributes, preserveAspectRatio, minWidth]
   );
 
   return (
     <NodeViewWrapper data-drag-handle data-align={node.attrs['data-align'] ?? undefined}>
       <Popover.Root open={isPopoverOpen} onOpenChange={setIsPopoverOpen}>
         <Popover.Anchor>
-          <div
+          <figure
             className="image-wrapper"
             data-selected={selected || isPopoverOpen || undefined}
+            style={{ margin: 0 }}
           >
             <img
               ref={imgRef}
@@ -196,8 +215,23 @@ export function ImageNodeView({ node, updateAttributes, deleteNode, selected, ex
                 if (!isResizingRef.current) setIsPopoverOpen(true);
               }}
             />
-            {resizeEnabled && <div className="image-resize-handle" onMouseDown={handleResizeStart} />}
-          </div>
+            {node.attrs.caption && (
+              <figcaption
+                style={{
+                  fontSize: '1.2rem',
+                  color: '#666687',
+                  marginTop: '4px',
+                  lineHeight: 1.4,
+                  textAlign: 'center',
+                }}
+              >
+                {node.attrs.caption}
+              </figcaption>
+            )}
+            {resizeEnabled && (
+              <div className="image-resize-handle" onMouseDown={handleResizeStart} />
+            )}
+          </figure>
         </Popover.Anchor>
         <Popover.Content side="bottom">
           <div style={{ display: 'flex', gap: '4px', padding: '8px', paddingBottom: '0' }}>
@@ -206,7 +240,10 @@ export function ImageNodeView({ node, updateAttributes, deleteNode, selected, ex
               icon={<TextAlignLeft />}
               active={currentAlign === 'left'}
               disabled={false}
-              tooltip={formatMessage({ id: 'tiptap-editor.image.alignLeft', defaultMessage: 'Align left' })}
+              tooltip={formatMessage({
+                id: 'tiptap-editor.image.alignLeft',
+                defaultMessage: 'Align left',
+              })}
               marginLeft={0}
             />
             <ToolbarButton
@@ -214,7 +251,10 @@ export function ImageNodeView({ node, updateAttributes, deleteNode, selected, ex
               icon={<TextAlignCenter />}
               active={currentAlign === 'center'}
               disabled={false}
-              tooltip={formatMessage({ id: 'tiptap-editor.image.alignCenter', defaultMessage: 'Align center' })}
+              tooltip={formatMessage({
+                id: 'tiptap-editor.image.alignCenter',
+                defaultMessage: 'Align center',
+              })}
               marginLeft={0}
             />
             <ToolbarButton
@@ -222,12 +262,37 @@ export function ImageNodeView({ node, updateAttributes, deleteNode, selected, ex
               icon={<TextAlignRight />}
               active={currentAlign === 'right'}
               disabled={false}
-              tooltip={formatMessage({ id: 'tiptap-editor.image.alignRight', defaultMessage: 'Align right' })}
+              tooltip={formatMessage({
+                id: 'tiptap-editor.image.alignRight',
+                defaultMessage: 'Align right',
+              })}
+              marginLeft={0}
+            />
+            <ToolbarButton
+              onClick={() => {
+                setIsPopoverOpen(false);
+                setIsEditorOpen(true);
+              }}
+              icon={<span style={{ fontSize: '1.1rem', fontWeight: 600 }}>Crop/Edit</span>}
+              active={false}
+              disabled={false}
+              tooltip={formatMessage({
+                id: 'tiptap-editor.image.openEditor',
+                defaultMessage: 'Crop, rotate & edit image',
+              })}
               marginLeft={0}
             />
           </div>
           {resizeEnabled && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: '4px', padding: '8px', paddingBottom: '0' }}>
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '4px',
+                padding: '8px',
+                paddingBottom: '0',
+              }}
+            >
               <TextInput
                 type="number"
                 placeholder="W"
@@ -235,7 +300,10 @@ export function ImageNodeView({ node, updateAttributes, deleteNode, selected, ex
                 onChange={(e: React.ChangeEvent<HTMLInputElement>) => setWidthInput(e.target.value)}
                 onBlur={handleWidthCommit}
                 onKeyDown={handleKeyDown}
-                aria-label={formatMessage({ id: 'tiptap-editor.image.width', defaultMessage: 'Width (px)' })}
+                aria-label={formatMessage({
+                  id: 'tiptap-editor.image.width',
+                  defaultMessage: 'Width (px)',
+                })}
                 style={{ minWidth: '62px', flexGrow: 1 }}
               />
               <span style={{ fontSize: '1.1rem', color: '#999' }}>&times;</span>
@@ -243,40 +311,98 @@ export function ImageNodeView({ node, updateAttributes, deleteNode, selected, ex
                 type="number"
                 placeholder="H"
                 value={heightInput}
-                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setHeightInput(e.target.value)}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                  setHeightInput(e.target.value)
+                }
                 onBlur={handleHeightCommit}
                 onKeyDown={handleKeyDown}
-                aria-label={formatMessage({ id: 'tiptap-editor.image.height', defaultMessage: 'Height (px)' })}
+                aria-label={formatMessage({
+                  id: 'tiptap-editor.image.height',
+                  defaultMessage: 'Height (px)',
+                })}
                 style={{ minWidth: '62px', flexGrow: 1 }}
               />
               {(currentWidth || currentHeight) && (
                 <IconButton
                   onClick={() => updateAttributes({ width: null, height: null })}
-                  label={formatMessage({ id: 'tiptap-editor.image.resetSize', defaultMessage: 'Reset size' })}
+                  label={formatMessage({
+                    id: 'tiptap-editor.image.resetSize',
+                    defaultMessage: 'Reset size',
+                  })}
                 >
                   <Cross />
                 </IconButton>
               )}
             </div>
           )}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px' }}>
+          <div
+            style={{
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '6px',
+              padding: '8px',
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <TextInput
+                placeholder={formatMessage({
+                  id: 'tiptap-editor.image.altText',
+                  defaultMessage: 'Alt text',
+                })}
+                value={altText}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setAltText(e.target.value)}
+                onBlur={handleCommit}
+                onKeyDown={handleKeyDown}
+                aria-label={formatMessage({
+                  id: 'tiptap-editor.image.altText',
+                  defaultMessage: 'Alt text',
+                })}
+              />
+              <IconButton
+                onClick={deleteNode}
+                label={formatMessage({
+                  id: 'tiptap-editor.image.deleteImage',
+                  defaultMessage: 'Delete image',
+                })}
+              >
+                <Trash />
+              </IconButton>
+            </div>
             <TextInput
-              placeholder={formatMessage({ id: 'tiptap-editor.image.altText', defaultMessage: 'Alt text' })}
-              value={altText}
-              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setAltText(e.target.value)}
-              onBlur={handleCommit}
+              placeholder={formatMessage({
+                id: 'tiptap-editor.image.caption',
+                defaultMessage: 'Caption (<figcaption>)',
+              })}
+              value={captionText}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                setCaptionText(e.target.value)
+              }
+              onBlur={handleCaptionCommit}
               onKeyDown={handleKeyDown}
-              aria-label={formatMessage({ id: 'tiptap-editor.image.altText', defaultMessage: 'Alt text' })}
+              aria-label={formatMessage({
+                id: 'tiptap-editor.image.caption',
+                defaultMessage: 'Caption',
+              })}
             />
-            <IconButton
-              onClick={deleteNode}
-              label={formatMessage({ id: 'tiptap-editor.image.deleteImage', defaultMessage: 'Delete image' })}
-            >
-              <Trash />
-            </IconButton>
           </div>
         </Popover.Content>
       </Popover.Root>
+      <ImageEditorModal
+        open={isEditorOpen}
+        src={node.attrs.src ?? ''}
+        alt={node.attrs.alt ?? ''}
+        caption={node.attrs.caption ?? ''}
+        onClose={() => setIsEditorOpen(false)}
+        onSave={(edited) => {
+          updateAttributes({
+            src: edited.src,
+            alt: edited.alt,
+            caption: edited.caption || null,
+            ...(edited.width !== undefined ? { width: edited.width } : {}),
+            ...(edited.height !== undefined ? { height: edited.height } : {}),
+          });
+        }}
+      />
     </NodeViewWrapper>
   );
 }

@@ -1,12 +1,23 @@
 import { Extensions, JSONContent } from '@tiptap/core';
 import { useEditor } from '@tiptap/react';
 import { type InputProps, useField } from '@strapi/strapi/admin';
+import type { TiptapOutputFormat } from '../../../shared/types';
+import {
+  markdownToJson,
+  sanitizeHtmlString,
+  serializeEditorContent,
+} from '../../../shared/contentSerializer';
 
 export type { FieldValue } from '@strapi/strapi/admin';
 
 export type TiptapInputProps = InputProps & {
   labelAction?: React.ReactNode;
 };
+
+export interface UseTiptapEditorOptions {
+  outputFormat?: TiptapOutputFormat;
+  onDocUpdate?: (json: JSONContent) => void;
+}
 
 export function tiptapContent(text: string): JSONContent {
   return {
@@ -25,13 +36,43 @@ export function tiptapContent(text: string): JSONContent {
   };
 }
 
-function parseJSONContent(value: string | JSONContent | null | undefined, defaultValue: string) {
+export function parseJSONContent(
+  value: string | JSONContent | null | undefined,
+  defaultValue: string,
+  outputFormat: TiptapOutputFormat = 'json'
+): JSONContent | string {
   if (!value) {
     return tiptapContent(defaultValue);
   }
 
+  if (typeof value === 'object') {
+    return value;
+  }
+
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return tiptapContent(defaultValue);
+  }
+
+  // Always try JSON first if it looks like JSON
+  if (trimmed.startsWith('{') && trimmed.endsWith('}')) {
+    try {
+      return JSON.parse(trimmed) as JSONContent;
+    } catch {
+      // fall through
+    }
+  }
+
+  if (outputFormat === 'html' || (trimmed.startsWith('<') && trimmed.endsWith('>'))) {
+    return sanitizeHtmlString(trimmed);
+  }
+
+  if (outputFormat === 'markdown') {
+    return markdownToJson(trimmed) as JSONContent;
+  }
+
   try {
-    return typeof value === 'string' ? JSON.parse(value) : value;
+    return JSON.parse(value) as JSONContent;
   } catch (e) {
     console.error('Failed to parse JSON content:', e);
     return tiptapContent(`
@@ -44,16 +85,20 @@ function parseJSONContent(value: string | JSONContent | null | undefined, defaul
 export function useTiptapEditor(
   name: string,
   defaultValue: string = '',
-  extensions: Extensions = []
+  extensions: Extensions = [],
+  options?: UseTiptapEditorOptions
 ) {
   const field = useField(name);
+  const outputFormat = options?.outputFormat ?? 'json';
 
   const editor = useEditor({
     extensions: extensions,
-    content: parseJSONContent(field.value, defaultValue),
-    onUpdate: ({ editor }) => {
-      const json = editor.getJSON();
-      field.onChange(name, JSON.stringify(json));
+    content: parseJSONContent(field.value, defaultValue, outputFormat),
+    onUpdate: ({ editor: ed }) => {
+      const json = ed.getJSON();
+      const serialized = serializeEditorContent(ed, outputFormat);
+      field.onChange(name, serialized);
+      options?.onDocUpdate?.(json);
     },
   });
 

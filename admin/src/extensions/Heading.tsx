@@ -4,12 +4,28 @@ import Heading from '@tiptap/extension-heading';
 import { SingleSelect, SingleSelectOption } from '@strapi/design-system';
 import { useIntl } from 'react-intl';
 
+export function slugifyHeadingText(text: string): string {
+  return text
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9\s-]/g, '')
+    .replace(/\s+/g, '-')
+    .replace(/-+/g, '-')
+    .replace(/^-|-$/g, '');
+}
+
 // Base extension class (un-configured) — used by buildExtensions for dynamic levels
 export const BaseHeadingWithSEOTag = Heading.extend({
   addAttributes() {
     return {
       ...(this as any).parent?.(), // must cast to any to avoid TS error
       tag: { default: null },
+      id: {
+        default: null,
+        parseHTML: (el: HTMLElement) => el.getAttribute('id') ?? null,
+        renderHTML: (attrs: Record<string, unknown>) =>
+          attrs.id ? { id: String(attrs.id) } : {},
+      },
     };
   },
 });
@@ -17,7 +33,10 @@ export const BaseHeadingWithSEOTag = Heading.extend({
 // Pre-configured instance with all heading levels
 export const HeadingWithSEOTag = BaseHeadingWithSEOTag.configure({ levels: [1, 2, 3, 4, 5, 6] });
 
-export function useHeading(editor: Editor | null, props: { disabled?: boolean; levels?: number[] } = { disabled: false }) {
+export function useHeading(
+  editor: Editor | null,
+  props: { disabled?: boolean; levels?: number[] } = { disabled: false }
+) {
   const { formatMessage } = useIntl();
   const levels = props.levels ?? [1, 2, 3, 4, 5, 6];
   const editorState = useEditorState({
@@ -67,24 +86,38 @@ export function useHeading(editor: Editor | null, props: { disabled?: boolean; l
     headingSelect: (
       <SingleSelect
         placeholder={formatMessage({ id: 'tiptap-editor.heading.style', defaultMessage: 'Style' })}
-        aria-label={formatMessage({ id: 'tiptap-editor.heading.textStyle', defaultMessage: 'Text style' })}
+        aria-label={formatMessage({
+          id: 'tiptap-editor.heading.textStyle',
+          defaultMessage: 'Text style',
+        })}
         value={editorState?.headingLevel ? `h${editorState.headingLevel}` : 'p'}
         onChange={(v: string | number) => v != null && onChangeHeading(String(v))}
         disabled={!editor || props.disabled}
         size="S"
       >
-        <SingleSelectOption value="p">{formatMessage({ id: 'tiptap-editor.heading.paragraph', defaultMessage: 'Paragraph' })}</SingleSelectOption>
+        <SingleSelectOption value="p">
+          {formatMessage({ id: 'tiptap-editor.heading.paragraph', defaultMessage: 'Paragraph' })}
+        </SingleSelectOption>
         {levels.map((level) => (
           <SingleSelectOption key={`h${level}`} value={`h${level}`}>
-            {formatMessage({ id: 'tiptap-editor.heading.heading', defaultMessage: 'Heading {level}' }, { level })}
+            {formatMessage(
+              { id: 'tiptap-editor.heading.heading', defaultMessage: 'Heading {level}' },
+              { level }
+            )}
           </SingleSelectOption>
         ))}
       </SingleSelect>
     ),
     headingTagSelect: (
       <SingleSelect
-        placeholder={formatMessage({ id: 'tiptap-editor.heading.seoTag', defaultMessage: 'SEO Tag' })}
-        aria-label={formatMessage({ id: 'tiptap-editor.heading.seoTagAriaLabel', defaultMessage: "Heading's HTML tag for SEO purposes" })}
+        placeholder={formatMessage({
+          id: 'tiptap-editor.heading.seoTag',
+          defaultMessage: 'SEO Tag',
+        })}
+        aria-label={formatMessage({
+          id: 'tiptap-editor.heading.seoTagAriaLabel',
+          defaultMessage: "Heading's HTML tag for SEO purposes",
+        })}
         value={editorState?.headingTag}
         onChange={(v: string | number) => v != null && onChangeHeadingTag(String(v))}
         disabled={!editor || props.disabled || !editorState?.headingLevel}

@@ -6,6 +6,7 @@ export function ToolbarButton({
   active,
   disabled,
   tooltip,
+  ariaLabel,
   marginLeft,
   hidden,
 }: {
@@ -14,6 +15,7 @@ export function ToolbarButton({
   active?: boolean;
   disabled?: boolean;
   tooltip: string;
+  ariaLabel?: string;
   marginLeft?: number;
   hidden?: boolean;
 }) {
@@ -27,6 +29,8 @@ export function ToolbarButton({
         paddingRight={2}
         marginLeft={marginLeft ?? 1}
         disabled={disabled}
+        aria-label={ariaLabel ?? tooltip}
+        aria-pressed={typeof active === 'boolean' ? active : undefined}
         style={{
           color: active ? 'black' : undefined,
           backgroundColor: active ? '#d9d8ff' : undefined,

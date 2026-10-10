@@ -13,11 +13,30 @@ type TiptapInputProps = InputProps & {
   field: FieldValue;
   children?: React.ReactNode;
   noPresetConfigured?: boolean;
+  isFullscreen?: boolean;
+  toolbarRef?: React.RefObject<HTMLDivElement | null>;
+  onToolbarKeyDown?: (event: React.KeyboardEvent<HTMLDivElement>) => void;
+  footer?: React.ReactNode;
 };
 
 const BaseTiptapInput = forwardRef<HTMLDivElement, TiptapInputProps>(
   (
-    { hint, disabled = false, labelAction, label, name, required = false, editor, field, children, noPresetConfigured },
+    {
+      hint,
+      disabled = false,
+      labelAction,
+      label,
+      name,
+      required = false,
+      editor,
+      field,
+      children,
+      noPresetConfigured,
+      isFullscreen = false,
+      toolbarRef,
+      onToolbarKeyDown,
+      footer,
+    },
     forwardedRef
   ) => {
     const { formatMessage } = useIntl();
@@ -30,7 +49,7 @@ const BaseTiptapInput = forwardRef<HTMLDivElement, TiptapInputProps>(
 
         <TiptapInputStyles>
           <Box
-            className={`tiptap-editor-wrapper ${field.error ? 'has-error' : ''} ${disabled ? 'is-disabled' : ''}`}
+            className={`tiptap-editor-wrapper ${field.error ? 'has-error' : ''} ${disabled ? 'is-disabled' : ''} ${isFullscreen ? 'is-fullscreen' : ''}`}
             hasRadius
             borderColor={borderColor}
             background={background}
@@ -51,7 +70,19 @@ const BaseTiptapInput = forwardRef<HTMLDivElement, TiptapInputProps>(
                 </Status>
               </Box>
             )}
-            <Box className="editor-toolbar" paddingLeft={2} paddingRight={2} paddingBottom={2}>
+            <Box
+              className="editor-toolbar"
+              role="toolbar"
+              aria-label={formatMessage({
+                id: 'tiptap-editor.toolbar.ariaLabel',
+                defaultMessage: 'Rich text formatting toolbar',
+              })}
+              ref={toolbarRef as any}
+              onKeyDown={onToolbarKeyDown as any}
+              paddingLeft={2}
+              paddingRight={2}
+              paddingBottom={2}
+            >
               <Flex gap={1} wrap="wrap">
                 {children}
               </Flex>
@@ -66,6 +97,7 @@ const BaseTiptapInput = forwardRef<HTMLDivElement, TiptapInputProps>(
             >
               <EditorContent editor={editor} disabled={disabled} ref={forwardedRef} />
             </Box>
+            {footer}
           </Box>
         </TiptapInputStyles>
 

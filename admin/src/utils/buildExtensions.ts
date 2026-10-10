@@ -3,15 +3,84 @@ import StarterKit from '@tiptap/starter-kit';
 import Superscript from '@tiptap/extension-superscript';
 import Subscript from '@tiptap/extension-subscript';
 import Underline from '@tiptap/extension-underline';
-import { TableKit } from '@tiptap/extension-table';
+import { TableKit, TableCell, TableHeader } from '@tiptap/extension-table';
 import TextAlign from '@tiptap/extension-text-align';
-import { Gapcursor } from '@tiptap/extensions';
-import { TextStyle, Color } from '@tiptap/extension-text-style';
+import { CharacterCount, Gapcursor } from '@tiptap/extensions';
+import {
+  TextStyle,
+  Color,
+  FontFamily,
+  FontSize,
+  LineHeight,
+} from '@tiptap/extension-text-style';
 import Highlight from '@tiptap/extension-highlight';
 import { BaseHeadingWithSEOTag } from '../extensions/Heading';
 import { PasteStripper } from '../extensions/PasteStripper';
 import { StrapiImage } from '../extensions/Image';
+import { StrapiVideo } from '../extensions/Video';
+import { StrapiAudio } from '../extensions/Audio';
+import { StrapiAttachment } from '../extensions/Attachment';
+import { StrapiIframe } from '../extensions/Iframe';
+import { StrapiLinker } from '../extensions/Linker';
+import { InformationPane } from '../extensions/InformationPane';
+import {
+  DetailsNode,
+  DetailsSummaryNode,
+  DetailsContentNode,
+  ConversationHistoryNode,
+  LayoutContainerNode,
+  LayoutColumnNode,
+  TaskListNode,
+  TaskItemNode,
+  PageBreakNode,
+  TableOfContentsNode,
+} from '../extensions/StructuredBlocks';
+import { MathematicsNode } from '../extensions/Mathematics';
+import { EmojiShortcodeExtension } from '../extensions/EmojiPicker';
+import { SmartTypographyExtension } from '../extensions/TypographyControls';
+import { LeadParagraph, LanguageMark, AbbrMark } from '../extensions/SemanticMarks';
 import { TiptapPresetConfig, isFeatureEnabled, getFeatureOptions } from '../../../shared/types';
+
+// Custom TableCell & TableHeader with Edifice IO backgroundColor support
+const CustomTableCell = TableCell.extend({
+  addAttributes() {
+    return {
+      ...(this as any).parent?.(),
+      backgroundColor: {
+        default: null,
+        parseHTML: (el: HTMLElement) =>
+          el.getAttribute('data-background-color') || el.style?.backgroundColor || null,
+        renderHTML: (attrs: Record<string, unknown>) => {
+          if (!attrs.backgroundColor) return {};
+          return {
+            'data-background-color': String(attrs.backgroundColor),
+            style: `background-color: ${String(attrs.backgroundColor)}`,
+          };
+        },
+      },
+    };
+  },
+});
+
+const CustomTableHeader = TableHeader.extend({
+  addAttributes() {
+    return {
+      ...(this as any).parent?.(),
+      backgroundColor: {
+        default: null,
+        parseHTML: (el: HTMLElement) =>
+          el.getAttribute('data-background-color') || el.style?.backgroundColor || null,
+        renderHTML: (attrs: Record<string, unknown>) => {
+          if (!attrs.backgroundColor) return {};
+          return {
+            'data-background-color': String(attrs.backgroundColor),
+            style: `background-color: ${String(attrs.backgroundColor)}`,
+          };
+        },
+      },
+    };
+  },
+});
 
 // Helper: converts a preset feature value to StarterKit's expected format
 // false = disable the sub-extension, {} = enable with defaults
@@ -75,7 +144,11 @@ export function buildExtensions(config: TiptapPresetConfig): Extensions {
           resizable: true,
           ...getFeatureOptions(config.table, {}),
         },
-      })
+        tableCell: false,
+        tableHeader: false,
+      }),
+      CustomTableCell,
+      CustomTableHeader
     );
   }
 
@@ -93,7 +166,12 @@ export function buildExtensions(config: TiptapPresetConfig): Extensions {
   }
 
   const needsTextStyle =
-    isFeatureEnabled(config.textColor) || isFeatureEnabled(config.highlightColor);
+    isFeatureEnabled(config.textColor) ||
+    isFeatureEnabled(config.highlightColor) ||
+    isFeatureEnabled(config.fontFamily) ||
+    isFeatureEnabled(config.fontSize) ||
+    isFeatureEnabled(config.lineHeight);
+
   if (needsTextStyle) {
     extensions.push(TextStyle);
     extensions.push(PasteStripper);
@@ -104,11 +182,110 @@ export function buildExtensions(config: TiptapPresetConfig): Extensions {
   if (isFeatureEnabled(config.highlightColor)) {
     extensions.push(Highlight.configure({ multicolor: true }));
   }
+  if (isFeatureEnabled(config.fontFamily)) {
+    extensions.push(FontFamily);
+  }
+  if (isFeatureEnabled(config.fontSize)) {
+    extensions.push(FontSize);
+  }
+  if (isFeatureEnabled(config.lineHeight)) {
+    extensions.push(LineHeight);
+  }
+
+  // Zero-Data-Loss Media Library Image extension
   if (isFeatureEnabled(config.mediaLibrary)) {
     const mediaOpts = getFeatureOptions(config.mediaLibrary, {});
     extensions.push(StrapiImage.configure(mediaOpts ?? {}));
   } else {
     extensions.push(StrapiImage.configure({ enableContentCheck: true }));
+  }
+
+  // Zero-Data-Loss Edifice IO Multimedia & Rich Nodes
+  if (isFeatureEnabled(config.video)) {
+    extensions.push(StrapiVideo.configure({ enableContentCheck: false }));
+  } else {
+    extensions.push(StrapiVideo.configure({ enableContentCheck: true }));
+  }
+
+  if (isFeatureEnabled(config.audio)) {
+    extensions.push(StrapiAudio.configure({ enableContentCheck: false }));
+  } else {
+    extensions.push(StrapiAudio.configure({ enableContentCheck: true }));
+  }
+
+  if (isFeatureEnabled(config.attachment)) {
+    extensions.push(StrapiAttachment.configure({ enableContentCheck: false }));
+  } else {
+    extensions.push(StrapiAttachment.configure({ enableContentCheck: true }));
+  }
+
+  if (isFeatureEnabled(config.iframe)) {
+    const iframeOpts = getFeatureOptions(config.iframe, { allowedDomains: [] });
+    extensions.push(
+      StrapiIframe.configure({
+        enableContentCheck: false,
+        allowedDomains: iframeOpts?.allowedDomains,
+      })
+    );
+  } else {
+    extensions.push(StrapiIframe.configure({ enableContentCheck: true }));
+  }
+
+  if (isFeatureEnabled(config.linker)) {
+    extensions.push(StrapiLinker.configure({ enableContentCheck: false }));
+  } else {
+    extensions.push(StrapiLinker.configure({ enableContentCheck: true }));
+  }
+
+  if (isFeatureEnabled(config.informationPane)) {
+    extensions.push(InformationPane.configure({ enableContentCheck: false }));
+  } else {
+    extensions.push(InformationPane.configure({ enableContentCheck: true }));
+  }
+
+  if (isFeatureEnabled(config.mathematics)) {
+    extensions.push(MathematicsNode.configure({ enableContentCheck: false }));
+  } else {
+    extensions.push(MathematicsNode.configure({ enableContentCheck: true }));
+  }
+
+  // Semantic marks & blocks (always registered for schema preservation, or enabled via config)
+  if (isFeatureEnabled(config.leadParagraph)) {
+    extensions.push(LeadParagraph);
+  }
+  if (isFeatureEnabled(config.language)) {
+    extensions.push(LanguageMark);
+  }
+  if (isFeatureEnabled(config.abbr)) {
+    extensions.push(AbbrMark);
+  }
+  if (isFeatureEnabled(config.typography)) {
+    extensions.push(SmartTypographyExtension);
+  }
+  if (isFeatureEnabled(config.emoji)) {
+    extensions.push(EmojiShortcodeExtension);
+  }
+  if (isFeatureEnabled(config.accordion)) {
+    extensions.push(DetailsNode, DetailsSummaryNode, DetailsContentNode);
+  }
+  if (isFeatureEnabled(config.conversationHistory)) {
+    extensions.push(ConversationHistoryNode);
+  }
+  if (isFeatureEnabled(config.columns)) {
+    extensions.push(LayoutContainerNode, LayoutColumnNode);
+  }
+  if (isFeatureEnabled(config.taskList)) {
+    extensions.push(TaskListNode, TaskItemNode);
+  }
+  if (isFeatureEnabled(config.pageBreak)) {
+    extensions.push(PageBreakNode);
+  }
+  if (isFeatureEnabled(config.tableOfContents)) {
+    extensions.push(TableOfContentsNode);
+  }
+  if (isFeatureEnabled(config.characterCount)) {
+    const ccOpts = getFeatureOptions(config.characterCount, { limit: null });
+    extensions.push(CharacterCount.configure({ limit: ccOpts?.limit ?? null }));
   }
 
   extensions.push(Gapcursor);

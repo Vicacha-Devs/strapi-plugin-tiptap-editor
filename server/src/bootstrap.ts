@@ -1,7 +1,64 @@
 import type { Core } from '@strapi/strapi';
+import { DEFAULT_RUNTIME_SETTINGS } from '../../shared/types';
 
-const bootstrap = ({ strapi }: { strapi: Core.Strapi }) => {
-  // bootstrap phase
+export const LINKS_COMPONENT_UID = 'links.links';
+export const SETTINGS_STORE_KEY = 'settings';
+
+const bootstrap = async ({ strapi }: { strapi: Core.Strapi }) => {
+  try {
+    // 1. Ensure runtime settings exist in Strapi core-store
+    if (typeof strapi?.store === 'function') {
+      const pluginStore = strapi.store({
+        type: 'plugin',
+        name: 'tiptap-editor',
+      });
+      const existingSettings = await pluginStore.get({ key: SETTINGS_STORE_KEY });
+      if (!existingSettings) {
+        await pluginStore.set({
+          key: SETTINGS_STORE_KEY,
+          value: DEFAULT_RUNTIME_SETTINGS,
+        });
+      }
+    }
+
+    // 2. Ensure 'links.links' component exists for Relational Internal Links Sync
+    const components = (strapi as unknown as { components?: Record<string, unknown> })?.components;
+    if (components && !components[LINKS_COMPONENT_UID]) {
+      const ctbPlugin = strapi.plugin?.('content-type-builder');
+      const componentService = ctbPlugin?.service?.('components') as
+        | {
+            createComponent?: (payload: {
+              component: {
+                category: string;
+                displayName: string;
+                icon: string;
+                attributes: Record<string, unknown>;
+              };
+            }) => Promise<unknown>;
+          }
+        | undefined;
+
+      if (componentService && typeof componentService.createComponent === 'function') {
+        await componentService.createComponent({
+          component: {
+            category: 'links',
+            displayName: 'Links',
+            icon: 'link',
+            attributes: {},
+          },
+        });
+        strapi.log?.info?.(
+          '[tiptap-editor] Created "links.links" component for relational internal link tracking.'
+        );
+      }
+    }
+  } catch (error) {
+    strapi?.log?.warn?.(
+      `[tiptap-editor] Bootstrap initialization warning: ${
+        error instanceof Error ? error.message : String(error)
+      }`
+    );
+  }
 };
 
 export default bootstrap;

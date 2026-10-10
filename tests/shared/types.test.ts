@@ -9,8 +9,8 @@ import {
 } from '../../shared/types';
 
 describe('PRESET_FEATURE_KEYS (TYPES-03)', () => {
-  it('contains exactly 21 keys', () => {
-    expect(PRESET_FEATURE_KEYS).toHaveLength(21);
+  it('contains exactly 48 keys', () => {
+    expect(PRESET_FEATURE_KEYS).toHaveLength(48);
   });
   it('contains all expected feature names', () => {
     expect(PRESET_FEATURE_KEYS).toContain('bold');
@@ -23,6 +23,14 @@ describe('PRESET_FEATURE_KEYS (TYPES-03)', () => {
     expect(PRESET_FEATURE_KEYS).toContain('subscript');
     expect(PRESET_FEATURE_KEYS).toContain('textColor');
     expect(PRESET_FEATURE_KEYS).toContain('highlightColor');
+    expect(PRESET_FEATURE_KEYS).toContain('video');
+    expect(PRESET_FEATURE_KEYS).toContain('audio');
+    expect(PRESET_FEATURE_KEYS).toContain('attachment');
+    expect(PRESET_FEATURE_KEYS).toContain('iframe');
+    expect(PRESET_FEATURE_KEYS).toContain('linker');
+    expect(PRESET_FEATURE_KEYS).toContain('mathematics');
+    expect(PRESET_FEATURE_KEYS).toContain('speechToText');
+    expect(PRESET_FEATURE_KEYS).toContain('textToSpeech');
   });
 });
 

@@ -27,4 +27,61 @@ export default {
       },
     ],
   },
+  'settings-routes': {
+    type: 'admin' as const,
+    routes: [
+      {
+        method: 'GET',
+        path: '/settings',
+        handler: 'settings.find',
+        config: { policies: [], middlewares: [] },
+      },
+      {
+        method: 'PUT',
+        path: '/settings',
+        handler: 'settings.update',
+        config: { policies: [], middlewares: [] },
+      },
+    ],
+  },
+  'search-routes': {
+    type: 'admin' as const,
+    routes: [
+      {
+        method: 'GET',
+        path: '/search',
+        handler: 'search.search',
+        config: { policies: [], middlewares: [] },
+      },
+      {
+        method: 'GET',
+        path: '/get/:collectionName/:documentId',
+        handler: 'search.getDocument',
+        config: { policies: [], middlewares: [] },
+      },
+      {
+        method: 'GET',
+        path: '/identify/:collectionName',
+        handler: 'search.identify',
+        config: { policies: [], middlewares: [] },
+      },
+    ],
+  },
+  'media-routes': {
+    type: 'admin' as const,
+    routes: [
+      {
+        method: 'GET',
+        path: '/link-preview',
+        handler: 'media.linkPreview',
+        config: { policies: [], middlewares: [] },
+      },
+      {
+        method: 'POST',
+        path: '/upload-by-url',
+        handler: 'media.uploadByUrl',
+        config: { policies: [], middlewares: [] },
+      },
+    ],
+  },
 };

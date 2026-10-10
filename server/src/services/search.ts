@@ -1,0 +1,189 @@
+import type { Core } from '@strapi/strapi';
+import { LINKS_COMPONENT_UID } from '../bootstrap';
+
+export interface SearchDocumentHit {
+  documentId: string;
+  id?: number | string;
+  label: string;
+  collectionName: string;
+  status: string;
+  locale?: string;
+}
+
+const TITLE_CANDIDATES = ['title', 'name', 'label', 'headline', 'subject', 'slug'];
+const STRING_TYPES = new Set(['string', 'text', 'uid', 'email']);
+
+const isSafeCollectionUid = (uid: string): boolean =>
+  /^(api::[a-zA-Z0-9_-]+\.[a-zA-Z0-9_-]+|plugin::[a-zA-Z0-9_-]+\.[a-zA-Z0-9_-]+)$/.test(uid);
+
+const createSearchService = ({ strapi }: { strapi: Core.Strapi }) => ({
+  /**
+   * Identifies the best human-readable label field for a given Strapi collection type UID.
+   */
+  identifyCollectionTitleField(collectionName: string): string {
+    if (!isSafeCollectionUid(collectionName)) {
+      throw new Error('Invalid collectionName format');
+    }
+
+    const contentTypes = (strapi as unknown as { contentTypes?: Record<string, any> })?.contentTypes;
+    const schema = contentTypes?.[collectionName];
+    const attributes: Record<string, { type?: string }> | undefined = schema?.attributes;
+
+    if (!attributes || typeof attributes !== 'object') {
+      return 'documentId';
+    }
+
+    for (const candidate of TITLE_CANDIDATES) {
+      const attr = attributes[candidate];
+      if (attr && typeof attr.type === 'string' && STRING_TYPES.has(attr.type)) {
+        return candidate;
+      }
+    }
+
+    for (const [fieldName, attr] of Object.entries(attributes)) {
+      if (attr && typeof attr.type === 'string' && STRING_TYPES.has(attr.type)) {
+        return fieldName;
+      }
+    }
+
+    return 'documentId';
+  },
+
+  /**
+   * Returns all collection type UIDs configured in 'links.links' or falls back to api::* collection types.
+   */
+  getLinkableCollections(): Array<{ attributeName: string; targetUid: string }> {
+    const components = (strapi as unknown as { components?: Record<string, any> })?.components;
+    const linksComp = components?.[LINKS_COMPONENT_UID];
+    const results: Array<{ attributeName: string; targetUid: string }> = [];
+
+    if (linksComp?.attributes && typeof linksComp.attributes === 'object') {
+      for (const [attrName, attrDef] of Object.entries(
+        linksComp.attributes as Record<string, { type?: string; target?: string }>
+      )) {
+        if (
+          attrDef?.type === 'relation' &&
+          typeof attrDef.target === 'string' &&
+          isSafeCollectionUid(attrDef.target)
+        ) {
+          results.push({ attributeName: attrName, targetUid: attrDef.target });
+        }
+      }
+    }
+
+    if (results.length > 0) {
+      return results;
+    }
+
+    // Fallback: discover api::* collection types
+    const contentTypes = (strapi as unknown as { contentTypes?: Record<string, any> })?.contentTypes;
+    if (contentTypes && typeof contentTypes === 'object') {
+      for (const [uid, schema] of Object.entries(contentTypes)) {
+        if (uid.startsWith('api::') && (schema?.kind === 'collectionType' || !schema?.kind)) {
+          const shortName = schema?.info?.pluralName || uid.split('.')[1] || uid;
+          results.push({ attributeName: shortName, targetUid: uid });
+        }
+      }
+    }
+
+    return results;
+  },
+
+  /**
+   * Searches across all linkable collections for documents matching query and optional locale.
+   */
+  async search(
+    rawQuery: string,
+    locale?: string
+  ): Promise<Record<string, SearchDocumentHit[]>> {
+    const query = (rawQuery ?? '').trim();
+    if (!query) return {};
+
+    const collections = this.getLinkableCollections();
+    const resultsByCollection: Record<string, SearchDocumentHit[]> = {};
+
+    for (const { targetUid } of collections) {
+      const titleField = this.identifyCollectionTitleField(targetUid);
+      try {
+        const documentsApi = (strapi as unknown as { documents?: (uid: string) => any })?.documents;
+        if (typeof documentsApi === 'function') {
+          const filters =
+            titleField === 'documentId'
+              ? { documentId: { $containsi: query } }
+              : {
+                  $or: [
+                    { [titleField]: { $containsi: query } },
+                    { documentId: { $containsi: query } },
+                  ],
+                };
+
+          const docs = await documentsApi(targetUid).findMany({
+            filters,
+            limit: 10,
+            ...(locale ? { locale } : {}),
+          });
+
+          if (Array.isArray(docs) && docs.length > 0) {
+            resultsByCollection[targetUid] = docs.map((doc: Record<string, any>) => ({
+              documentId: String(doc.documentId ?? doc.id ?? ''),
+              id: doc.id,
+              label: String(doc[titleField] || doc.documentId || doc.id || ''),
+              collectionName: targetUid,
+              status: doc.publishedAt ? 'published' : 'draft',
+              locale: doc.locale,
+            }));
+          }
+        }
+      } catch (err) {
+        strapi?.log?.warn?.(
+          `[tiptap-editor] Search failed on ${targetUid}: ${
+            err instanceof Error ? err.message : String(err)
+          }`
+        );
+      }
+    }
+
+    return resultsByCollection;
+  },
+
+  /**
+   * Resolves a single document by collection UID and documentId.
+   */
+  async getDocument(
+    collectionName: string,
+    documentId: string,
+    locale?: string
+  ): Promise<SearchDocumentHit | null> {
+    if (!isSafeCollectionUid(collectionName)) {
+      throw new Error('Invalid collectionName format');
+    }
+    const cleanDocId = (documentId ?? '').trim();
+    if (!cleanDocId || !/^[a-zA-Z0-9_-]+$/.test(cleanDocId)) {
+      throw new Error('Invalid documentId format');
+    }
+
+    const titleField = this.identifyCollectionTitleField(collectionName);
+    const documentsApi = (strapi as unknown as { documents?: (uid: string) => any })?.documents;
+    if (typeof documentsApi !== 'function') {
+      return null;
+    }
+
+    const doc = await documentsApi(collectionName).findOne({
+      documentId: cleanDocId,
+      ...(locale ? { locale } : {}),
+    });
+
+    if (!doc) return null;
+
+    return {
+      documentId: String(doc.documentId ?? cleanDocId),
+      id: doc.id,
+      label: String(doc[titleField] || doc.documentId || cleanDocId),
+      collectionName,
+      status: doc.publishedAt ? 'published' : 'draft',
+      locale: doc.locale,
+    };
+  },
+});
+
+export default createSearchService;

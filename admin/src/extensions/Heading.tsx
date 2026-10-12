@@ -1,9 +1,13 @@
 import { Editor } from '@tiptap/core';
+import { Plugin, PluginKey } from '@tiptap/pm/state';
 import { useEditorState } from '@tiptap/react';
 import Heading from '@tiptap/extension-heading';
 import { SingleSelect, SingleSelectOption } from '@strapi/design-system';
 import { useIntl } from 'react-intl';
 
+/**
+ * Generates a URL-safe slug identifier from heading text for anchor links and Table of Contents.
+ */
 export function slugifyHeadingText(text: string): string {
   return text
     .toLowerCase()
@@ -13,6 +17,8 @@ export function slugifyHeadingText(text: string): string {
     .replace(/-+/g, '-')
     .replace(/^-|-$/g, '');
 }
+
+const headingIdPluginKey = new PluginKey('headingAutoId');
 
 // Base extension class (un-configured) — used by buildExtensions for dynamic levels
 export const BaseHeadingWithSEOTag = Heading.extend({
@@ -28,11 +34,42 @@ export const BaseHeadingWithSEOTag = Heading.extend({
       },
     };
   },
+
+  addProseMirrorPlugins() {
+    const parentPlugins = (this as any).parent?.() ?? [];
+    return [
+      ...parentPlugins,
+      new Plugin({
+        key: headingIdPluginKey,
+        appendTransaction(transactions, _oldState, newState) {
+          if (!transactions.some((tr) => tr.docChanged)) return null;
+          const tr = newState.tr;
+          let modified = false;
+
+          newState.doc.descendants((node, pos) => {
+            if (node.type.name === 'heading') {
+              const slug = slugifyHeadingText(node.textContent);
+              const nextId = slug || null;
+              if (node.attrs.id !== nextId) {
+                tr.setNodeMarkup(pos, undefined, { ...node.attrs, id: nextId });
+                modified = true;
+              }
+            }
+          });
+
+          return modified ? tr : null;
+        },
+      }),
+    ];
+  },
 });
 
 // Pre-configured instance with all heading levels
 export const HeadingWithSEOTag = BaseHeadingWithSEOTag.configure({ levels: [1, 2, 3, 4, 5, 6] });
 
+/**
+ * React hook providing the heading style and SEO tag selector dropdowns for the toolbar.
+ */
 export function useHeading(
   editor: Editor | null,
   props: { disabled?: boolean; levels?: number[] } = { disabled: false }

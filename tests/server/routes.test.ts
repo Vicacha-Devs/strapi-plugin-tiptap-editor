@@ -46,4 +46,20 @@ describe('theme routes (THEME-03)', () => {
     expect(themeRoute).toBeDefined();
     expect(themeRoute.handler).toBe('theme.find');
   });
+
+  it('enforces admin::hasPermissions policy on PUT /settings', () => {
+    const routeList = (routes as any)['settings-routes'].routes as any[];
+    const putSettingsRoute = routeList.find(
+      (r) => r.method === 'PUT' && r.path === '/settings'
+    );
+    expect(putSettingsRoute).toBeDefined();
+    expect(putSettingsRoute.config.policies).toEqual([
+      {
+        name: 'admin::hasPermissions',
+        config: {
+          actions: ['plugin::tiptap-editor.settings.update'],
+        },
+      },
+    ]);
+  });
 });

@@ -1,5 +1,6 @@
 import React from 'react';
 import { Node, mergeAttributes, type Editor } from '@tiptap/core';
+import { Plugin, PluginKey } from '@tiptap/pm/state';
 import {
   NodeViewContent,
   NodeViewWrapper,
@@ -10,6 +11,7 @@ import {
 import { Check } from '@strapi/icons';
 import { useIntl } from 'react-intl';
 import { ToolbarButton } from '../components/ToolbarButton';
+import { slugifyHeadingText } from './Heading';
 
 // ─── 1. Accordion / Collapsible (<details> + <summary>) ─────────────────────
 
@@ -166,8 +168,13 @@ export const LayoutContainerNode = Node.create({
 
 // ─── 4. Interactive Task List / Checklist ───────────────────────────────────
 
-export function TaskItemNodeView({ node, updateAttributes }: NodeViewProps) {
+/**
+ * Interactive checklist item node view with accessible checkbox control.
+ */
+export function TaskItemNodeView({ node, updateAttributes, editor }: NodeViewProps) {
+  const { formatMessage } = useIntl();
   const checked = Boolean(node.attrs.checked);
+  const isEditable = editor?.isEditable ?? true;
   return (
     <NodeViewWrapper
       as="li"
@@ -185,8 +192,12 @@ export function TaskItemNodeView({ node, updateAttributes }: NodeViewProps) {
         <input
           type="checkbox"
           checked={checked}
+          disabled={!isEditable}
           onChange={(e) => updateAttributes({ checked: e.target.checked })}
-          aria-label="Task item checkbox"
+          aria-label={formatMessage({
+            id: 'tiptap-editor.taskList.checkboxAria',
+            defaultMessage: 'Task item checkbox',
+          })}
         />
       </label>
       <NodeViewContent style={{ flexGrow: 1 }} />
@@ -267,28 +278,48 @@ export const PageBreakNode = Node.create({
   },
 });
 
+export interface TocHeadingEntry {
+  level: number;
+  text: string;
+  id: string;
+}
+
+/**
+ * Live Table of Contents node view that subscribes to editor document updates via `useEditorState`.
+ */
 export function TableOfContentsNodeView({ editor }: NodeViewProps) {
-  const headings: Array<{ level: number; text: string; id: string }> = [];
-  if (editor?.state?.doc) {
-    editor.state.doc.descendants((n) => {
-      if (n.type.name === 'heading') {
-        const level = Number(n.attrs.level) || 1;
-        const text = n.textContent || 'Untitled heading';
-        const id =
-          n.attrs.id ||
-          text
-            .toLowerCase()
-            .replace(/[^a-z0-9]+/g, '-')
-            .replace(/^-|-$/g, '');
-        headings.push({ level, text, id });
-      }
-    });
-  }
+  const { formatMessage } = useIntl();
+  const untitledLabel = formatMessage({
+    id: 'tiptap-editor.toc.untitled',
+    defaultMessage: 'Untitled heading',
+  });
+
+  const headings =
+    useEditorState({
+      editor,
+      selector: ({ editor: ed }) => {
+        const out: TocHeadingEntry[] = [];
+        ed?.state?.doc?.descendants((n) => {
+          if (n.type.name === 'heading') {
+            const text = n.textContent || untitledLabel;
+            out.push({
+              level: Number(n.attrs.level) || 1,
+              text,
+              id: (n.attrs.id as string) || slugifyHeadingText(text),
+            });
+          }
+        });
+        return out;
+      },
+    }) ?? [];
 
   return (
     <NodeViewWrapper data-type="table-of-contents">
       <nav
-        aria-label="Table of Contents"
+        aria-label={formatMessage({
+          id: 'tiptap-editor.toc.ariaLabel',
+          defaultMessage: 'Table of Contents',
+        })}
         contentEditable={false}
         style={{
           padding: '12px 16px',
@@ -299,11 +330,18 @@ export function TableOfContentsNodeView({ editor }: NodeViewProps) {
         }}
       >
         <div style={{ fontWeight: 700, fontSize: '1.3rem', marginBottom: '6px', color: '#32324d' }}>
-          📑 Table of Contents
+          📑{' '}
+          {formatMessage({
+            id: 'tiptap-editor.toc.title',
+            defaultMessage: 'Table of Contents',
+          })}
         </div>
         {headings.length === 0 ? (
           <div style={{ fontSize: '1.2rem', color: '#666687', fontStyle: 'italic' }}>
-            Add headings (H1–H6) to populate the Table of Contents automatically.
+            {formatMessage({
+              id: 'tiptap-editor.toc.emptyHint',
+              defaultMessage: 'Add headings (H1–H6) to populate the Table of Contents automatically.',
+            })}
           </div>
         ) : (
           <ul style={{ margin: 0, paddingLeft: '16px', listStyle: 'none' }}>
@@ -328,31 +366,123 @@ export function TableOfContentsNodeView({ editor }: NodeViewProps) {
   );
 }
 
+const tocSyncPluginKey = new PluginKey('tableOfContentsSync');
+
 export const TableOfContentsNode = Node.create({
   name: 'tableOfContents',
   group: 'block',
   atom: true,
 
+  addAttributes() {
+    return {
+      headings: {
+        default: [],
+        parseHTML: (el: HTMLElement) => {
+          const items: TocHeadingEntry[] = [];
+          el.querySelectorAll('li').forEach((li) => {
+            const link = li.querySelector('a');
+            const text = (link?.textContent || li.textContent || '').trim();
+            const href = link?.getAttribute('href') || '';
+            const id = href.startsWith('#') ? href.slice(1) : slugifyHeadingText(text);
+            const level = Number(li.getAttribute('data-level')) || 1;
+            if (text) {
+              items.push({ level, text, id });
+            }
+          });
+          return items;
+        },
+        renderHTML: () => ({}),
+      },
+    };
+  },
+
   parseHTML() {
     return [{ tag: 'nav[data-type="table-of-contents"]' }];
   },
 
-  renderHTML({ HTMLAttributes }) {
+  renderHTML({ node, HTMLAttributes }) {
+    const rawHeadings = Array.isArray(node?.attrs?.headings)
+      ? (node.attrs.headings as TocHeadingEntry[])
+      : [];
+    const listChildren = rawHeadings
+      .filter((h) => h && typeof h.text === 'string' && h.text.trim().length > 0)
+      .map((h) => {
+        const id = h.id || slugifyHeadingText(h.text);
+        return [
+          'li',
+          { 'data-level': String(Number(h.level) || 1) },
+          ['a', { href: `#${id}` }, h.text],
+        ];
+      });
+
     return [
       'nav',
       mergeAttributes(HTMLAttributes, {
         'data-type': 'table-of-contents',
         'aria-label': 'Table of Contents',
       }),
-      'Table of Contents',
+      listChildren.length > 0
+        ? ['ul', { class: 'tiptap-toc-list' }, ...listChildren]
+        : 'Table of Contents',
     ];
   },
 
   addNodeView() {
     return ReactNodeViewRenderer(TableOfContentsNodeView);
   },
+
+  addProseMirrorPlugins() {
+    return [
+      new Plugin({
+        key: tocSyncPluginKey,
+        appendTransaction(transactions, _oldState, newState) {
+          if (!transactions.some((tr) => tr.docChanged)) return null;
+
+          const currentHeadings: TocHeadingEntry[] = [];
+          const tocPositions: Array<{ pos: number; attrs: Record<string, unknown> }> = [];
+
+          newState.doc.descendants((node, pos) => {
+            if (node.type.name === 'heading') {
+              const text = node.textContent || 'Untitled heading';
+              const id = (node.attrs.id as string) || slugifyHeadingText(text);
+              currentHeadings.push({
+                level: Number(node.attrs.level) || 1,
+                text,
+                id,
+              });
+            } else if (node.type.name === 'tableOfContents') {
+              tocPositions.push({ pos, attrs: node.attrs });
+            }
+          });
+
+          if (tocPositions.length === 0) return null;
+
+          const nextSignature = JSON.stringify(currentHeadings);
+          const tr = newState.tr;
+          let modified = false;
+
+          for (const toc of tocPositions) {
+            const prevSignature = JSON.stringify(toc.attrs.headings ?? []);
+            if (prevSignature !== nextSignature) {
+              tr.setNodeMarkup(toc.pos, undefined, {
+                ...toc.attrs,
+                headings: currentHeadings,
+              });
+              modified = true;
+            }
+          }
+
+          return modified ? tr : null;
+        },
+      }),
+    ];
+  },
 });
 
+/**
+ * React hook providing toolbar buttons for inserting structured content blocks
+ * (accordion, multi-column grid, checklist, conversation history, page break, and TOC).
+ */
 export function useStructuredBlocks(
   editor: Editor | null,
   props: { disabled?: boolean } = { disabled: false }
@@ -381,14 +511,30 @@ export function useStructuredBlocks(
         content: [
           {
             type: 'detailsSummary',
-            content: [{ type: 'text', text: 'Accordion Summary' }],
+            content: [
+              {
+                type: 'text',
+                text: formatMessage({
+                  id: 'tiptap-editor.structured.accordionSummaryDefault',
+                  defaultMessage: 'Accordion Summary',
+                }),
+              },
+            ],
           },
           {
             type: 'detailsContent',
             content: [
               {
                 type: 'paragraph',
-                content: [{ type: 'text', text: 'Collapsible content goes here...' }],
+                content: [
+                  {
+                    type: 'text',
+                    text: formatMessage({
+                      id: 'tiptap-editor.structured.accordionContentDefault',
+                      defaultMessage: 'Collapsible content goes here...',
+                    }),
+                  },
+                ],
               },
             ],
           },
@@ -410,7 +556,18 @@ export function useStructuredBlocks(
           content: [
             {
               type: 'paragraph',
-              content: [{ type: 'text', text: `Column ${idx + 1}` }],
+              content: [
+                {
+                  type: 'text',
+                  text: formatMessage(
+                    {
+                      id: 'tiptap-editor.structured.columnDefault',
+                      defaultMessage: 'Column {index}',
+                    },
+                    { index: idx + 1 }
+                  ),
+                },
+              ],
             },
           ],
         })),
@@ -428,7 +585,20 @@ export function useStructuredBlocks(
           {
             type: 'taskItem',
             attrs: { checked: false },
-            content: [{ type: 'paragraph', content: [{ type: 'text', text: 'To-do item' }] }],
+            content: [
+              {
+                type: 'paragraph',
+                content: [
+                  {
+                    type: 'text',
+                    text: formatMessage({
+                      id: 'tiptap-editor.structured.taskItemDefault',
+                      defaultMessage: 'To-do item',
+                    }),
+                  },
+                ],
+              },
+            ],
           },
         ],
       })
@@ -444,7 +614,15 @@ export function useStructuredBlocks(
         content: [
           {
             type: 'paragraph',
-            content: [{ type: 'text', text: 'Previous message in thread...' }],
+            content: [
+              {
+                type: 'text',
+                text: formatMessage({
+                  id: 'tiptap-editor.structured.conversationDefault',
+                  defaultMessage: 'Previous message in thread...',
+                }),
+              },
+            ],
           },
         ],
       })
@@ -465,6 +643,7 @@ export function useStructuredBlocks(
         onClick={insertAccordion}
         icon={<span style={{ fontSize: '1.1rem', fontWeight: 700 }}>▸ Details</span>}
         active={editorState?.isAccordion ?? false}
+        toggle
         disabled={isDisabled}
         tooltip={formatMessage({
           id: 'tiptap-editor.toolbar.accordion',
@@ -477,6 +656,7 @@ export function useStructuredBlocks(
         onClick={() => insertColumns('1:1')}
         icon={<span style={{ fontSize: '1.1rem', fontWeight: 700 }}>▥ 2-Col</span>}
         active={editorState?.isColumns ?? false}
+        toggle
         disabled={isDisabled}
         tooltip={formatMessage({
           id: 'tiptap-editor.toolbar.columns',
@@ -489,6 +669,7 @@ export function useStructuredBlocks(
         onClick={insertTaskList}
         icon={<Check />}
         active={editorState?.isTaskList ?? false}
+        toggle
         disabled={isDisabled}
         tooltip={formatMessage({
           id: 'tiptap-editor.toolbar.taskList',
@@ -501,6 +682,7 @@ export function useStructuredBlocks(
         onClick={insertConversationHistory}
         icon={<span style={{ fontSize: '1.1rem', fontWeight: 700 }}>💬 Thread</span>}
         active={editorState?.isConversation ?? false}
+        toggle
         disabled={isDisabled}
         tooltip={formatMessage({
           id: 'tiptap-editor.toolbar.conversationHistory',

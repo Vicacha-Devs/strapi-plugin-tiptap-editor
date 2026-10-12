@@ -10,12 +10,37 @@ export interface SearchDocumentHit {
   locale?: string;
 }
 
+export interface AdminUserAbility {
+  cannot?: (action: string, subject?: string) => boolean;
+  can?: (action: string, subject?: string) => boolean;
+}
+
 const TITLE_CANDIDATES = ['title', 'name', 'label', 'headline', 'subject', 'slug'];
 const STRING_TYPES = new Set(['string', 'text', 'uid', 'email']);
 
+/**
+ * Validates that a collection UID follows Strapi's `api::name.name` or `plugin::name.name` pattern.
+ */
 const isSafeCollectionUid = (uid: string): boolean =>
   /^(api::[a-zA-Z0-9_-]+\.[a-zA-Z0-9_-]+|plugin::[a-zA-Z0-9_-]+\.[a-zA-Z0-9_-]+)$/.test(uid);
 
+/**
+ * Checks whether the current admin user ability permits reading from `collectionUid`.
+ */
+function canReadCollection(collectionUid: string, userAbility?: AdminUserAbility): boolean {
+  if (!userAbility) return true;
+  if (typeof userAbility.cannot === 'function') {
+    return !userAbility.cannot('plugin::content-manager.explorer.read', collectionUid);
+  }
+  if (typeof userAbility.can === 'function') {
+    return Boolean(userAbility.can('plugin::content-manager.explorer.read', collectionUid));
+  }
+  return true;
+}
+
+/**
+ * Creates the internal Strapi document search and resolution service for the Linker extension.
+ */
 const createSearchService = ({ strapi }: { strapi: Core.Strapi }) => ({
   /**
    * Identifies the best human-readable label field for a given Strapi collection type UID.
@@ -52,7 +77,9 @@ const createSearchService = ({ strapi }: { strapi: Core.Strapi }) => ({
   /**
    * Returns all collection type UIDs configured in 'links.links' or falls back to api::* collection types.
    */
-  getLinkableCollections(): Array<{ attributeName: string; targetUid: string }> {
+  getLinkableCollections(
+    userAbility?: AdminUserAbility
+  ): Array<{ attributeName: string; targetUid: string }> {
     const components = (strapi as unknown as { components?: Record<string, any> })?.components;
     const linksComp = components?.[LINKS_COMPONENT_UID];
     const results: Array<{ attributeName: string; targetUid: string }> = [];
@@ -64,7 +91,8 @@ const createSearchService = ({ strapi }: { strapi: Core.Strapi }) => ({
         if (
           attrDef?.type === 'relation' &&
           typeof attrDef.target === 'string' &&
-          isSafeCollectionUid(attrDef.target)
+          isSafeCollectionUid(attrDef.target) &&
+          canReadCollection(attrDef.target, userAbility)
         ) {
           results.push({ attributeName: attrName, targetUid: attrDef.target });
         }
@@ -75,11 +103,15 @@ const createSearchService = ({ strapi }: { strapi: Core.Strapi }) => ({
       return results;
     }
 
-    // Fallback: discover api::* collection types
+    // Fallback: discover api::* collection types permitted by userAbility
     const contentTypes = (strapi as unknown as { contentTypes?: Record<string, any> })?.contentTypes;
     if (contentTypes && typeof contentTypes === 'object') {
       for (const [uid, schema] of Object.entries(contentTypes)) {
-        if (uid.startsWith('api::') && (schema?.kind === 'collectionType' || !schema?.kind)) {
+        if (
+          uid.startsWith('api::') &&
+          (schema?.kind === 'collectionType' || !schema?.kind) &&
+          canReadCollection(uid, userAbility)
+        ) {
           const shortName = schema?.info?.pluralName || uid.split('.')[1] || uid;
           results.push({ attributeName: shortName, targetUid: uid });
         }
@@ -90,19 +122,23 @@ const createSearchService = ({ strapi }: { strapi: Core.Strapi }) => ({
   },
 
   /**
-   * Searches across all linkable collections for documents matching query and optional locale.
+   * Searches across all linkable collections permitted by `userAbility` for documents matching query and optional locale.
    */
   async search(
     rawQuery: string,
-    locale?: string
+    locale?: string,
+    userAbility?: AdminUserAbility
   ): Promise<Record<string, SearchDocumentHit[]>> {
     const query = (rawQuery ?? '').trim();
     if (!query) return {};
 
-    const collections = this.getLinkableCollections();
+    const collections = this.getLinkableCollections(userAbility);
     const resultsByCollection: Record<string, SearchDocumentHit[]> = {};
 
     for (const { targetUid } of collections) {
+      if (!canReadCollection(targetUid, userAbility)) {
+        continue;
+      }
       const titleField = this.identifyCollectionTitleField(targetUid);
       try {
         const documentsApi = (strapi as unknown as { documents?: (uid: string) => any })?.documents;
@@ -147,12 +183,13 @@ const createSearchService = ({ strapi }: { strapi: Core.Strapi }) => ({
   },
 
   /**
-   * Resolves a single document by collection UID and documentId.
+   * Resolves a single document by collection UID and documentId after verifying read permission.
    */
   async getDocument(
     collectionName: string,
     documentId: string,
-    locale?: string
+    locale?: string,
+    userAbility?: AdminUserAbility
   ): Promise<SearchDocumentHit | null> {
     if (!isSafeCollectionUid(collectionName)) {
       throw new Error('Invalid collectionName format');
@@ -160,6 +197,12 @@ const createSearchService = ({ strapi }: { strapi: Core.Strapi }) => ({
     const cleanDocId = (documentId ?? '').trim();
     if (!cleanDocId || !/^[a-zA-Z0-9_-]+$/.test(cleanDocId)) {
       throw new Error('Invalid documentId format');
+    }
+
+    if (!canReadCollection(collectionName, userAbility)) {
+      const forbiddenError = new Error('Forbidden') as Error & { status?: number };
+      forbiddenError.status = 403;
+      throw forbiddenError;
     }
 
     const titleField = this.identifyCollectionTitleField(collectionName);

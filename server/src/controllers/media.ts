@@ -8,7 +8,13 @@ interface MediaService {
   uploadByUrl(url: string, alt?: string): Promise<UploadedRemoteAsset>;
 }
 
+/**
+ * Controller for SSRF-safe external link previews and remote media imports.
+ */
 const createMediaController = ({ strapi }: { strapi: Core.Strapi }) => ({
+  /**
+   * Handles `GET /link-preview?url=...` and returns OpenGraph metadata.
+   */
   async linkPreview(ctx: Context): Promise<void> {
     const queryObj = (ctx.query || {}) as Record<string, unknown>;
     const url = typeof queryObj.url === 'string' ? queryObj.url.trim() : '';
@@ -31,6 +37,9 @@ const createMediaController = ({ strapi }: { strapi: Core.Strapi }) => ({
     }
   },
 
+  /**
+   * Handles `POST /upload-by-url` and imports or registers a remote media asset.
+   */
   async uploadByUrl(ctx: Context): Promise<void> {
     const body = ((ctx.request as { body?: Record<string, unknown> })?.body || {}) as Record<
       string,

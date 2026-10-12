@@ -19,6 +19,9 @@ type TiptapInputProps = InputProps & {
   footer?: React.ReactNode;
 };
 
+/**
+ * Base layout wrapper for the Tiptap rich text editor input, toolbar, content area, and footer.
+ */
 const BaseTiptapInput = forwardRef<HTMLDivElement, TiptapInputProps>(
   (
     {
@@ -79,8 +82,8 @@ const BaseTiptapInput = forwardRef<HTMLDivElement, TiptapInputProps>(
               })}
               ref={toolbarRef as any}
               onKeyDown={onToolbarKeyDown as any}
-              paddingLeft={2}
-              paddingRight={2}
+              paddingLeft={1}
+              paddingRight={1}
               paddingBottom={2}
             >
               <Flex gap={1} wrap="wrap">

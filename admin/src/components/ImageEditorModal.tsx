@@ -1,45 +1,140 @@
-import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { Button, TextInput } from '@strapi/design-system';
+import React, { useEffect, useRef, useState } from 'react';
+import {
+  Box,
+  Button,
+  Dialog,
+  Field,
+  Flex,
+  SingleSelect,
+  SingleSelectOption,
+  TextInput,
+  Typography,
+} from '@strapi/design-system';
 import { useIntl } from 'react-intl';
+import { getPluginId } from '../utils/getTranslation';
+import { uploadFileToStrapi } from '../utils/strapiApp';
 
-export interface ImageEditorResult {
+export type AspectRatioPreset = 'free' | '16:9' | '4:3' | '1:1';
+
+export interface ImageEditorSavePayload {
   src: string;
   alt: string;
   caption: string;
-  width?: number | null;
-  height?: number | null;
+  width?: number;
+  height?: number;
+  assetId?: number | null;
+  documentId?: string | null;
 }
 
-interface ImageEditorModalProps {
+export interface ImageEditorModalProps {
   open: boolean;
   src: string;
-  alt: string;
-  caption?: string;
+  initialAlt?: string;
+  initialCaption?: string;
   onClose: () => void;
-  onSave: (result: ImageEditorResult) => void;
+  onSave: (payload: ImageEditorSavePayload) => void;
 }
 
-type AspectPreset = 'free' | '16:9' | '4:3' | '1:1';
+const ASPECT_RATIO_VALUES: Record<AspectRatioPreset, number | null> = {
+  free: null,
+  '16:9': 16 / 9,
+  '4:3': 4 / 3,
+  '1:1': 1,
+};
 
-export function ImageEditorModal({
+/**
+ * Renders the transformations onto a canvas (either preview or full-resolution export).
+ */
+function renderTransformedImageToCanvas(
+  canvas: HTMLCanvasElement,
+  img: HTMLImageElement,
+  options: {
+    rotation: number;
+    flipH: boolean;
+    flipV: boolean;
+    zoom: number;
+    aspectPreset: AspectRatioPreset;
+    maxDimension?: number;
+  }
+): { width: number; height: number } {
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return { width: 0, height: 0 };
+
+  const isRotated90 = Math.abs(options.rotation % 180) === 90;
+  const baseW = isRotated90 ? img.naturalHeight || 400 : img.naturalWidth || 600;
+  const baseH = isRotated90 ? img.naturalWidth || 600 : img.naturalHeight || 400;
+
+  const ratio = ASPECT_RATIO_VALUES[options.aspectPreset];
+  let targetW = baseW;
+  let targetH = baseH;
+
+  if (ratio) {
+    if (baseW / baseH > ratio) {
+      targetW = Math.round(baseH * ratio);
+    } else {
+      targetH = Math.round(baseW / ratio);
+    }
+  }
+
+  const scale = options.maxDimension
+    ? Math.min(options.maxDimension / Math.max(targetW, targetH, 1), 1)
+    : 1;
+  canvas.width = Math.max(Math.round(targetW * scale), 1);
+  canvas.height = Math.max(Math.round(targetH * scale), 1);
+
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.save();
+  ctx.translate(canvas.width / 2, canvas.height / 2);
+  ctx.rotate((options.rotation * Math.PI) / 180);
+  ctx.scale(options.flipH ? -options.zoom : options.zoom, options.flipV ? -options.zoom : options.zoom);
+
+  const drawW = (img.naturalWidth || 600) * scale;
+  const drawH = (img.naturalHeight || 400) * scale;
+  ctx.drawImage(img, -drawW / 2, -drawH / 2, drawW, drawH);
+  ctx.restore();
+
+  return { width: Math.round(targetW), height: Math.round(targetH) };
+}
+
+/**
+ * Converts a canvas to a PNG Blob.
+ */
+function canvasToBlob(canvas: HTMLCanvasElement): Promise<Blob | null> {
+  return new Promise((resolve) => {
+    if (typeof canvas.toBlob === 'function') {
+      canvas.toBlob((blob) => resolve(blob), 'image/png', 0.92);
+    } else {
+      resolve(null);
+    }
+  });
+}
+
+/**
+ * In-editor HTML5 Canvas Image Crop/Rotate/Flip/Zoom modal using Strapi Design System Dialog.
+ * Exports at full resolution and uploads the edited image to the Strapi Media Library (`/upload`).
+ */
+export const ImageEditorModal: React.FC<ImageEditorModalProps> = ({
   open,
   src,
-  alt: initialAlt,
-  caption: initialCaption = '',
+  initialAlt = '',
+  initialCaption = '',
   onClose,
   onSave,
-}: ImageEditorModalProps) {
+}) => {
   const { formatMessage } = useIntl();
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const imageObjRef = useRef<HTMLImageElement | null>(null);
+
   const [rotation, setRotation] = useState<number>(0);
   const [flipH, setFlipH] = useState<boolean>(false);
   const [flipV, setFlipV] = useState<boolean>(false);
   const [zoom, setZoom] = useState<number>(1);
-  const [aspectPreset, setAspectPreset] = useState<AspectPreset>('free');
-  const [altText, setAltText] = useState<string>(initialAlt || '');
-  const [captionText, setCaptionText] = useState<string>(initialCaption || '');
-  const [imgLoaded, setImgLoaded] = useState<boolean>(false);
-  const imageElementRef = useRef<HTMLImageElement | null>(null);
+  const [aspectPreset, setAspectPreset] = useState<AspectRatioPreset>('free');
+  const [alt, setAlt] = useState<string>(initialAlt);
+  const [caption, setCaption] = useState<string>(initialCaption);
+  const [canvasReady, setCanvasReady] = useState<boolean>(false);
+  const [canvasError, setCanvasError] = useState<string | null>(null);
+  const [isUploading, setIsUploading] = useState<boolean>(false);
 
   useEffect(() => {
     if (!open) return;
@@ -48,259 +143,304 @@ export function ImageEditorModal({
     setFlipV(false);
     setZoom(1);
     setAspectPreset('free');
-    setAltText(initialAlt || '');
-    setCaptionText(initialCaption || '');
-    setImgLoaded(false);
+    setAlt(initialAlt);
+    setCaption(initialCaption);
+    setCanvasError(null);
+    setCanvasReady(false);
 
-    if (typeof window !== 'undefined' && src) {
-      const img = new window.Image();
-      img.crossOrigin = 'anonymous';
-      img.onload = () => {
-        imageElementRef.current = img;
-        setImgLoaded(true);
-      };
-      img.onerror = () => {
-        imageElementRef.current = null;
-        setImgLoaded(false);
-      };
-      img.src = src;
-    }
-  }, [open, src, initialAlt, initialCaption]);
-
-  const drawCanvas = useCallback(() => {
-    const canvas = canvasRef.current;
-    const img = imageElementRef.current;
-    if (!canvas || !img || !imgLoaded) return;
-
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-
-    const isRotated90 = Math.abs(rotation % 180) === 90;
-    const rawW = isRotated90 ? img.naturalHeight : img.naturalWidth;
-    const rawH = isRotated90 ? img.naturalWidth : img.naturalHeight;
-
-    let targetW = rawW;
-    let targetH = rawH;
-
-    if (aspectPreset === '16:9') {
-      targetH = Math.round((targetW * 9) / 16);
-    } else if (aspectPreset === '4:3') {
-      targetH = Math.round((targetW * 3) / 4);
-    } else if (aspectPreset === '1:1') {
-      const side = Math.min(targetW, targetH);
-      targetW = side;
-      targetH = side;
-    }
-
-    const maxPreview = 420;
-    const scale = Math.min(1, maxPreview / Math.max(targetW || 1, targetH || 1));
-    canvas.width = Math.max(1, Math.round(targetW * scale));
-    canvas.height = Math.max(1, Math.round(targetH * scale));
-
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    ctx.save();
-    ctx.translate(canvas.width / 2, canvas.height / 2);
-    ctx.rotate((rotation * Math.PI) / 180);
-    ctx.scale((flipH ? -1 : 1) * zoom, (flipV ? -1 : 1) * zoom);
-    const drawW = img.naturalWidth * scale;
-    const drawH = img.naturalHeight * scale;
-    ctx.drawImage(img, -drawW / 2, -drawH / 2, drawW, drawH);
-    ctx.restore();
-  }, [rotation, flipH, flipV, zoom, aspectPreset, imgLoaded]);
+    const img = new window.Image();
+    img.crossOrigin = 'anonymous';
+    img.onload = () => {
+      imageObjRef.current = img;
+      setCanvasReady(true);
+    };
+    img.onerror = () => {
+      setCanvasError(
+        formatMessage({
+          id: `${getPluginId()}.imageEditor.corsWarning`,
+          defaultMessage:
+            'Unable to load image into canvas (CORS policy). You can still edit metadata.',
+        })
+      );
+    };
+    img.src = src;
+  }, [open, src, initialAlt, initialCaption, formatMessage]);
 
   useEffect(() => {
-    drawCanvas();
-  }, [drawCanvas]);
+    if (!open || !canvasReady || !canvasRef.current || !imageObjRef.current) return;
+    renderTransformedImageToCanvas(canvasRef.current, imageObjRef.current, {
+      rotation,
+      flipH,
+      flipV,
+      zoom,
+      aspectPreset,
+      maxDimension: 480,
+    });
+  }, [open, canvasReady, rotation, flipH, flipV, zoom, aspectPreset]);
 
-  if (!open) return null;
-
-  const hasTransform =
+  const hasTransformations =
     rotation !== 0 || flipH || flipV || zoom !== 1 || aspectPreset !== 'free';
 
-  const handleApply = () => {
-    let finalSrc = src;
-    let finalW: number | undefined;
-    let finalH: number | undefined;
-
-    if (hasTransform && canvasRef.current && imgLoaded) {
+  const handleApply = async () => {
+    if (canvasReady && imageObjRef.current && hasTransformations) {
       try {
-        finalSrc = canvasRef.current.toDataURL('image/png');
-        finalW = canvasRef.current.width;
-        finalH = canvasRef.current.height;
+        setIsUploading(true);
+        const exportCanvas = document.createElement('canvas');
+        const fullDims = renderTransformedImageToCanvas(exportCanvas, imageObjRef.current, {
+          rotation,
+          flipH,
+          flipV,
+          zoom,
+          aspectPreset,
+        });
+
+        const blob = await canvasToBlob(exportCanvas);
+        if (blob && typeof FormData !== 'undefined') {
+          try {
+            const formData = new FormData();
+            formData.append('files', blob, `edited-image-${Date.now()}.png`);
+            const uploadedFile = await uploadFileToStrapi(formData);
+            if (uploadedFile?.url) {
+              onSave({
+                src: uploadedFile.url,
+                alt,
+                caption,
+                width: uploadedFile.width || fullDims.width,
+                height: uploadedFile.height || fullDims.height,
+                assetId: typeof uploadedFile.id === 'number' ? uploadedFile.id : undefined,
+                documentId:
+                  typeof uploadedFile.documentId === 'string' ? uploadedFile.documentId : undefined,
+              });
+              onClose();
+              return;
+            }
+          } catch {
+            // Fall back to data URL if /upload is unavailable in offline/test environment
+          }
+        }
+
+        const dataUrl = exportCanvas.toDataURL('image/png', 0.92);
+        onSave({
+          src: dataUrl,
+          alt,
+          caption,
+          width: fullDims.width,
+          height: fullDims.height,
+        });
+        onClose();
+        return;
       } catch {
-        // Cross-origin canvas taint fallback: preserve original src
-        finalSrc = src;
+        // Fallback if canvas is tainted by cross-origin image
+      } finally {
+        setIsUploading(false);
       }
     }
 
-    onSave({
-      src: finalSrc,
-      alt: altText.trim(),
-      caption: captionText.trim(),
-      ...(finalW ? { width: finalW } : {}),
-      ...(finalH ? { height: finalH } : {}),
-    });
+    onSave({ src, alt, caption });
     onClose();
   };
 
   return (
-    <div
-      role="dialog"
-      aria-modal="true"
-      aria-label={formatMessage({
-        id: 'tiptap-editor.imageEditor.title',
-        defaultMessage: 'Image Editor (Crop, Rotate & Caption)',
-      })}
-      style={{
-        position: 'fixed',
-        inset: 0,
-        zIndex: 1050,
-        backgroundColor: 'rgba(33, 33, 52, 0.65)',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        padding: '16px',
+    <Dialog.Root
+      open={open}
+      onOpenChange={(isOpen: boolean) => {
+        if (!isOpen) onClose();
       }}
     >
-      <div
-        style={{
-          backgroundColor: '#fff',
-          borderRadius: '8px',
-          maxWidth: '580px',
-          width: '100%',
-          padding: '20px',
-          boxShadow: '0 10px 30px rgba(0,0,0,0.25)',
-        }}
-      >
-        <h3 style={{ margin: '0 0 12px', fontSize: '1.6rem', fontWeight: 600 }}>
+      <Dialog.Content style={{ maxWidth: '680px', width: '100%' }}>
+        <Dialog.Header>
           {formatMessage({
-            id: 'tiptap-editor.imageEditor.title',
-            defaultMessage: 'Image Editor (Crop, Rotate & Caption)',
+            id: `${getPluginId()}.imageEditor.title`,
+            defaultMessage: 'Image Studio — Crop, Rotate & Metadata',
           })}
-        </h3>
-
-        <div
-          style={{
-            background: '#f6f6f9',
-            borderRadius: '6px',
-            padding: '12px',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            minHeight: '220px',
-            marginBottom: '12px',
-          }}
-        >
-          {imgLoaded ? (
-            <canvas
-              ref={canvasRef}
-              style={{ maxWidth: '100%', maxHeight: '300px', borderRadius: '4px' }}
-            />
-          ) : (
-            <img
-              src={src}
-              alt={altText}
-              style={{ maxWidth: '100%', maxHeight: '260px', borderRadius: '4px' }}
-            />
-          )}
-        </div>
-
-        <div
-          style={{
-            display: 'flex',
-            flexWrap: 'wrap',
-            gap: '6px',
-            marginBottom: '12px',
-            alignItems: 'center',
-          }}
-        >
-          <Button
-            variant="tertiary"
-            size="S"
-            onClick={() => setRotation((r) => (r - 90) % 360)}
-          >
-            ↺ -90°
-          </Button>
-          <Button
-            variant="tertiary"
-            size="S"
-            onClick={() => setRotation((r) => (r + 90) % 360)}
-          >
-            ↻ +90°
-          </Button>
-          <Button variant="tertiary" size="S" onClick={() => setFlipH((f) => !f)}>
-            ⇆ Flip H
-          </Button>
-          <Button variant="tertiary" size="S" onClick={() => setFlipV((f) => !f)}>
-            ⇅ Flip V
-          </Button>
-          {(['free', '16:9', '4:3', '1:1'] as AspectPreset[]).map((preset) => (
-            <Button
-              key={preset}
-              variant={aspectPreset === preset ? 'secondary' : 'tertiary'}
-              size="S"
-              onClick={() => setAspectPreset(preset)}
+        </Dialog.Header>
+        <Dialog.Body>
+          <Flex direction="column" alignItems="stretch" gap={4}>
+            <Box
+              padding={3}
+              background="neutral150"
+              hasRadius
+              style={{ textAlign: 'center', minHeight: '220px' }}
             >
-              {preset.toUpperCase()}
+              {canvasError ? (
+                <Flex direction="column" gap={2} alignItems="center">
+                  <img
+                    src={src}
+                    alt={alt}
+                    style={{ maxWidth: '100%', maxHeight: '240px', objectFit: 'contain' }}
+                  />
+                  <Typography variant="pi" textColor="warning600">
+                    {canvasError}
+                  </Typography>
+                </Flex>
+              ) : (
+                <canvas
+                  ref={canvasRef}
+                  aria-label={formatMessage({
+                    id: `${getPluginId()}.imageEditor.canvasAriaLabel`,
+                    defaultMessage: 'Image transformation preview canvas',
+                  })}
+                  style={{
+                    maxWidth: '100%',
+                    maxHeight: '300px',
+                    borderRadius: '4px',
+                    border: '1px solid #dcdce4',
+                    background: '#fff',
+                  }}
+                />
+              )}
+            </Box>
+
+            <Flex gap={2} wrap="wrap" alignItems="flex-end">
+              <Box style={{ minWidth: '140px' }}>
+                <Field.Root>
+                  <Field.Label>
+                    {formatMessage({
+                      id: `${getPluginId()}.imageEditor.aspectRatio`,
+                      defaultMessage: 'Aspect Ratio',
+                    })}
+                  </Field.Label>
+                  <SingleSelect
+                    size="S"
+                    value={aspectPreset}
+                    onChange={(val: string | number) => setAspectPreset(val as AspectRatioPreset)}
+                  >
+                    <SingleSelectOption value="free">
+                      {formatMessage({
+                        id: `${getPluginId()}.imageEditor.aspectFree`,
+                        defaultMessage: 'Freeform',
+                      })}
+                    </SingleSelectOption>
+                    <SingleSelectOption value="16:9">16:9</SingleSelectOption>
+                    <SingleSelectOption value="4:3">4:3</SingleSelectOption>
+                    <SingleSelectOption value="1:1">1:1</SingleSelectOption>
+                  </SingleSelect>
+                </Field.Root>
+              </Box>
+
+              <Button
+                variant="tertiary"
+                size="S"
+                onClick={() => setRotation((r) => (r - 90) % 360)}
+              >
+                {formatMessage({
+                  id: `${getPluginId()}.imageEditor.rotateLeft`,
+                  defaultMessage: 'Rotate -90°',
+                })}
+              </Button>
+              <Button
+                variant="tertiary"
+                size="S"
+                onClick={() => setRotation((r) => (r + 90) % 360)}
+              >
+                {formatMessage({
+                  id: `${getPluginId()}.imageEditor.rotateRight`,
+                  defaultMessage: 'Rotate +90°',
+                })}
+              </Button>
+              <Button
+                variant={flipH ? 'secondary' : 'tertiary'}
+                size="S"
+                onClick={() => setFlipH((v) => !v)}
+              >
+                {formatMessage({
+                  id: `${getPluginId()}.imageEditor.flipH`,
+                  defaultMessage: 'Flip H',
+                })}
+              </Button>
+              <Button
+                variant={flipV ? 'secondary' : 'tertiary'}
+                size="S"
+                onClick={() => setFlipV((v) => !v)}
+              >
+                {formatMessage({
+                  id: `${getPluginId()}.imageEditor.flipV`,
+                  defaultMessage: 'Flip V',
+                })}
+              </Button>
+
+              <Box style={{ minWidth: '130px' }}>
+                <Field.Root>
+                  <Field.Label>
+                    {formatMessage(
+                      {
+                        id: `${getPluginId()}.imageEditor.zoom`,
+                        defaultMessage: 'Zoom ({percent}%)',
+                      },
+                      { percent: Math.round(zoom * 100) }
+                    )}
+                  </Field.Label>
+                  <input
+                    type="range"
+                    min="1"
+                    max="3"
+                    step="0.1"
+                    value={zoom}
+                    onChange={(e) => setZoom(Number(e.target.value))}
+                    aria-label={formatMessage({
+                      id: `${getPluginId()}.imageEditor.zoomAriaLabel`,
+                      defaultMessage: 'Image zoom level',
+                    })}
+                    style={{ width: '100%' }}
+                  />
+                </Field.Root>
+              </Box>
+            </Flex>
+
+            <Field.Root>
+              <Field.Label>
+                {formatMessage({
+                  id: `${getPluginId()}.imageEditor.altLabel`,
+                  defaultMessage: 'Alternative Text (Alt)',
+                })}
+              </Field.Label>
+              <TextInput
+                value={alt}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setAlt(e.target.value)}
+                placeholder={formatMessage({
+                  id: `${getPluginId()}.imageEditor.altPlaceholder`,
+                  defaultMessage: 'Describe the image for screen readers',
+                })}
+              />
+            </Field.Root>
+
+            <Field.Root>
+              <Field.Label>
+                {formatMessage({
+                  id: `${getPluginId()}.imageEditor.captionLabel`,
+                  defaultMessage: 'Caption (displayed below image)',
+                })}
+              </Field.Label>
+              <TextInput
+                value={caption}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setCaption(e.target.value)}
+                placeholder={formatMessage({
+                  id: `${getPluginId()}.imageEditor.captionPlaceholder`,
+                  defaultMessage: 'Optional figure caption',
+                })}
+              />
+            </Field.Root>
+          </Flex>
+        </Dialog.Body>
+        <Dialog.Footer>
+          <Dialog.Cancel>
+            <Button variant="tertiary" onClick={onClose}>
+              {formatMessage({
+                id: `${getPluginId()}.imageEditor.cancel`,
+                defaultMessage: 'Cancel',
+              })}
             </Button>
-          ))}
-        </div>
-
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
-          <label
-            htmlFor="tiptap-image-zoom"
-            style={{ fontSize: '1.2rem', fontWeight: 500, minWidth: '60px' }}
-          >
-            Zoom ({Math.round(zoom * 100)}%)
-          </label>
-          <input
-            id="tiptap-image-zoom"
-            type="range"
-            min="0.5"
-            max="2.5"
-            step="0.05"
-            value={zoom}
-            onChange={(e) => setZoom(parseFloat(e.target.value))}
-            style={{ flexGrow: 1 }}
-          />
-        </div>
-
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '16px' }}>
-          <TextInput
-            placeholder={formatMessage({
-              id: 'tiptap-editor.image.altText',
-              defaultMessage: 'Alt text (accessibility description)',
-            })}
-            value={altText}
-            onChange={(e: React.ChangeEvent<HTMLInputElement>) => setAltText(e.target.value)}
-            aria-label={formatMessage({
-              id: 'tiptap-editor.image.altText',
-              defaultMessage: 'Alt text',
-            })}
-          />
-          <TextInput
-            placeholder={formatMessage({
-              id: 'tiptap-editor.image.caption',
-              defaultMessage: 'Figure caption (<figcaption>)',
-            })}
-            value={captionText}
-            onChange={(e: React.ChangeEvent<HTMLInputElement>) => setCaptionText(e.target.value)}
-            aria-label={formatMessage({
-              id: 'tiptap-editor.image.caption',
-              defaultMessage: 'Figure caption',
-            })}
-          />
-        </div>
-
-        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
-          <Button variant="tertiary" onClick={onClose}>
-            {formatMessage({ id: 'tiptap-editor.common.cancel', defaultMessage: 'Cancel' })}
-          </Button>
-          <Button variant="default" onClick={handleApply}>
-            {formatMessage({ id: 'tiptap-editor.common.apply', defaultMessage: 'Apply' })}
-          </Button>
-        </div>
-      </div>
-    </div>
+          </Dialog.Cancel>
+          <Dialog.Action>
+            <Button onClick={handleApply} loading={isUploading} disabled={isUploading}>
+              {formatMessage({
+                id: `${getPluginId()}.imageEditor.apply`,
+                defaultMessage: 'Apply Changes',
+              })}
+            </Button>
+          </Dialog.Action>
+        </Dialog.Footer>
+      </Dialog.Content>
+    </Dialog.Root>
   );
-}
+};

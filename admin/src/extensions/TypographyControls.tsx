@@ -50,6 +50,9 @@ export const SmartTypographyExtension = Extension.create({
   },
 });
 
+/**
+ * React hook providing toolbar selectors for font family, font size, line height, and clear formatting.
+ */
 export function useTypographyControls(
   editor: Editor | null,
   props: {
@@ -154,7 +157,12 @@ export function useTypographyControls(
       >
         {fonts.map((f) => (
           <SingleSelectOption key={f.value} value={f.value}>
-            {f.label}
+            {f.value === 'default'
+              ? formatMessage({
+                  id: 'tiptap-editor.typography.defaultFont',
+                  defaultMessage: 'Default Font',
+                })
+              : f.label}
           </SingleSelectOption>
         ))}
       </SingleSelect>
@@ -176,7 +184,12 @@ export function useTypographyControls(
       >
         {sizes.map((s) => (
           <SingleSelectOption key={s} value={s}>
-            {s === 'default' ? 'Size: Auto' : s}
+            {s === 'default'
+              ? formatMessage({
+                  id: 'tiptap-editor.typography.sizeAuto',
+                  defaultMessage: 'Size: Auto',
+                })
+              : s}
           </SingleSelectOption>
         ))}
       </SingleSelect>
@@ -198,7 +211,18 @@ export function useTypographyControls(
       >
         {heights.map((h) => (
           <SingleSelectOption key={h} value={h}>
-            {h === 'default' ? 'Line: Auto' : `Line: ${h}`}
+            {h === 'default'
+              ? formatMessage({
+                  id: 'tiptap-editor.typography.lineAuto',
+                  defaultMessage: 'Line: Auto',
+                })
+              : formatMessage(
+                  {
+                    id: 'tiptap-editor.typography.lineValue',
+                    defaultMessage: 'Line: {height}',
+                  },
+                  { height: h }
+                )}
           </SingleSelectOption>
         ))}
       </SingleSelect>

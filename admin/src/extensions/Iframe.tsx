@@ -1,123 +1,231 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Node, mergeAttributes, type Editor } from '@tiptap/core';
+import { ReactNodeViewRenderer, NodeViewWrapper, useEditorState } from '@tiptap/react';
+import type { NodeViewProps } from '@tiptap/react';
 import {
-  NodeViewWrapper,
-  ReactNodeViewRenderer,
-  useEditorState,
-  type NodeViewProps,
-} from '@tiptap/react';
-import { Button, Dialog, Field, IconButton, Popover, TextInput } from '@strapi/design-system';
-import { Earth, Trash } from '@strapi/icons';
+  Popover,
+  TextInput,
+  IconButton,
+  Dialog,
+  Button,
+  Field,
+  Flex,
+  Typography,
+} from '@strapi/design-system';
+import { Trash, CodeBlock } from '@strapi/icons';
 import { useIntl } from 'react-intl';
 import { ToolbarButton } from '../components/ToolbarButton';
+import { TextAlignLeft } from '../icons/TextAlignLeft';
+import { TextAlignCenter } from '../icons/TextAlignCenter';
+import { TextAlignRight } from '../icons/TextAlignRight';
 import { isSafeIframeUrl } from '../../../shared/contentSerializer';
 
+export const DEFAULT_ALLOWED_IFRAME_DOMAINS = [
+  'youtube.com',
+  'youtube-nocookie.com',
+  'vimeo.com',
+  'player.vimeo.com',
+  'codepen.io',
+  'codesandbox.io',
+  'figma.com',
+  'google.com',
+  'spotify.com',
+  'soundcloud.com',
+];
+
 export interface StrapiIframeOptions {
-  enableContentCheck: boolean;
-  allowedDomains?: string[];
-  allowFullscreen?: boolean;
   HTMLAttributes: Record<string, unknown>;
+  enableContentCheck: boolean;
+  allowedDomains: string[];
+  sandbox: string;
 }
 
+/**
+ * Resolves the effective domain allowlist (falling back to `DEFAULT_ALLOWED_IFRAME_DOMAINS`
+ * when an empty array is configured).
+ */
+function resolveEffectiveDomains(domains?: string[]): string[] {
+  return Array.isArray(domains) && domains.length > 0 ? domains : DEFAULT_ALLOWED_IFRAME_DOMAINS;
+}
+
+/**
+ * Read-only NodeView for sandboxed HTTPS iframes when the feature is disabled in the active preset.
+ */
 export function IframeNodeViewReadOnly({ node, extension }: NodeViewProps) {
-  const { src, title, width, height } = node.attrs;
-  const align = node.attrs['data-align'] ?? undefined;
-  const allowedDomains = (extension?.options as StrapiIframeOptions | undefined)?.allowedDomains;
-  const safe = isSafeIframeUrl(src, allowedDomains);
+  const { formatMessage } = useIntl();
+  const rawSrc = String(node.attrs.src || '');
+  const allowedDomains = resolveEffectiveDomains(
+    (extension?.options as StrapiIframeOptions | undefined)?.allowedDomains
+  );
+  const sandbox =
+    (extension?.options as StrapiIframeOptions | undefined)?.sandbox ||
+    'allow-scripts allow-popups';
+  const isSafe = isSafeIframeUrl(rawSrc, allowedDomains);
+
+  const width = node.attrs.width ? `${node.attrs.width}px` : '100%';
+  const height = node.attrs.height ? `${node.attrs.height}px` : '360px';
 
   return (
-    <NodeViewWrapper data-drag-handle data-align={align} data-type="iframe">
-      {safe ? (
-        <iframe
-          src={src}
-          title={title || 'Embedded content'}
-          sandbox="allow-scripts allow-same-origin allow-popups"
-          loading="lazy"
-          style={{
-            width: width ? `${width}px` : '100%',
-            height: height ? `${height}px` : '380px',
-            border: '1px solid #dcdce4',
-            borderRadius: '6px',
-            display: 'block',
-          }}
-        />
-      ) : (
-        <div
-          role="alert"
-          style={{
-            padding: '12px',
-            backgroundColor: '#fcecea',
-            color: '#b72b1a',
-            borderRadius: '6px',
-            border: '1px solid #f5c0b8',
-            fontSize: '1.3rem',
-          }}
-        >
-          Blocked unsafe or untrusted iframe URL: {String(src || '')}
-        </div>
-      )}
+    <NodeViewWrapper data-drag-handle data-align={node.attrs['data-align'] ?? undefined}>
+      <div style={{ margin: '0.75em 0' }}>
+        {isSafe ? (
+          <iframe
+            src={rawSrc}
+            title={
+              node.attrs.title ||
+              formatMessage({
+                id: 'tiptap-editor.iframe.embeddedTitle',
+                defaultMessage: 'Embedded content',
+              })
+            }
+            style={{
+              width,
+              maxWidth: '100%',
+              height,
+              border: '1px solid #dcdce4',
+              borderRadius: '6px',
+            }}
+            sandbox={sandbox}
+            loading="lazy"
+          />
+        ) : (
+          <div
+            style={{
+              padding: '12px',
+              border: '1px dashed #d02b20',
+              borderRadius: '6px',
+              color: '#d02b20',
+              fontSize: '1.2rem',
+            }}
+          >
+            {formatMessage({
+              id: 'tiptap-editor.iframe.blockedUrl',
+              defaultMessage: 'Blocked unsafe or non-HTTPS iframe URL.',
+            })}
+          </div>
+        )}
+      </div>
     </NodeViewWrapper>
   );
 }
 
+/**
+ * Interactive NodeView for sandboxed HTTPS iframes with alignment, title, height, and delete controls.
+ */
 export function IframeNodeView(props: NodeViewProps) {
   const { node, updateAttributes, deleteNode, selected } = props;
   const { formatMessage } = useIntl();
-  const [openPopover, setOpenPopover] = useState(false);
+  const [isPopoverOpen, setIsPopoverOpen] = useState(false);
   const [title, setTitle] = useState<string>(node.attrs.title ?? '');
+  const [heightInput, setHeightInput] = useState<string>(
+    node.attrs.height ? String(node.attrs.height) : '360'
+  );
+  const currentAlign = node.attrs['data-align'] as 'left' | 'center' | 'right' | null;
+
+  useEffect(() => {
+    setTitle(node.attrs.title ?? '');
+  }, [node.attrs.title]);
+
+  const handleAlign = (val: 'left' | 'center' | 'right') => {
+    updateAttributes({ 'data-align': currentAlign === val ? null : val });
+  };
+
+  const handleHeightCommit = () => {
+    const parsed = parseInt(heightInput, 10);
+    if (!Number.isNaN(parsed) && parsed >= 100 && parsed <= 1600) {
+      updateAttributes({ height: parsed });
+    }
+  };
 
   return (
-    <NodeViewWrapper
-      data-drag-handle
-      data-align={node.attrs['data-align'] ?? undefined}
-      data-type="iframe"
-    >
-      <Popover.Root open={openPopover} onOpenChange={setOpenPopover}>
+    <NodeViewWrapper data-drag-handle data-align={node.attrs['data-align'] ?? undefined}>
+      <Popover.Root open={isPopoverOpen} onOpenChange={setIsPopoverOpen}>
         <Popover.Anchor>
           <div
-            onClick={() => setOpenPopover(true)}
+            onClick={() => setIsPopoverOpen(true)}
             style={{
               outline: selected ? '2px solid #4945ff' : undefined,
               borderRadius: '6px',
+              padding: '4px',
               cursor: 'pointer',
-              margin: '0.75em 0',
             }}
           >
             <IframeNodeViewReadOnly {...props} />
           </div>
         </Popover.Anchor>
         <Popover.Content side="bottom">
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '8px',
-              padding: '8px',
-              minWidth: '240px',
-            }}
-          >
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', padding: '8px' }}>
+            <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
+              <ToolbarButton
+                onClick={() => handleAlign('left')}
+                icon={<TextAlignLeft />}
+                active={currentAlign === 'left'}
+                toggle
+                tooltip={formatMessage({
+                  id: 'tiptap-editor.iframe.alignLeft',
+                  defaultMessage: 'Align left',
+                })}
+              />
+              <ToolbarButton
+                onClick={() => handleAlign('center')}
+                icon={<TextAlignCenter />}
+                active={currentAlign === 'center'}
+                toggle
+                tooltip={formatMessage({
+                  id: 'tiptap-editor.iframe.alignCenter',
+                  defaultMessage: 'Align center',
+                })}
+              />
+              <ToolbarButton
+                onClick={() => handleAlign('right')}
+                icon={<TextAlignRight />}
+                active={currentAlign === 'right'}
+                toggle
+                tooltip={formatMessage({
+                  id: 'tiptap-editor.iframe.alignRight',
+                  defaultMessage: 'Align right',
+                })}
+              />
+              <TextInput
+                type="number"
+                placeholder={formatMessage({
+                  id: 'tiptap-editor.iframe.heightPlaceholder',
+                  defaultMessage: 'Height (px)',
+                })}
+                value={heightInput}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                  setHeightInput(e.target.value)
+                }
+                onBlur={handleHeightCommit}
+                aria-label={formatMessage({
+                  id: 'tiptap-editor.iframe.heightAriaLabel',
+                  defaultMessage: 'Iframe height',
+                })}
+                style={{ width: '90px' }}
+              />
+              <IconButton
+                onClick={deleteNode}
+                label={formatMessage({
+                  id: 'tiptap-editor.iframe.delete',
+                  defaultMessage: 'Delete iframe',
+                })}
+              >
+                <Trash />
+              </IconButton>
+            </div>
             <TextInput
               placeholder={formatMessage({
-                id: 'tiptap-editor.iframe.title',
-                defaultMessage: 'Iframe accessible title',
+                id: 'tiptap-editor.iframe.titlePlaceholder',
+                defaultMessage: 'Accessible title (for screen readers)',
               })}
               value={title}
               onChange={(e: React.ChangeEvent<HTMLInputElement>) => setTitle(e.target.value)}
-              onBlur={() => updateAttributes({ title: title || 'Embedded content' })}
+              onBlur={() => updateAttributes({ title: title || null })}
               aria-label={formatMessage({
-                id: 'tiptap-editor.iframe.title',
-                defaultMessage: 'Iframe accessible title',
+                id: 'tiptap-editor.iframe.titleAriaLabel',
+                defaultMessage: 'Iframe title',
               })}
             />
-            <IconButton
-              onClick={deleteNode}
-              label={formatMessage({
-                id: 'tiptap-editor.iframe.delete',
-                defaultMessage: 'Delete embed',
-              })}
-            >
-              <Trash />
-            </IconButton>
           </div>
         </Popover.Content>
       </Popover.Root>
@@ -133,19 +241,19 @@ export const StrapiIframe = Node.create<StrapiIframeOptions>({
 
   addOptions() {
     return {
-      enableContentCheck: false,
-      allowedDomains: [],
-      allowFullscreen: true,
       HTMLAttributes: {},
+      enableContentCheck: false,
+      allowedDomains: DEFAULT_ALLOWED_IFRAME_DOMAINS,
+      sandbox: 'allow-scripts allow-popups',
     };
   },
 
   addAttributes() {
     return {
       src: { default: null },
-      title: { default: 'Embedded content' },
+      title: { default: null },
       width: { default: null },
-      height: { default: 380 },
+      height: { default: 360 },
       'data-align': {
         default: null,
         parseHTML: (el: HTMLElement) => el.getAttribute('data-align') ?? null,
@@ -156,14 +264,20 @@ export const StrapiIframe = Node.create<StrapiIframeOptions>({
   },
 
   parseHTML() {
-    return [{ tag: 'iframe[src]' }];
+    return [{ tag: 'iframe[data-type="iframe"]' }, { tag: 'iframe:not([data-type="video"])' }];
   },
 
   renderHTML({ HTMLAttributes }) {
+    const rawSrc = String(HTMLAttributes.src || '');
+    const allowedDomains = resolveEffectiveDomains(this.options.allowedDomains);
+    const safeSrc = isSafeIframeUrl(rawSrc, allowedDomains) ? rawSrc : 'about:blank';
+
     return [
       'iframe',
       mergeAttributes(this.options.HTMLAttributes, HTMLAttributes, {
-        sandbox: 'allow-scripts allow-same-origin allow-popups',
+        src: safeSrc,
+        'data-type': 'iframe',
+        sandbox: this.options.sandbox,
         loading: 'lazy',
       }),
     ];
@@ -177,15 +291,21 @@ export const StrapiIframe = Node.create<StrapiIframeOptions>({
   },
 });
 
+/**
+ * Provides toolbar button and dialog for embedding sandboxed HTTPS iframes from allowed domains.
+ */
 export function useIframe(
   editor: Editor | null,
   props: { disabled?: boolean; allowedDomains?: string[] } = { disabled: false }
 ) {
   const { formatMessage } = useIntl();
-  const [open, setOpen] = useState(false);
+  const [showDialog, setShowDialog] = useState(false);
   const [url, setUrl] = useState('');
   const [title, setTitle] = useState('');
-  const [height, setHeight] = useState('380');
+  const [height, setHeight] = useState('360');
+  const [error, setError] = useState<string | null>(null);
+
+  const effectiveAllowedDomains = resolveEffectiveDomains(props.allowedDomains);
 
   const editorState = useEditorState({
     editor,
@@ -194,116 +314,149 @@ export function useIframe(
     }),
   });
 
-  const isValid = isSafeIframeUrl(url, props.allowedDomains);
-
   const handleInsert = () => {
-    if (!editor || !isValid) return;
+    if (!editor) return;
+    const trimmed = url.trim();
+    if (!isSafeIframeUrl(trimmed, effectiveAllowedDomains)) {
+      setError(
+        formatMessage(
+          {
+            id: 'tiptap-editor.iframe.invalidUrlWithDomains',
+            defaultMessage: 'URL must use https:// and match allowed domains: {domains}',
+          },
+          { domains: effectiveAllowedDomains.join(', ') }
+        )
+      );
+      return;
+    }
+
+    const parsedHeight = parseInt(height, 10);
     editor
       .chain()
       .focus()
       .insertContent({
         type: 'iframe',
         attrs: {
-          src: url.trim(),
-          title: title.trim() || 'Embedded content',
-          height: parseInt(height, 10) || 380,
+          src: trimmed,
+          title:
+            title.trim() ||
+            formatMessage({
+              id: 'tiptap-editor.iframe.embeddedTitle',
+              defaultMessage: 'Embedded content',
+            }),
+          height: !Number.isNaN(parsedHeight) && parsedHeight >= 100 ? parsedHeight : 360,
         },
       })
       .createParagraphNear()
       .run();
+
     setUrl('');
     setTitle('');
-    setOpen(false);
+    setHeight('360');
+    setError(null);
+    setShowDialog(false);
   };
 
   const iframeButton = (
     <ToolbarButton
-      onClick={() => setOpen(true)}
-      icon={<Earth />}
+      onClick={() => {
+        setError(null);
+        setShowDialog(true);
+      }}
+      icon={<CodeBlock />}
       active={false}
       disabled={props.disabled || !editor || (editorState?.isInCodeBlock ?? false)}
       tooltip={formatMessage({
         id: 'tiptap-editor.toolbar.insertIframe',
-        defaultMessage: 'Insert iframe embed (HTTPS)',
+        defaultMessage: 'Embed iframe (HTTPS)',
       })}
     />
   );
 
   const iframeDialog = (
-    <Dialog.Root
-      open={open}
-      onOpenChange={(v: boolean) => {
-        if (!v) setOpen(false);
-      }}
-    >
-      {open && (
-        <Dialog.Content>
-          <Dialog.Header>
-            {formatMessage({
-              id: 'tiptap-editor.iframe.dialogHeader',
-              defaultMessage: 'Insert Sandboxed HTTPS Embed (Iframe)',
-            })}
-          </Dialog.Header>
-          <Dialog.Body>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', width: '100%' }}>
-              <Field.Root width="100%">
-                <Field.Label>
-                  {formatMessage({
-                    id: 'tiptap-editor.iframe.urlLabel',
-                    defaultMessage: 'HTTPS Embed URL',
-                  })}
-                </Field.Label>
-                <TextInput
-                  name="iframe-url"
-                  placeholder="https://www.figma.com/embed?..."
-                  value={url}
-                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setUrl(e.target.value)}
-                />
-              </Field.Root>
-              <Field.Root width="100%">
-                <Field.Label>
-                  {formatMessage({
-                    id: 'tiptap-editor.iframe.titleLabel',
-                    defaultMessage: 'Accessible Frame Title (Required for WCAG)',
-                  })}
-                </Field.Label>
-                <TextInput
-                  name="iframe-title"
-                  placeholder="Interactive prototype embed"
-                  value={title}
-                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setTitle(e.target.value)}
-                />
-              </Field.Root>
-              <Field.Root width="100%">
-                <Field.Label>
-                  {formatMessage({
-                    id: 'tiptap-editor.iframe.heightLabel',
-                    defaultMessage: 'Height (px)',
-                  })}
-                </Field.Label>
-                <TextInput
-                  name="iframe-height"
-                  type="number"
-                  value={height}
-                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setHeight(e.target.value)}
-                />
-              </Field.Root>
-            </div>
-          </Dialog.Body>
-          <Dialog.Footer>
-            <Dialog.Cancel>
-              <Button variant="tertiary" fullWidth onClick={() => setOpen(false)}>
-                {formatMessage({ id: 'tiptap-editor.common.cancel', defaultMessage: 'Cancel' })}
-              </Button>
-            </Dialog.Cancel>
-            <Dialog.Action>
-              <Button variant="success-light" fullWidth onClick={handleInsert} disabled={!isValid}>
-                {formatMessage({ id: 'tiptap-editor.common.insert', defaultMessage: 'Insert' })}
-              </Button>
-            </Dialog.Action>
-          </Dialog.Footer>
-        </Dialog.Content>
-      )}
+    <Dialog.Root open={showDialog} onOpenChange={setShowDialog}>
+      <Dialog.Content>
+        <Dialog.Header>
+          {formatMessage({
+            id: 'tiptap-editor.iframe.dialogTitle',
+            defaultMessage: 'Embed HTTPS Iframe',
+          })}
+        </Dialog.Header>
+        <Dialog.Body>
+          <Flex direction="column" alignItems="stretch" gap={4}>
+            <Field.Root name="iframeUrl" error={error ?? undefined}>
+              <Field.Label>
+                {formatMessage({
+                  id: 'tiptap-editor.iframe.urlLabel',
+                  defaultMessage: 'HTTPS Embed URL',
+                })}
+              </Field.Label>
+              <TextInput
+                placeholder="https://..."
+                value={url}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
+                  setUrl(e.target.value);
+                  setError(null);
+                }}
+              />
+              <Field.Error />
+            </Field.Root>
+            <Field.Root name="iframeTitle">
+              <Field.Label>
+                {formatMessage({
+                  id: 'tiptap-editor.iframe.titleLabel',
+                  defaultMessage: 'Title (accessibility)',
+                })}
+              </Field.Label>
+              <TextInput
+                placeholder={formatMessage({
+                  id: 'tiptap-editor.iframe.titleInputPlaceholder',
+                  defaultMessage: 'Interactive map or widget description',
+                })}
+                value={title}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setTitle(e.target.value)}
+              />
+            </Field.Root>
+            <Field.Root name="iframeHeight">
+              <Field.Label>
+                {formatMessage({
+                  id: 'tiptap-editor.iframe.heightLabel',
+                  defaultMessage: 'Height (px)',
+                })}
+              </Field.Label>
+              <TextInput
+                type="number"
+                value={height}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setHeight(e.target.value)}
+              />
+            </Field.Root>
+            <Typography variant="pi" textColor="neutral600">
+              {formatMessage({
+                id: 'tiptap-editor.iframe.sandboxNotice',
+                defaultMessage: 'Embedded iframes are automatically sandboxed and lazy-loaded.',
+              })}
+            </Typography>
+          </Flex>
+        </Dialog.Body>
+        <Dialog.Footer>
+          <Dialog.Cancel>
+            <Button variant="tertiary" onClick={() => setShowDialog(false)}>
+              {formatMessage({
+                id: 'tiptap-editor.iframe.cancel',
+                defaultMessage: 'Cancel',
+              })}
+            </Button>
+          </Dialog.Cancel>
+          <Dialog.Action>
+            <Button onClick={handleInsert} disabled={!url.trim()}>
+              {formatMessage({
+                id: 'tiptap-editor.iframe.insert',
+                defaultMessage: 'Embed',
+              })}
+            </Button>
+          </Dialog.Action>
+        </Dialog.Footer>
+      </Dialog.Content>
     </Dialog.Root>
   );
 

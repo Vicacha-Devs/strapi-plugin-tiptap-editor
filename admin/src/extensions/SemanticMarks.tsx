@@ -94,6 +94,10 @@ export const AbbrMark = Mark.create({
   },
 });
 
+/**
+ * React hook providing toolbar buttons and dialogs for semantic marks:
+ * lead paragraph, abbreviation (`<abbr>`), and WCAG 3.1.2 passage language (`<span lang dir>`).
+ */
 export function useSemanticMarks(
   editor: Editor | null,
   props: { disabled?: boolean } = { disabled: false }
@@ -179,6 +183,7 @@ export function useSemanticMarks(
         onClick={toggleLeadParagraph}
         icon={<span style={{ fontSize: '1.1rem', fontWeight: 700 }}>Lead</span>}
         active={editorState?.isLead ?? false}
+        toggle
         disabled={!editor || props.disabled}
         tooltip={formatMessage({
           id: 'tiptap-editor.toolbar.leadParagraph',
@@ -191,6 +196,7 @@ export function useSemanticMarks(
         onClick={openAbbrModal}
         icon={<span style={{ fontSize: '1.1rem', fontWeight: 700 }}>Abbr</span>}
         active={editorState?.isAbbr ?? false}
+        toggle
         disabled={!editor || props.disabled}
         tooltip={formatMessage({
           id: 'tiptap-editor.toolbar.abbreviation',
@@ -223,7 +229,10 @@ export function useSemanticMarks(
                 </Field.Label>
                 <TextInput
                   name="abbr-title"
-                  placeholder="Web Content Accessibility Guidelines"
+                  placeholder={formatMessage({
+                    id: 'tiptap-editor.abbr.placeholder',
+                    defaultMessage: 'Web Content Accessibility Guidelines',
+                  })}
                   value={abbrTitle}
                   onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
                     setAbbrTitle(e.target.value)
@@ -264,6 +273,7 @@ export function useSemanticMarks(
         onClick={openLangModal}
         icon={<span style={{ fontSize: '1.1rem', fontWeight: 700 }}>🌐 Lang</span>}
         active={editorState?.isLang ?? false}
+        toggle
         disabled={!editor || props.disabled}
         tooltip={formatMessage({
           id: 'tiptap-editor.toolbar.languageMark',
@@ -317,8 +327,18 @@ export function useSemanticMarks(
                       setLangDir(String(v) === 'rtl' ? 'rtl' : 'ltr')
                     }
                   >
-                    <SingleSelectOption value="ltr">Left-to-Right (LTR)</SingleSelectOption>
-                    <SingleSelectOption value="rtl">Right-to-Left (RTL)</SingleSelectOption>
+                    <SingleSelectOption value="ltr">
+                      {formatMessage({
+                        id: 'tiptap-editor.language.dirLtr',
+                        defaultMessage: 'Left-to-Right (LTR)',
+                      })}
+                    </SingleSelectOption>
+                    <SingleSelectOption value="rtl">
+                      {formatMessage({
+                        id: 'tiptap-editor.language.dirRtl',
+                        defaultMessage: 'Right-to-Left (RTL)',
+                      })}
+                    </SingleSelectOption>
                   </SingleSelect>
                 </Field.Root>
               </div>

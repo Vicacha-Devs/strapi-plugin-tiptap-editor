@@ -20,11 +20,13 @@ describe('shared/contentSerializer', () => {
       expect(isSafeUrl('#section-1')).toBe(true);
     });
 
-    it('rejects javascript:, vbscript:, data:text/html, and empty URLs', () => {
+    it('rejects javascript:, vbscript:, data:text/html, protocol-relative URLs, and empty URLs', () => {
       expect(isSafeUrl('javascript:alert(1)')).toBe(false);
       expect(isSafeUrl('  JAVASCRIPT:alert(1) ')).toBe(false);
       expect(isSafeUrl('vbscript:msgbox(1)')).toBe(false);
       expect(isSafeUrl('data:text/html,<script>alert(1)</script>')).toBe(false);
+      expect(isSafeUrl('//evil.com/xss')).toBe(false);
+      expect(isSafeUrl('/\\evil.com/xss')).toBe(false);
       expect(isSafeUrl('')).toBe(false);
     });
   });
@@ -52,10 +54,28 @@ describe('shared/contentSerializer', () => {
       expect(clean).not.toContain('javascript:');
       expect(clean).toContain('<p>Hello ');
     });
+
+    it('blocks slash-separated event handlers, unquoted javascript: URLs, entity-encoded schemes, and iframe srcdoc', () => {
+      const dirty = [
+        '<img/onerror=alert(1) src="https://example.com/a.png">',
+        '<a href=javascript:alert(1)>Unquoted</a>',
+        '<a href="&#106;avascript:alert(1)">Entity</a>',
+        '<a href="//evil.com/phish">ProtocolRelative</a>',
+        '<iframe srcdoc="<script>alert(1)</script>"></iframe>',
+        '<svg onload="alert(1)"><circle /></svg>',
+      ].join('');
+      const clean = sanitizeHtmlString(dirty);
+      expect(clean).not.toContain('onerror');
+      expect(clean).not.toContain('javascript');
+      expect(clean).not.toContain('&#106;');
+      expect(clean).not.toContain('//evil.com');
+      expect(clean).not.toContain('srcdoc');
+      expect(clean).not.toContain('<svg');
+    });
   });
 
   describe('jsonToMarkdown & markdownToJson', () => {
-    it('converts ProseMirror JSON to Markdown and back', () => {
+    it('converts ProseMirror JSON to Markdown and back with inline marks and block structures', () => {
       const doc = {
         type: 'doc',
         content: [
@@ -69,7 +89,35 @@ describe('shared/contentSerializer', () => {
             content: [
               { type: 'text', text: 'Hello ' },
               { type: 'text', marks: [{ type: 'bold' }], text: 'World' },
+              { type: 'text', text: ' and ' },
+              { type: 'text', marks: [{ type: 'italic' }], text: 'Italic' },
+              { type: 'text', text: ' plus ' },
+              { type: 'text', marks: [{ type: 'code' }], text: 'inlineCode' },
+              { type: 'text', text: ' and ' },
+              {
+                type: 'text',
+                marks: [{ type: 'link', attrs: { href: 'https://strapi.io' } }],
+                text: 'Strapi',
+              },
             ],
+          },
+          {
+            type: 'orderedList',
+            content: [
+              {
+                type: 'listItem',
+                content: [{ type: 'paragraph', content: [{ type: 'text', text: 'First item' }] }],
+              },
+            ],
+          },
+          {
+            type: 'blockquote',
+            content: [{ type: 'paragraph', content: [{ type: 'text', text: 'Quoted wisdom' }] }],
+          },
+          {
+            type: 'codeBlock',
+            attrs: { language: 'ts' },
+            content: [{ type: 'text', text: 'const x = 1;' }],
           },
           {
             type: 'taskList',
@@ -86,18 +134,59 @@ describe('shared/contentSerializer', () => {
               },
             ],
           },
+          {
+            type: 'horizontalRule',
+          },
         ],
       };
 
       const md = jsonToMarkdown(doc);
       expect(md).toContain('## Section Title');
-      expect(md).toContain('Hello **World**');
+      expect(md).toContain('Hello **World** and *Italic* plus `inlineCode` and [Strapi](https://strapi.io)');
+      expect(md).toContain('1. First item');
+      expect(md).toContain('> Quoted wisdom');
+      expect(md).toContain('```ts\nconst x = 1;\n```');
       expect(md).toContain('- [x] Ship plugin');
+      expect(md).toContain('---');
 
       const parsed = markdownToJson(md);
       expect(parsed.type).toBe('doc');
       expect(parsed.content?.[0]?.type).toBe('heading');
-      expect(parsed.content?.[2]?.type).toBe('taskList');
+      expect(parsed.content?.[1]?.content?.some((n: any) => n.marks?.some((m: any) => m.type === 'bold'))).toBe(true);
+      expect(parsed.content?.[1]?.content?.some((n: any) => n.marks?.some((m: any) => m.type === 'italic'))).toBe(true);
+      expect(parsed.content?.[1]?.content?.some((n: any) => n.marks?.some((m: any) => m.type === 'code'))).toBe(true);
+      expect(parsed.content?.[1]?.content?.some((n: any) => n.marks?.some((m: any) => m.type === 'link'))).toBe(true);
+      expect(parsed.content?.some((n: any) => n.type === 'orderedList')).toBe(true);
+      expect(parsed.content?.some((n: any) => n.type === 'blockquote')).toBe(true);
+      expect(parsed.content?.some((n: any) => n.type === 'codeBlock')).toBe(true);
+      expect(parsed.content?.some((n: any) => n.type === 'taskList')).toBe(true);
+      expect(parsed.content?.some((n: any) => n.type === 'horizontalRule')).toBe(true);
+    });
+
+    it('escapes HTML in abbr/language marks and wraps URLs containing parentheses', () => {
+      const doc = {
+        type: 'doc',
+        content: [
+          {
+            type: 'paragraph',
+            content: [
+              {
+                type: 'text',
+                text: '<script>x</script>',
+                marks: [{ type: 'abbr', attrs: { title: 'a" onclick="evil()' } }],
+              },
+            ],
+          },
+          {
+            type: 'image',
+            attrs: { src: 'https://example.com/img(1).png', alt: 'paren' },
+          },
+        ],
+      };
+      const md = jsonToMarkdown(doc);
+      expect(md).toContain('&lt;script&gt;x&lt;/script&gt;');
+      expect(md).toContain('title="a&quot; onclick=&quot;evil()"');
+      expect(md).toContain('![paren](<https://example.com/img(1).png>)');
     });
   });
 

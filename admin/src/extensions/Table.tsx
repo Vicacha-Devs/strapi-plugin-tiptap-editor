@@ -16,6 +16,10 @@ const TABLE_CELL_COLORS = [
   { label: 'Neutral Gray', value: '#f6f6f9' },
 ];
 
+/**
+ * React hook providing toolbar buttons and dialog for inserting and manipulating tables
+ * (row/column insertion & deletion, cell background color cycling, and cell merging/splitting).
+ */
 export function useTable(
   editor: Editor | null,
   props: { disabled?: boolean } = { disabled: false }

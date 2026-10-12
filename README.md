@@ -66,11 +66,11 @@
   - [Tables (with Cell Background Color & Merge/Split)](#tables-with-cell-background-color--mergesplit)
   - [Text Alignment & Colors](#text-alignment--colors)
   - [Edifice IO Multimedia Suite](#edifice-io-multimedia-suite)
-    - [Images & In-Editor HTML5 Canvas Image Studio](#images--in-editor-html5-canvas-image-studio)
-    - [Video (Media Library + YouTube/Vimeo/MP4)](#video-media-library--youtubevimeomp4)
-    - [Audio (Media Library + In-Browser Voice Recorder)](#audio-media-library--in-browser-voice-recorder)
-    - [Attachment Cards](#attachment-cards)
-    - [Sandboxed HTTPS Iframes](#sandboxed-https-iframes)
+    - [Images & In-Editor HTML5 Canvas Image Studio](#images--in-editor-html5-canvas-image-studio-medialibrary)
+    - [Video (Media Library + YouTube/Vimeo/MP4)](#video-video)
+    - [Audio (Media Library + In-Browser Voice Recorder)](#audio-audio)
+    - [Attachment Cards](#attachment-cards-attachment)
+    - [Sandboxed HTTPS Iframes](#sandboxed-https-iframes-iframe)
   - [Mathematics, Emoji, Slash Commands & Speech Tools](#mathematics-emoji-slash-commands--speech-tools)
   - [Editor Modes & Footer](#editor-modes--footer)
 - [Accessibility (WCAG 2.1 AA) & Security](#accessibility-wcag-21-aa--security)
@@ -155,7 +155,6 @@ yarn start
 ## Configuration
 
 The plugin uses a hybrid **preset + runtime settings** architecture:
-
 1. **Built-in Presets**: `minimal`, `default`, `full`, and `edifice` work out of the box with zero configuration.
 2. **Code-first Presets (`config/plugins.ts`)**: Define custom named presets and theme options in version control.
 3. **Runtime Settings UI (`/settings/tiptap-editor`)**: Override global defaults, allowed iframe domains, relational sync, and per-preset feature toggles stored in Strapi `core-store`.
@@ -218,7 +217,6 @@ export default () => ({
 ### Admin Settings UI (`/settings/tiptap-editor`)
 
 Navigate to **Settings → Global Settings → Tiptap Editor** in the Strapi Admin panel to configure:
-
 - **Default Preset** (`minimal`, `default`, `full`, `edifice`, or any custom preset)
 - **Default Output Format** (`json`, `html`, or `markdown`)
 - **Allowed Iframe Domains** (comma-separated hostnames, e.g. `youtube.com, player.vimeo.com`)
@@ -228,7 +226,6 @@ Navigate to **Settings → Global Settings → Tiptap Editor** in the Strapi Adm
 ### Field-Level Options (Content-Type Builder)
 
 When adding a **Rich Text (Tiptap)** custom field in the Strapi Content-Type Builder:
-
 - **Basic Settings → Editor Preset (`options.preset`)**: Select which preset this field uses.
 - **Advanced Settings**:
   - **Output Format (`options.outputFormat`)**: `json` (default ProseMirror JSON), `html` (sanitized HTML string), or `markdown` (Markdown string).
@@ -244,7 +241,6 @@ Inspired by `hashbite/strapi-plugin-lexical` and expanded for all 4 Edifice IO m
 ### Companion `<FieldName>Media` Field
 
 If your Rich Text field is named `content`, add a Media field named `contentMedia` (Multiple Media) to the same Content-Type. Whenever the document changes, `useRelationalSync` extracts all embedded:
-
 - `image` (`data-asset-id` / `data-document-id`)
 - `video` (`data-asset-id` / `data-document-id`)
 - `audio` (`data-asset-id` / `data-document-id`)
@@ -334,7 +330,6 @@ On server bootstrap, the plugin automatically creates a `links.links` component 
 ### Edifice IO Multimedia Suite
 
 #### Images & In-Editor HTML5 Canvas Image Studio (`mediaLibrary`)
-
 - Pick images from the Strapi Media Library with prefilled `alt`, `data-asset-id`, and `data-document-id`.
 - Click any image in the editor to open the floating toolbar with:
   - **Alignment** (`left`, `center`, `right`)
@@ -343,20 +338,16 @@ On server bootstrap, the plugin automatically creates a `links.links` component 
   - **Edit Image (`ImageEditorModal`)**: In-editor HTML5 Canvas studio supporting **Aspect-Ratio Crop** (`Free`, `16:9`, `4:3`, `1:1`), **90° Rotation** (`-90°` / `+90°`), **Horizontal/Vertical Flip**, and **Zoom** (`1x`–`3x`), automatically uploading the edited asset back to `/upload` (or falling back to a data URL).
 
 #### Video (`video`)
-
 - Insert videos from the **Strapi Media Library** (`<video controls>`) or embed external **YouTube**, **Vimeo**, or direct **MP4/WebM** URLs.
 - Supports alignment, custom dimensions, captions, and read-only zero-data-loss rendering.
 
 #### Audio (`audio`)
-
 - Insert audio files from the **Strapi Media Library** or record voice notes directly in the browser using the **Web `MediaRecorder` API** with a live `mm:ss` timer and automatic upload to Strapi Media Library.
 
 #### Attachment Cards (`attachment`)
-
 - Insert downloadable file cards from the Strapi Media Library displaying filename, extension badge, MIME type, and human-readable file size (`KB` / `MB`).
 
 #### Sandboxed HTTPS Iframes (`iframe`)
-
 - Embed external interactive widgets over `https:` with strict `sandbox="allow-scripts allow-same-origin allow-popups allow-presentation"`, `loading="lazy"`, and optional domain allowlisting (`allowedDomains`).
 
 ### Mathematics, Emoji, Slash Commands & Speech Tools
@@ -387,8 +378,8 @@ On server bootstrap, the plugin automatically creates a `links.links` component 
   - **Screen Reader Announcements**: Speech tools and status indicators use `aria-live="polite"`.
   - **Language of Parts (WCAG 3.1.2)**: The `language` mark wraps foreign phrases in `<span lang="..." dir="ltr|rtl">`.
 - **Defense-in-Depth Security**:
-  - **URL & Protocol Sanitization**: Blocks `javascript:`, `vbscript:`, and `data:text/html` across links, images, videos, audios, and attachments.
-  - **SSRF Protection (`isSsrfSafeUrl`)**: Backend `/link-preview` and `/upload-by-url` routes block `localhost`, `127.0.0.0/8`, `10.0.0.0/8`, `172.16.0.0/12`, `192.168.0.0/16`, `169.254.169.254` (cloud metadata), IPv6 loopback/private ranges, `.local`/`.internal` hosts, and URL credentials.
+  - **URL & Protocol Sanitization**: Blocks `javascript:`, `vbscript:`, protocol-relative (`//`, `/\`), and `data:text/html` across links, images, videos, audios, and attachments.
+  - **DNS-Aware SSRF Protection (`isSsrfSafeUrl` & `assertSafeResolvedHost`)**: Backend `/link-preview` and `/upload-by-url` routes validate both literal hostnames and DNS-resolved IPv4/IPv6 addresses (`dns.lookup(..., { all: true })`), blocking `localhost`, `0.0.0.0/8`, `127.0.0.0/8`, `10.0.0.0/8`, `172.16.0.0/12`, `192.168.0.0/16`, `100.64.0.0/10` (CGNAT & cloud metadata `100.100.100.200`), `169.254.0.0/16`, IPv6 loopback/unique-local/link-local (`fe80::/10`)/IPv4-mapped ranges, `.local`/`.internal` hosts, URL credentials, automatic redirects (`redirect: 'manual'`), and unbounded response streams (capped at 64 KB).
 
 ---
 
@@ -538,8 +529,8 @@ All admin routes are mounted under `/tiptap-editor`:
 | `GET`  | `/tiptap-editor/search?q=<query>&locale=<locale>` | Search linkable Strapi collection documents                |
 | `GET`  | `/tiptap-editor/get/:collectionName/:documentId`  | Resolve a single Strapi document's label and publish state |
 | `GET`  | `/tiptap-editor/identify/:collectionName`         | Identify the human-readable title field for a collection   |
-| `GET`  | `/tiptap-editor/link-preview?url=<https_url>`     | SSRF-safe OpenGraph metadata preview                       |
-| `POST` | `/tiptap-editor/upload-by-url`                    | SSRF-safe remote media URL validation and metadata         |
+| `GET`  | `/tiptap-editor/link-preview?url=<https_url>`     | DNS-aware SSRF-safe OpenGraph metadata preview (manual redirect, 64 KB stream cap) |
+| `POST` | `/tiptap-editor/upload-by-url`                    | DNS-aware SSRF-safe remote media URL validation and Upload plugin record registration |
 
 ### Config Validation
 
@@ -566,5 +557,4 @@ Built and maintained by [Notum Technologies](https://notum.tech/?utm_source=stra
 ### Contributing
 
 Contributions of all kinds are welcome: code, documentation, bug reports, and feature ideas.
-
-Browse the [open issues](https://github.com/notum-cz/strapi-plugin-tiptap-editor/issues) to find something to work on, or open a new one to start a discussion. Pull requests are always appreciated!
+<br> <br> Browse the [open issues](https://github.com/notum-cz/strapi-plugin-tiptap-editor/issues) to find something to work on, or open a new one to start a discussion. Pull requests are always appreciated!

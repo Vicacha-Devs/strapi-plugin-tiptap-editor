@@ -3,9 +3,9 @@ import { useIntl } from 'react-intl';
 import { Box } from '@strapi/design-system';
 import BaseTiptapInput from './BaseTiptapInput';
 import { EditorErrorBoundary } from './EditorErrorBoundary';
-import { FeatureGuard } from './FeatureGuard';
-import { TiptapInputProps, useTiptapEditor } from '../utils/tiptapUtils';
 import { Spacer } from './Spacer';
+import { TiptapInputProps, useTiptapEditor } from '../utils/tiptapUtils';
+import { ResponsiveToolbar, type ToolbarItem } from './ResponsiveToolbar';
 import { useStarterKit } from '../extensions/StarterKit';
 import { useLink } from '../extensions/Link';
 import { useHeading } from '../extensions/Heading';
@@ -51,19 +51,37 @@ type InnerEditorProps = TiptapInputProps & {
   placeholder?: string;
 };
 
-const InnerEditor = forwardRef<HTMLDivElement, InnerEditorProps>(
-  ({ config, presetName, outputFormat, characterLimit, placeholder: _placeholder, ...props }, forwardedRef) => {
-    // Memoize on presetName string — stable across parent re-renders
-    const extensions = useMemo(() => {
-      return buildExtensions(config);
-    }, [presetName]); // eslint-disable-line react-hooks/exhaustive-deps
+/**
+ * Type guard to check if a toolbar item is valid.
+ * @param item - The toolbar item to check.
+ * @returns True if the item is a valid ToolbarItem, false otherwise.
+ */
+const isToolbarItem = (item: ToolbarItem | false | undefined): item is ToolbarItem => Boolean(item);
 
-    const { syncRelationsFromDoc } = useRelationalSync(props.name);
+const InnerEditor = forwardRef<HTMLDivElement, InnerEditorProps>(
+  ({ config, presetName, outputFormat, characterLimit, placeholder, ...props }, forwardedRef) => {
+    // Memoize on primitive options (presetName, characterLimit, placeholder) — stable across parent re-renders
+    const extensions = useMemo(() => {
+      if (characterLimit !== undefined || placeholder !== undefined) {
+        return buildExtensions(config, { characterLimit, placeholder });
+      }
+      return buildExtensions(config);
+    }, characterLimit !== undefined || placeholder !== undefined ? [presetName, characterLimit, placeholder] : [presetName]); // eslint-disable-line react-hooks/exhaustive-deps
+
+    let onFormChange: ((fieldName: string, value: unknown) => void) | undefined;
+
+    const { syncRelationsFromDoc } = useRelationalSync(props.name, {
+      onSyncField: (fieldName, value) => onFormChange?.(fieldName, value),
+    });
 
     const { editor, field } = useTiptapEditor(props.name, '', extensions, {
       outputFormat: outputFormat ?? 'json',
       onDocUpdate: syncRelationsFromDoc,
     });
+
+    onFormChange = field?.onChange as
+      | ((fieldName: string, value: unknown) => void)
+      | undefined;
 
     const { toolbarRef, handleToolbarKeyDown } = useKeyboardNavigation(editor);
 
@@ -75,7 +93,11 @@ const InnerEditor = forwardRef<HTMLDivElement, InnerEditorProps>(
     const video = useVideo(editor, { disabled: props.disabled });
     const audio = useAudio(editor, { disabled: props.disabled });
     const attachment = useAttachment(editor, { disabled: props.disabled });
-    const iframe = useIframe(editor, { disabled: props.disabled });
+    const iframeOpts = getFeatureOptions(config.iframe, { allowedDomains: [] as string[] });
+    const iframe = useIframe(editor, {
+      disabled: props.disabled,
+      allowedDomains: iframeOpts?.allowedDomains,
+    });
     const linker = useLinker(editor, { disabled: props.disabled });
     const script = useScript(editor, { disabled: props.disabled });
     const table = useTable(editor, { disabled: props.disabled });
@@ -95,6 +117,274 @@ const InnerEditor = forwardRef<HTMLDivElement, InnerEditorProps>(
       disabled: props.disabled,
       characterLimit: charCountOpts?.limit ?? characterLimit,
       showCharacterCount: Boolean(config?.characterCount || (characterLimit && characterLimit > 0)),
+    });
+
+    const toolbarItemCandidates: Array<ToolbarItem | false | undefined> = [
+      Boolean(config?.heading) && {
+        id: 'heading',
+        content: (
+          <>
+            {heading.headingSelect}
+            {heading.headingTagSelect}
+          </>
+        ),
+      },
+      Boolean(config?.fontFamily) && { id: 'fontFamily', content: typography.fontFamilySelect },
+      Boolean(config?.fontSize) && { id: 'fontSize', content: typography.fontSizeSelect },
+      Boolean(config?.lineHeight) && { id: 'lineHeight', content: typography.lineHeightSelect },
+      Boolean(config?.clearFormatting) && {
+        id: 'clearFormatting',
+        content: typography.clearFormattingButton,
+      },
+      Boolean(config?.leadParagraph) && {
+        id: 'leadParagraph',
+        content: semanticMarks.leadParagraphButton,
+      },
+      Boolean(
+        config?.heading ||
+          config?.fontFamily ||
+          config?.fontSize ||
+          config?.lineHeight ||
+          config?.clearFormatting ||
+          config?.leadParagraph
+      ) && {
+        id: 'headingSpacer',
+        content: <Spacer margin={1} />,
+      },
+      Boolean(config?.bold) && { id: 'bold', content: starterKit.boldButton },
+      Boolean(config?.italic) && { id: 'italic', content: starterKit.italicButton },
+      Boolean(config?.underline) && { id: 'underline', content: starterKit.underlineButton },
+      Boolean(config?.bold || config?.italic || config?.underline) && {
+        id: 'basicTextSpacer',
+        content: <Spacer margin={1} />,
+      },
+      Boolean(config?.strike) && { id: 'strike', content: starterKit.strikeButton },
+      Boolean(config?.superscript) && { id: 'superscript', content: script.superscriptButton },
+      Boolean(config?.subscript) && { id: 'subscript', content: script.subscriptButton },
+      Boolean(config?.textColor) && { id: 'textColor', content: textColor.textColorButton },
+      Boolean(config?.highlightColor) && {
+        id: 'highlightColor',
+        content: highlightColor.highlightColorButton,
+      },
+      Boolean(config?.abbr) && {
+        id: 'abbr',
+        content: (
+          <>
+            {semanticMarks.abbrButton}
+            {semanticMarks.abbrDialog}
+          </>
+        ),
+      },
+      Boolean(config?.language) && {
+        id: 'language',
+        content: (
+          <>
+            {semanticMarks.languageButton}
+            {semanticMarks.languageDialog}
+          </>
+        ),
+      },
+      Boolean(
+        config?.strike ||
+          config?.superscript ||
+          config?.subscript ||
+          config?.textColor ||
+          config?.highlightColor ||
+          config?.abbr ||
+          config?.language
+      ) && {
+        id: 'textDecorationSpacer',
+        content: <Spacer margin={1} />,
+      },
+      Boolean(config?.textAlign) && {
+        id: 'textAlign',
+        content: (
+          <>
+            {textAlign.textAlignLeftButton}
+            {textAlign.textAlignCenterButton}
+            {textAlign.textAlignRightButton}
+            {textAlign.textAlignJustifyButton}
+          </>
+        ),
+      },
+      Boolean(config?.textAlign) && { id: 'textAlignSpacer', content: <Spacer margin={1} /> },
+      Boolean(config?.bulletList) && { id: 'bullet', content: starterKit.bulletButton },
+      Boolean(config?.orderedList) && { id: 'ordered', content: starterKit.orderedButton },
+      Boolean(config?.taskList) && { id: 'taskList', content: structuredBlocks.taskListButton },
+      Boolean(config?.bulletList || config?.orderedList || config?.taskList) && {
+        id: 'listSpacer',
+        content: <Spacer margin={1} />,
+      },
+      Boolean(config?.code) && { id: 'code', content: starterKit.codeButton },
+      Boolean(config?.blockquote) && { id: 'blockquote', content: starterKit.blockquoteButton },
+      Boolean(config?.informationPane) && {
+        id: 'informationPane',
+        content: informationPane.informationPaneButton,
+      },
+      Boolean(config?.conversationHistory) && {
+        id: 'conversationHistory',
+        content: structuredBlocks.conversationHistoryButton,
+      },
+      Boolean(config?.accordion) && {
+        id: 'accordion',
+        content: structuredBlocks.accordionButton,
+      },
+      Boolean(config?.columns) && { id: 'columns', content: structuredBlocks.columnsButton },
+      Boolean(config?.mathematics) && {
+        id: 'mathematics',
+        content: (
+          <>
+            {mathematics.mathematicsButton}
+            {mathematics.mathematicsDialog}
+          </>
+        ),
+      },
+      Boolean(config?.emoji) && { id: 'emoji', content: emoji.emojiButton },
+      Boolean(config?.pageBreak) && {
+        id: 'pageBreak',
+        content: structuredBlocks.pageBreakButton,
+      },
+      Boolean(config?.tableOfContents) && {
+        id: 'tableOfContents',
+        content: structuredBlocks.tableOfContentsButton,
+      },
+      Boolean(config?.link) && {
+        id: 'link',
+        content: (
+          <>
+            {link.linkButton}
+            {link.linkDialog}
+          </>
+        ),
+      },
+      Boolean(config?.linker) && {
+        id: 'linker',
+        content: (
+          <>
+            {linker.linkerButton}
+            {linker.linkerDialog}
+          </>
+        ),
+      },
+      Boolean(config?.mediaLibrary) && {
+        id: 'mediaLibrary',
+        content: (
+          <>
+            {image.imageButton}
+            {image.imageDialog}
+          </>
+        ),
+      },
+      Boolean(config?.video) && {
+        id: 'video',
+        content: (
+          <>
+            {video.videoButton}
+            {video.videoDialog}
+          </>
+        ),
+      },
+      Boolean(config?.audio) && {
+        id: 'audio',
+        content: (
+          <>
+            {audio.audioButton}
+            {audio.audioDialog}
+          </>
+        ),
+      },
+      Boolean(config?.attachment) && {
+        id: 'attachment',
+        content: (
+          <>
+            {attachment.attachmentButton}
+            {attachment.attachmentDialog}
+          </>
+        ),
+      },
+      Boolean(config?.iframe) && {
+        id: 'iframe',
+        content: (
+          <>
+            {iframe.iframeButton}
+            {iframe.iframeDialog}
+          </>
+        ),
+      },
+      Boolean(
+        config?.code ||
+          config?.blockquote ||
+          config?.informationPane ||
+          config?.conversationHistory ||
+          config?.accordion ||
+          config?.columns ||
+          config?.mathematics ||
+          config?.emoji ||
+          config?.pageBreak ||
+          config?.tableOfContents ||
+          config?.link ||
+          config?.linker ||
+          config?.mediaLibrary ||
+          config?.video ||
+          config?.audio ||
+          config?.attachment ||
+          config?.iframe
+      ) && {
+        id: 'insertSpacer',
+        content: <Spacer margin={1} />,
+      },
+      Boolean(config?.table) && {
+        id: 'table',
+        content: (
+          <>
+            {table.tableButton}
+            {table.addColumnButton}
+            {table.removeColumnButton}
+            {table.addRowButton}
+            {table.removeRowButton}
+            {table.cellColorButton}
+            {table.mergeCellsButton}
+            {table.splitCellButton}
+            {table.tableDialog}
+          </>
+        ),
+      },
+      Boolean(config?.table) && { id: 'tableSpacer', content: <Spacer margin={1} /> },
+      Boolean(config?.speechToText) && {
+        id: 'speechToText',
+        content: speech.speechToTextButton,
+      },
+      Boolean(config?.textToSpeech) && {
+        id: 'textToSpeech',
+        content: speech.textToSpeechButton,
+      },
+      Boolean(config?.speechToText || config?.textToSpeech) && {
+        id: 'speechSpacer',
+        content: <Spacer margin={1} />,
+      },
+      Boolean(config?.fullscreen) && {
+        id: 'fullscreen',
+        content: (
+          <>
+            {editorModes.previewButton}
+            {editorModes.sourceButton}
+            {editorModes.fullscreenButton}
+          </>
+        ),
+      },
+    ];
+
+    const rawToolbarItems = toolbarItemCandidates.filter(isToolbarItem);
+
+    // Clean up consecutive, leading, or trailing spacers
+    const toolbarItems = rawToolbarItems.filter((item, idx, arr) => {
+      const isSpacer = item.id.toLowerCase().includes('spacer');
+      if (!isSpacer) return true;
+
+      if (idx === 0 || idx === arr.length - 1) return false;
+
+      const prevIsSpacer = arr[idx - 1].id.toLowerCase().includes('spacer');
+      return !prevIsSpacer;
     });
 
     if (!editor) return null;
@@ -118,160 +408,7 @@ const InnerEditor = forwardRef<HTMLDivElement, InnerEditorProps>(
             </>
           }
         >
-          <FeatureGuard featureValue={config?.heading}>
-            {heading.headingSelect}
-            {heading.headingTagSelect}
-            <Spacer width={8} />
-          </FeatureGuard>
-          <FeatureGuard featureValue={config?.fontFamily}>
-            {typography.fontFamilySelect}
-          </FeatureGuard>
-          <FeatureGuard featureValue={config?.fontSize}>
-            {typography.fontSizeSelect}
-          </FeatureGuard>
-          <FeatureGuard featureValue={config?.lineHeight}>
-            {typography.lineHeightSelect}
-          </FeatureGuard>
-          <FeatureGuard featureValue={config?.clearFormatting}>
-            {typography.clearFormattingButton}
-          </FeatureGuard>
-          <FeatureGuard featureValue={config?.leadParagraph}>
-            {semanticMarks.leadParagraphButton}
-          </FeatureGuard>
-          <FeatureGuard featureValue={config?.bold}>
-            {starterKit.boldButton}
-          </FeatureGuard>
-          <FeatureGuard featureValue={config?.italic}>
-            {starterKit.italicButton}
-          </FeatureGuard>
-          <FeatureGuard featureValue={config?.underline}>
-            {starterKit.underlineButton}
-          </FeatureGuard>
-          <FeatureGuard featureValue={config?.strike}>
-            {starterKit.strikeButton}
-          </FeatureGuard>
-          <FeatureGuard featureValue={config?.superscript}>
-            {script.superscriptButton}
-          </FeatureGuard>
-          <FeatureGuard featureValue={config?.subscript}>
-            {script.subscriptButton}
-          </FeatureGuard>
-          <FeatureGuard featureValue={config?.textColor}>
-            {textColor.textColorButton}
-          </FeatureGuard>
-          <FeatureGuard featureValue={config?.highlightColor}>
-            {highlightColor.highlightColorButton}
-          </FeatureGuard>
-          <FeatureGuard featureValue={config?.abbr}>
-            {semanticMarks.abbrButton}
-            {semanticMarks.abbrDialog}
-          </FeatureGuard>
-          <FeatureGuard featureValue={config?.language}>
-            {semanticMarks.languageButton}
-            {semanticMarks.languageDialog}
-          </FeatureGuard>
-          <Spacer width={8} />
-          <FeatureGuard featureValue={config?.textAlign}>
-            {textAlign.textAlignLeftButton}
-            {textAlign.textAlignCenterButton}
-            {textAlign.textAlignRightButton}
-            {textAlign.textAlignJustifyButton}
-            <Spacer width={8} />
-          </FeatureGuard>
-          <FeatureGuard featureValue={config?.bulletList}>
-            {starterKit.bulletButton}
-          </FeatureGuard>
-          <FeatureGuard featureValue={config?.orderedList}>
-            {starterKit.orderedButton}
-          </FeatureGuard>
-          <FeatureGuard featureValue={config?.taskList}>
-            {structuredBlocks.taskListButton}
-          </FeatureGuard>
-          <Spacer width={8} />
-          <FeatureGuard featureValue={config?.code}>
-            {starterKit.codeButton}
-          </FeatureGuard>
-          <FeatureGuard featureValue={config?.blockquote}>
-            {starterKit.blockquoteButton}
-          </FeatureGuard>
-          <FeatureGuard featureValue={config?.informationPane}>
-            {informationPane.informationPaneButton}
-          </FeatureGuard>
-          <FeatureGuard featureValue={config?.conversationHistory}>
-            {structuredBlocks.conversationHistoryButton}
-          </FeatureGuard>
-          <FeatureGuard featureValue={config?.accordion}>
-            {structuredBlocks.accordionButton}
-          </FeatureGuard>
-          <FeatureGuard featureValue={config?.columns}>
-            {structuredBlocks.columnsButton}
-          </FeatureGuard>
-          <FeatureGuard featureValue={config?.mathematics}>
-            {mathematics.mathematicsButton}
-            {mathematics.mathematicsDialog}
-          </FeatureGuard>
-          <FeatureGuard featureValue={config?.emoji}>
-            {emoji.emojiButton}
-          </FeatureGuard>
-          <FeatureGuard featureValue={config?.pageBreak}>
-            {structuredBlocks.pageBreakButton}
-          </FeatureGuard>
-          <FeatureGuard featureValue={config?.tableOfContents}>
-            {structuredBlocks.tableOfContentsButton}
-          </FeatureGuard>
-          <FeatureGuard featureValue={config?.link}>
-            {link.linkButton}
-            {link.linkDialog}
-          </FeatureGuard>
-          <FeatureGuard featureValue={config?.linker}>
-            {linker.linkerButton}
-            {linker.linkerDialog}
-          </FeatureGuard>
-          <FeatureGuard featureValue={config?.mediaLibrary}>
-            {image.imageButton}
-            {image.imageDialog}
-          </FeatureGuard>
-          <FeatureGuard featureValue={config?.video}>
-            {video.videoButton}
-            {video.videoDialog}
-          </FeatureGuard>
-          <FeatureGuard featureValue={config?.audio}>
-            {audio.audioButton}
-            {audio.audioDialog}
-          </FeatureGuard>
-          <FeatureGuard featureValue={config?.attachment}>
-            {attachment.attachmentButton}
-            {attachment.attachmentDialog}
-          </FeatureGuard>
-          <FeatureGuard featureValue={config?.iframe}>
-            {iframe.iframeButton}
-            {iframe.iframeDialog}
-          </FeatureGuard>
-          <FeatureGuard featureValue={config?.table}>
-            <Spacer width={8} />
-            {table.tableButton}
-            {table.addColumnButton}
-            {table.removeColumnButton}
-            {table.addRowButton}
-            {table.removeRowButton}
-            {table.cellColorButton}
-            {table.mergeCellsButton}
-            {table.splitCellButton}
-            {table.tableDialog}
-          </FeatureGuard>
-          <FeatureGuard featureValue={config?.speechToText}>
-            <Spacer width={8} />
-            {speech.speechToTextButton}
-          </FeatureGuard>
-          <FeatureGuard featureValue={config?.textToSpeech}>
-            {speech.textToSpeechButton}
-          </FeatureGuard>
-          <FeatureGuard featureValue={config?.fullscreen}>
-            <Spacer width={8} />
-            {editorModes.previewButton}
-            {editorModes.sourceButton}
-            {editorModes.fullscreenButton}
-          </FeatureGuard>
+          <ResponsiveToolbar items={toolbarItems} />
         </BaseTiptapInput>
       </EditorErrorBoundary>
     );

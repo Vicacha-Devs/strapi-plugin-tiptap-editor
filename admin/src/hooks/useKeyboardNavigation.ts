@@ -24,14 +24,38 @@ export function useKeyboardNavigation(editor: Editor | null) {
 
   const handleToolbarKeyDown = useCallback(
     (event: React.KeyboardEvent<HTMLDivElement>) => {
+      const target = event.target as HTMLElement | null;
+      const container = toolbarRef.current;
+      // Ignore keyboard events originating from portaled dialogs/popovers outside the toolbar DOM container
+      if (!container || !target || !container.contains(target)) {
+        return;
+      }
+      // Allow native text cursor navigation and Escape inside input/textarea fields
+      const tagName = target.tagName?.toUpperCase();
+      if (tagName === 'INPUT' || tagName === 'TEXTAREA' || target.isContentEditable) {
+        return;
+      }
+
       if (event.key === 'Escape') {
         event.preventDefault();
         editor?.commands.focus();
         return;
       }
 
-      const isNext = event.key === 'ArrowRight';
-      const isPrev = event.key === 'ArrowLeft';
+      const isCombobox = Boolean(target.closest?.('[role="combobox"]'));
+      // Do not hijack ArrowUp/ArrowDown/Home/End inside a combobox select trigger
+      if (
+        isCombobox &&
+        (event.key === 'ArrowUp' ||
+          event.key === 'ArrowDown' ||
+          event.key === 'Home' ||
+          event.key === 'End')
+      ) {
+        return;
+      }
+
+      const isNext = event.key === 'ArrowRight' || event.key === 'ArrowDown';
+      const isPrev = event.key === 'ArrowLeft' || event.key === 'ArrowUp';
       const isHome = event.key === 'Home';
       const isEnd = event.key === 'End';
 
@@ -53,14 +77,13 @@ export function useKeyboardNavigation(editor: Editor | null) {
       } else if (isNext) {
         targetIndex = currentIndex >= 0 ? (currentIndex + 1) % controls.length : 0;
       } else if (isPrev) {
-        targetIndex =
-          currentIndex > 0 ? currentIndex - 1 : controls.length - 1;
+        targetIndex = currentIndex > 0 ? currentIndex - 1 : controls.length - 1;
       }
 
-      const target = controls[targetIndex];
-      if (target) {
+      const nextTarget = controls[targetIndex];
+      if (nextTarget) {
         event.preventDefault();
-        target.focus();
+        nextTarget.focus();
       }
     },
     [editor, getFocusableControls]

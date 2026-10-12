@@ -2,11 +2,37 @@ import { describe, it, expect, vi } from 'vitest';
 
 // Mock Strapi design system and React hooks used by Heading.tsx (not needed for buildExtensions)
 vi.mock('@strapi/design-system', () => ({
+  Box: 'Box',
+  Button: 'Button',
+  Dialog: {
+    Root: 'DialogRoot',
+    Content: 'DialogContent',
+    Header: 'DialogHeader',
+    Body: 'DialogBody',
+    Footer: 'DialogFooter',
+    Cancel: 'DialogCancel',
+    Action: 'DialogAction',
+  },
+  Field: { Root: 'FieldRoot', Label: 'FieldLabel', Hint: 'FieldHint', Error: 'FieldError' },
+  Flex: 'Flex',
+  IconButton: 'IconButton',
+  Popover: { Root: 'PopoverRoot', Trigger: 'PopoverTrigger', Content: 'PopoverContent' },
   SingleSelect: 'SingleSelect',
   SingleSelectOption: 'SingleSelectOption',
+  TextInput: 'TextInput',
+  Textarea: 'Textarea',
+  Tooltip: 'Tooltip',
+  Typography: 'Typography',
+}));
+vi.mock('@strapi/strapi/admin', () => ({
+  useField: vi.fn(() => ({ value: '', onChange: vi.fn(), error: undefined })),
+  useFetchClient: vi.fn(() => ({ get: vi.fn(), post: vi.fn(), put: vi.fn() })),
 }));
 vi.mock('@tiptap/react', () => ({
   useEditorState: vi.fn(),
+  ReactNodeViewRenderer: vi.fn(),
+  NodeViewWrapper: 'div',
+  NodeViewContent: 'div',
 }));
 
 import { buildExtensions } from '../../admin/src/utils/buildExtensions';

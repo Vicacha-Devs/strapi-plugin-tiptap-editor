@@ -38,6 +38,9 @@ const LATEX_SYMBOLS = [
   { label: '→ Arrow', snippet: '\\rightarrow' },
 ];
 
+/**
+ * Formats a LaTeX expression string into readable mathematical Unicode symbols for preview.
+ */
 export function formatLatexPreview(latex: string): string {
   if (!latex) return '';
   return latex
@@ -59,7 +62,11 @@ export function formatLatexPreview(latex: string): string {
     .replace(/\\times/g, '×');
 }
 
+/**
+ * Read-only node view component rendering a mathematical formula inline or as a block equation.
+ */
 export function MathematicsNodeViewReadOnly({ node }: NodeViewProps) {
+  const { formatMessage } = useIntl();
   const latex = String(node.attrs.latex ?? '');
   const displayMode = node.attrs.displayMode === 'block' ? 'block' : 'inline';
   const rendered = formatLatexPreview(latex);
@@ -80,7 +87,16 @@ export function MathematicsNodeViewReadOnly({ node }: NodeViewProps) {
         fontStyle: 'italic',
       }}
     >
-      <span role="math" aria-label={`Mathematical formula: ${latex}`}>
+      <span
+        role="math"
+        aria-label={formatMessage(
+          {
+            id: 'tiptap-editor.mathematics.formulaAria',
+            defaultMessage: 'Mathematical formula: {latex}',
+          },
+          { latex }
+        )}
+      >
         {rendered || latex}
       </span>
     </NodeViewWrapper>
@@ -141,6 +157,9 @@ export const MathematicsNode = Node.create<MathematicsOptions>({
   },
 });
 
+/**
+ * React hook providing the toolbar button and dialog for inserting LaTeX mathematical formulas.
+ */
 export function useMathematics(
   editor: Editor | null,
   props: { disabled?: boolean } = { disabled: false }
@@ -242,8 +261,18 @@ export function useMathematics(
                     setDisplayMode(String(v) === 'block' ? 'block' : 'inline')
                   }
                 >
-                  <SingleSelectOption value="inline">Inline ($...$)</SingleSelectOption>
-                  <SingleSelectOption value="block">Block Equation ($$...$$)</SingleSelectOption>
+                  <SingleSelectOption value="inline">
+                    {formatMessage({
+                      id: 'tiptap-editor.mathematics.displayInline',
+                      defaultMessage: 'Inline ($...$)',
+                    })}
+                  </SingleSelectOption>
+                  <SingleSelectOption value="block">
+                    {formatMessage({
+                      id: 'tiptap-editor.mathematics.displayBlock',
+                      defaultMessage: 'Block Equation ($$...$$)',
+                    })}
+                  </SingleSelectOption>
                 </SingleSelect>
               </Field.Root>
               <div
@@ -259,7 +288,11 @@ export function useMathematics(
                   fontStyle: 'italic',
                 }}
               >
-                {formatLatexPreview(latex) || 'Preview'}
+                {formatLatexPreview(latex) ||
+                  formatMessage({
+                    id: 'tiptap-editor.mathematics.previewPlaceholder',
+                    defaultMessage: 'Preview',
+                  })}
               </div>
             </div>
           </Dialog.Body>

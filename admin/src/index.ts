@@ -30,7 +30,12 @@ export default {
         id: `${PLUGIN_ID}-settings`,
         to: `/${PLUGIN_ID}`,
         Component: () => import('./pages/SettingsPage'),
-        permissions: [],
+        permissions: [
+          {
+            action: `plugin::${PLUGIN_ID}.settings.update`,
+            subject: null,
+          },
+        ],
       });
     }
   },

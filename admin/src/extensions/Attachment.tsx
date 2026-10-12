@@ -1,25 +1,24 @@
 import React, { useState } from 'react';
 import { Node, mergeAttributes, type Editor } from '@tiptap/core';
-import {
-  NodeViewWrapper,
-  ReactNodeViewRenderer,
-  useEditorState,
-  type NodeViewProps,
-} from '@tiptap/react';
-import { IconButton, Popover, TextInput } from '@strapi/design-system';
-import { Paperclip, Trash } from '@strapi/icons';
+import { ReactNodeViewRenderer, NodeViewWrapper, useEditorState } from '@tiptap/react';
+import type { NodeViewProps } from '@tiptap/react';
+import { IconButton } from '@strapi/design-system';
+import { Trash, Paperclip } from '@strapi/icons';
 import { useIntl } from 'react-intl';
 import { ToolbarButton } from '../components/ToolbarButton';
 import { MediaLibraryWrapper, type StrapiFile } from '../components/MediaLibraryWrapper';
 import { isSafeUrl } from '../../../shared/contentSerializer';
 
 export interface StrapiAttachmentOptions {
-  enableContentCheck: boolean;
   HTMLAttributes: Record<string, unknown>;
+  enableContentCheck: boolean;
 }
 
-export function formatAttachmentSize(sizeInKB: number | string | null | undefined): string {
-  const num = typeof sizeInKB === 'string' ? parseFloat(sizeInKB) : sizeInKB;
+/**
+ * Formats a file size in KB into a human-readable string (`KB` or `MB`).
+ */
+export function formatFileSize(sizeInKb?: number | string | null): string {
+  const num = typeof sizeInKb === 'string' ? parseFloat(sizeInKb) : sizeInKb;
   if (typeof num !== 'number' || Number.isNaN(num) || num <= 0) return '';
   if (num >= 1024) {
     return `${(num / 1024).toFixed(1)} MB`;
@@ -27,141 +26,92 @@ export function formatAttachmentSize(sizeInKB: number | string | null | undefine
   return `${Math.round(num)} KB`;
 }
 
+/**
+ * Read-only NodeView for attachment cards when the feature is disabled in the active preset.
+ */
 export function AttachmentNodeViewReadOnly({ node }: NodeViewProps) {
-  const { href, src, filename, title, mime, size, ext } = node.attrs;
-  const rawUrl = href || src || '';
-  const safeHref = isSafeUrl(rawUrl) ? rawUrl : '#';
-  const displayName = title || filename || 'Attachment';
-  const badge = (ext ? String(ext).replace(/^\./, '') : mime ? String(mime).split('/')[1] : 'FILE')
-    .toUpperCase()
-    .slice(0, 8);
-  const formattedSize = formatAttachmentSize(size);
+  const { formatMessage } = useIntl();
+  const href = String(node.attrs.href || node.attrs.src || '');
+  const safeHref = isSafeUrl(href) ? href : '#';
+  const filename = String(
+    node.attrs.filename ||
+      node.attrs.title ||
+      formatMessage({ id: 'tiptap-editor.attachment.defaultName', defaultMessage: 'Attachment' })
+  );
+  const ext = String(node.attrs.ext || '')
+    .replace(/^\./, '')
+    .toUpperCase();
+  const sizeFormatted = formatFileSize(node.attrs.size);
 
   return (
     <NodeViewWrapper data-drag-handle data-type="attachment">
       <div
-        className="tiptap-attachment-card"
         style={{
-          display: 'flex',
+          display: 'inline-flex',
           alignItems: 'center',
-          justifyContent: 'space-between',
-          gap: '12px',
+          gap: '10px',
           padding: '10px 14px',
-          margin: '0.75em 0',
-          backgroundColor: '#f6f6f9',
           border: '1px solid #dcdce4',
-          borderRadius: '8px',
+          borderRadius: '6px',
+          background: '#f6f6f9',
+          maxWidth: '100%',
         }}
       >
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0 }}>
-          <span
-            style={{
-              backgroundColor: '#4945ff',
-              color: '#fff',
-              fontSize: '1.1rem',
-              fontWeight: 700,
-              padding: '4px 8px',
-              borderRadius: '4px',
-              flexShrink: 0,
-            }}
-          >
-            {badge}
-          </span>
-          <div style={{ minWidth: 0 }}>
-            <div
-              style={{
-                fontSize: '1.4rem',
-                fontWeight: 600,
-                color: '#32324d',
-                overflow: 'hidden',
-                textOverflow: 'ellipsis',
-                whiteSpace: 'nowrap',
-              }}
-            >
-              {displayName}
-            </div>
-            {formattedSize && (
-              <div style={{ fontSize: '1.2rem', color: '#666687' }}>{formattedSize}</div>
-            )}
-          </div>
-        </div>
-        <a
-          href={safeHref}
-          target="_blank"
-          rel="noopener noreferrer"
-          download={filename || true}
-          aria-label={`Download ${displayName}`}
+        <span
           style={{
-            fontSize: '1.3rem',
-            fontWeight: 600,
-            color: '#4945ff',
-            textDecoration: 'none',
-            flexShrink: 0,
+            display: 'inline-flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '4px 8px',
+            borderRadius: '4px',
+            background: '#4945ff',
+            color: '#fff',
+            fontSize: '1.1rem',
+            fontWeight: 700,
           }}
         >
-          ↓ Download
-        </a>
+          {ext || 'FILE'}
+        </span>
+        <div style={{ display: 'flex', flexDirection: 'column' }}>
+          <a
+            href={safeHref}
+            target="_blank"
+            rel="noopener noreferrer"
+            download={filename}
+            style={{ fontWeight: 600, fontSize: '1.3rem', color: '#212134' }}
+          >
+            {filename}
+          </a>
+          {sizeFormatted && (
+            <span style={{ fontSize: '1.1rem', color: '#666687' }}>{sizeFormatted}</span>
+          )}
+        </div>
       </div>
     </NodeViewWrapper>
   );
 }
 
+/**
+ * Interactive NodeView for attachment cards with delete action.
+ */
 export function AttachmentNodeView(props: NodeViewProps) {
-  const { node, updateAttributes, deleteNode, selected } = props;
   const { formatMessage } = useIntl();
-  const [openPopover, setOpenPopover] = useState(false);
-  const [title, setTitle] = useState<string>(node.attrs.title ?? node.attrs.filename ?? '');
+  const { deleteNode } = props;
 
   return (
     <NodeViewWrapper data-drag-handle data-type="attachment">
-      <Popover.Root open={openPopover} onOpenChange={setOpenPopover}>
-        <Popover.Anchor>
-          <div
-            onClick={() => setOpenPopover(true)}
-            style={{
-              outline: selected ? '2px solid #4945ff' : undefined,
-              borderRadius: '8px',
-              cursor: 'pointer',
-            }}
-          >
-            <AttachmentNodeViewReadOnly {...props} />
-          </div>
-        </Popover.Anchor>
-        <Popover.Content side="bottom">
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '8px',
-              padding: '8px',
-              minWidth: '240px',
-            }}
-          >
-            <TextInput
-              placeholder={formatMessage({
-                id: 'tiptap-editor.attachment.title',
-                defaultMessage: 'Attachment label',
-              })}
-              value={title}
-              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setTitle(e.target.value)}
-              onBlur={() => updateAttributes({ title: title || null })}
-              aria-label={formatMessage({
-                id: 'tiptap-editor.attachment.title',
-                defaultMessage: 'Attachment label',
-              })}
-            />
-            <IconButton
-              onClick={deleteNode}
-              label={formatMessage({
-                id: 'tiptap-editor.attachment.delete',
-                defaultMessage: 'Remove attachment',
-              })}
-            >
-              <Trash />
-            </IconButton>
-          </div>
-        </Popover.Content>
-      </Popover.Root>
+      <div style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', maxWidth: '100%' }}>
+        <AttachmentNodeViewReadOnly {...props} />
+        <IconButton
+          onClick={deleteNode}
+          label={formatMessage({
+            id: 'tiptap-editor.attachment.delete',
+            defaultMessage: 'Remove attachment',
+          })}
+        >
+          <Trash />
+        </IconButton>
+      </div>
     </NodeViewWrapper>
   );
 }
@@ -174,8 +124,8 @@ export const StrapiAttachment = Node.create<StrapiAttachmentOptions>({
 
   addOptions() {
     return {
-      enableContentCheck: false,
       HTMLAttributes: {},
+      enableContentCheck: false,
     };
   },
 
@@ -193,8 +143,8 @@ export const StrapiAttachment = Node.create<StrapiAttachmentOptions>({
         parseHTML: (el: HTMLElement) => {
           const raw = el.getAttribute('data-asset-id');
           if (!raw) return null;
-          const n = parseInt(raw, 10);
-          return Number.isNaN(n) ? null : n;
+          const num = parseInt(raw, 10);
+          return Number.isNaN(num) ? null : num;
         },
         renderHTML: (attrs: Record<string, unknown>) =>
           attrs['data-asset-id'] != null ? { 'data-asset-id': String(attrs['data-asset-id']) } : {},
@@ -215,13 +165,24 @@ export const StrapiAttachment = Node.create<StrapiAttachmentOptions>({
   },
 
   renderHTML({ HTMLAttributes }) {
-    const label = String(HTMLAttributes.title || HTMLAttributes.filename || 'Attachment');
+    const href = String(HTMLAttributes.href || HTMLAttributes.src || '#');
+    const safeHref = isSafeUrl(href) ? href : '#';
+    const label = String(HTMLAttributes.filename || HTMLAttributes.title || 'Attachment');
     return [
       'div',
       mergeAttributes(this.options.HTMLAttributes, HTMLAttributes, {
         'data-type': 'attachment',
       }),
-      label,
+      [
+        'a',
+        {
+          href: safeHref,
+          download: String(HTMLAttributes.filename || ''),
+          'data-attachment': 'true',
+          rel: 'noopener noreferrer',
+        },
+        label,
+      ],
     ];
   },
 
@@ -233,12 +194,15 @@ export const StrapiAttachment = Node.create<StrapiAttachmentOptions>({
   },
 });
 
+/**
+ * Provides toolbar button and Strapi Media Library dialog for inserting file attachments.
+ */
 export function useAttachment(
   editor: Editor | null,
   props: { disabled?: boolean } = { disabled: false }
 ) {
-  const [showPicker, setShowPicker] = useState(false);
   const { formatMessage } = useIntl();
+  const [showMediaLibrary, setShowMediaLibrary] = useState(false);
 
   const editorState = useEditorState({
     editor,
@@ -251,7 +215,7 @@ export function useAttachment(
     const asset = assets[0];
     const url = asset?.url?.trim();
     if (!asset || !editor || !url) {
-      setShowPicker(false);
+      setShowMediaLibrary(false);
       return;
     }
 
@@ -263,38 +227,38 @@ export function useAttachment(
         attrs: {
           href: url,
           src: url,
-          filename: asset.name,
-          title: asset.alternativeText || asset.name,
+          filename: asset.name ?? 'file',
+          title: asset.alternativeText ?? asset.name ?? 'file',
           mime: asset.mime ?? null,
           size: asset.size ?? null,
           ext: asset.ext ?? null,
-          'data-asset-id': asset.id,
+          'data-asset-id': asset.id ?? null,
           'data-document-id': asset.documentId ?? null,
         },
       })
       .createParagraphNear()
       .run();
 
-    setShowPicker(false);
+    setShowMediaLibrary(false);
   };
 
   const attachmentButton = (
     <ToolbarButton
-      onClick={() => setShowPicker(true)}
+      onClick={() => setShowMediaLibrary(true)}
       icon={<Paperclip />}
       active={false}
       disabled={props.disabled || !editor || (editorState?.isInCodeBlock ?? false)}
       tooltip={formatMessage({
         id: 'tiptap-editor.toolbar.insertAttachment',
-        defaultMessage: 'Insert file attachment',
+        defaultMessage: 'Insert attachment file',
       })}
     />
   );
 
   const attachmentDialog = (
     <MediaLibraryWrapper
-      open={showPicker}
-      onClose={() => setShowPicker(false)}
+      open={showMediaLibrary}
+      onClose={() => setShowMediaLibrary(false)}
       onSelectAssets={handleSelectAssets}
       allowedTypes={['files', 'images', 'videos', 'audios']}
     />

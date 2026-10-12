@@ -10,6 +10,7 @@ import {
   Checkbox,
   TextInput,
 } from '@strapi/design-system';
+import { useIntl } from 'react-intl';
 import {
   PRESET_FEATURE_KEYS,
   DEFAULT_RUNTIME_SETTINGS,
@@ -18,7 +19,13 @@ import {
   type TiptapOutputFormat,
 } from '../../../shared/types';
 
+/**
+ * Global Administration Settings page for the Tiptap Editor plugin.
+ * Allows authorized administrators to configure default preset, output format,
+ * allowed iframe domains, relational sync, and per-preset feature overrides.
+ */
 export function SettingsPage() {
+  const { formatMessage } = useIntl();
   const { get, put } = useFetchClient();
   const [settings, setSettings] = useState<TiptapRuntimeSettings>(DEFAULT_RUNTIME_SETTINGS);
   const [selectedPreset, setSelectedPreset] = useState<string>('default');
@@ -34,13 +41,10 @@ export function SettingsPage() {
     get('/tiptap-editor/settings')
       .then((res: { data?: TiptapRuntimeSettings }) => {
         if (!mounted || !res?.data) return;
-        const loaded = {
+        const loaded: TiptapRuntimeSettings = {
           ...DEFAULT_RUNTIME_SETTINGS,
           ...res.data,
-          presetOverrides: {
-            ...BUILT_IN_PRESETS,
-            ...(res.data.presetOverrides || {}),
-          },
+          presetOverrides: res.data.presetOverrides || {},
         };
         setSettings(loaded);
         setIframeDomainsInput((loaded.allowedIframeDomains || []).join(', '));
@@ -56,8 +60,10 @@ export function SettingsPage() {
     };
   }, [get]);
 
-  const currentPresetConfig =
-    settings.presetOverrides?.[selectedPreset] ?? BUILT_IN_PRESETS[selectedPreset] ?? {};
+  const currentPresetConfig = {
+    ...(BUILT_IN_PRESETS[selectedPreset] ?? {}),
+    ...(settings.presetOverrides?.[selectedPreset] ?? {}),
+  };
 
   const handleToggleFeature = (featureKey: keyof typeof currentPresetConfig, enabled: boolean) => {
     setSettings((prev) => ({
@@ -65,7 +71,7 @@ export function SettingsPage() {
       presetOverrides: {
         ...prev.presetOverrides,
         [selectedPreset]: {
-          ...(prev.presetOverrides?.[selectedPreset] ?? BUILT_IN_PRESETS[selectedPreset] ?? {}),
+          ...(prev.presetOverrides?.[selectedPreset] ?? {}),
           [featureKey]: enabled,
         },
       },
@@ -88,9 +94,19 @@ export function SettingsPage() {
       if (res?.data) {
         setSettings(res.data);
       }
-      setSaveMessage('Settings saved successfully.');
+      setSaveMessage(
+        formatMessage({
+          id: 'tiptap-editor.settings.saveSuccess',
+          defaultMessage: 'Settings saved successfully.',
+        })
+      );
     } catch {
-      setSaveMessage('Failed to save settings.');
+      setSaveMessage(
+        formatMessage({
+          id: 'tiptap-editor.settings.saveError',
+          defaultMessage: 'Failed to save settings.',
+        })
+      );
     } finally {
       setIsSaving(false);
     }
@@ -99,7 +115,12 @@ export function SettingsPage() {
   if (isLoading) {
     return (
       <Box padding={8}>
-        <Typography>Loading Tiptap Editor settings...</Typography>
+        <Typography>
+          {formatMessage({
+            id: 'tiptap-editor.settings.loading',
+            defaultMessage: 'Loading Tiptap Editor settings...',
+          })}
+        </Typography>
       </Box>
     );
   }
@@ -113,14 +134,24 @@ export function SettingsPage() {
       <Flex justifyContent="space-between" alignItems="center" marginBottom={6}>
         <Box>
           <Typography variant="alpha" tag="h1">
-            Tiptap Editor Settings
+            {formatMessage({
+              id: 'tiptap-editor.settings.pageTitle',
+              defaultMessage: 'Tiptap Editor Settings',
+            })}
           </Typography>
           <Typography variant="epsilon" textColor="neutral600">
-            Configure global defaults, relational sync, iframe security, and toolbar presets.
+            {formatMessage({
+              id: 'tiptap-editor.settings.pageDescription',
+              defaultMessage:
+                'Configure global defaults, relational sync, iframe security, and toolbar presets.',
+            })}
           </Typography>
         </Box>
         <Button onClick={handleSave} loading={isSaving}>
-          Save Settings
+          {formatMessage({
+            id: 'tiptap-editor.settings.saveButton',
+            defaultMessage: 'Save Settings',
+          })}
         </Button>
       </Flex>
 
@@ -144,13 +175,19 @@ export function SettingsPage() {
         hasRadius
       >
         <Typography variant="delta" tag="h2">
-          Global Configuration
+          {formatMessage({
+            id: 'tiptap-editor.settings.globalSectionTitle',
+            defaultMessage: 'Global Configuration',
+          })}
         </Typography>
 
         <Flex gap={6} wrap="wrap" marginTop={4}>
           <Box style={{ minWidth: '220px' }}>
             <Typography variant="pi" fontWeight="bold">
-              Default Preset
+              {formatMessage({
+                id: 'tiptap-editor.settings.defaultPresetLabel',
+                defaultMessage: 'Default Preset',
+              })}
             </Typography>
             <Box marginTop={1}>
               <SingleSelect
@@ -170,7 +207,10 @@ export function SettingsPage() {
 
           <Box style={{ minWidth: '220px' }}>
             <Typography variant="pi" fontWeight="bold">
-              Default Output Format
+              {formatMessage({
+                id: 'tiptap-editor.settings.defaultOutputFormatLabel',
+                defaultMessage: 'Default Output Format',
+              })}
             </Typography>
             <Box marginTop={1}>
               <SingleSelect
@@ -182,16 +222,34 @@ export function SettingsPage() {
                   }))
                 }
               >
-                <SingleSelectOption value="json">JSON (ProseMirror Document)</SingleSelectOption>
-                <SingleSelectOption value="html">HTML String</SingleSelectOption>
-                <SingleSelectOption value="markdown">Markdown String</SingleSelectOption>
+                <SingleSelectOption value="json">
+                  {formatMessage({
+                    id: 'tiptap-editor.settings.outputFormatJson',
+                    defaultMessage: 'JSON (ProseMirror Document)',
+                  })}
+                </SingleSelectOption>
+                <SingleSelectOption value="html">
+                  {formatMessage({
+                    id: 'tiptap-editor.settings.outputFormatHtml',
+                    defaultMessage: 'HTML String',
+                  })}
+                </SingleSelectOption>
+                <SingleSelectOption value="markdown">
+                  {formatMessage({
+                    id: 'tiptap-editor.settings.outputFormatMarkdown',
+                    defaultMessage: 'Markdown String',
+                  })}
+                </SingleSelectOption>
               </SingleSelect>
             </Box>
           </Box>
 
           <Box style={{ minWidth: '320px', flex: 1 }}>
             <Typography variant="pi" fontWeight="bold">
-              Allowed Iframe Domains (comma-separated)
+              {formatMessage({
+                id: 'tiptap-editor.settings.allowedIframeDomainsLabel',
+                defaultMessage: 'Allowed Iframe Domains (comma-separated)',
+              })}
             </Typography>
             <Box marginTop={1}>
               <TextInput
@@ -212,7 +270,11 @@ export function SettingsPage() {
               setSettings((prev) => ({ ...prev, enableRelationalSync: Boolean(checked) }))
             }
           >
-            Automatically sync embedded Media (&lt;FieldName&gt;Media) and Internal Links (&lt;FieldName&gt;Links)
+            {formatMessage({
+              id: 'tiptap-editor.settings.enableRelationalSyncLabel',
+              defaultMessage:
+                'Automatically sync embedded Media (<FieldName>Media) and Internal Links (<FieldName>Links)',
+            })}
           </Checkbox>
         </Box>
       </Box>
@@ -220,7 +282,10 @@ export function SettingsPage() {
       <Box padding={6} background="neutral0" shadow="filterShadow" hasRadius>
         <Flex justifyContent="space-between" alignItems="center" marginBottom={4}>
           <Typography variant="delta" tag="h2">
-            Preset Feature Matrix
+            {formatMessage({
+              id: 'tiptap-editor.settings.presetMatrixTitle',
+              defaultMessage: 'Preset Feature Matrix',
+            })}
           </Typography>
           <Box style={{ minWidth: '220px' }}>
             <SingleSelect

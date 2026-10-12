@@ -126,12 +126,31 @@ describe('server/services/search', () => {
       service.getDocument('api::article.article', '../traversal')
     ).rejects.toThrow('Invalid documentId format');
   });
+
+  it('filters out collections that userAbility cannot read', async () => {
+    const service = createSearchService({ strapi: mockStrapi });
+    const restrictedAbility = {
+      cannot: (action: string, subject: string) =>
+        action === 'plugin::content-manager.explorer.read' && subject === 'api::article.article',
+    };
+    const results = await service.search('Tiptap', 'en', restrictedAbility);
+    expect(results['api::article.article']).toBeUndefined();
+    await expect(
+      service.getDocument('api::article.article', 'doc-101', undefined, restrictedAbility)
+    ).rejects.toThrow('Forbidden');
+  });
 });
 
 describe('server/services/media (SSRF Protection & Metadata)', () => {
-  it('blocks localhost, private IPs, metadata IPs, and non-http protocols', () => {
+  it('blocks localhost, private IPs, metadata IPs, IPv4-mapped IPv6, CGNAT, 0.0.0.0, trailing dots, and non-http protocols', () => {
     expect(isSsrfSafeUrl('http://localhost:1337/admin')).toBe(false);
+    expect(isSsrfSafeUrl('http://localhost./admin')).toBe(false);
     expect(isSsrfSafeUrl('http://127.0.0.1:8080/secret')).toBe(false);
+    expect(isSsrfSafeUrl('http://0.0.0.0:1337/admin')).toBe(false);
+    expect(isSsrfSafeUrl('http://100.64.0.1/cgnat')).toBe(false);
+    expect(isSsrfSafeUrl('http://[::ffff:127.0.0.1]:1337/')).toBe(false);
+    expect(isSsrfSafeUrl('http://[0:0:0:0:0:ffff:7f00:1]/')).toBe(false);
+    expect(isSsrfSafeUrl('http://2130706433/')).toBe(false);
     expect(isSsrfSafeUrl('http://169.254.169.254/latest/meta-data')).toBe(false);
     expect(isSsrfSafeUrl('http://10.0.0.1/internal')).toBe(false);
     expect(isSsrfSafeUrl('http://192.168.1.50/router')).toBe(false);
@@ -141,7 +160,7 @@ describe('server/services/media (SSRF Protection & Metadata)', () => {
     expect(isSsrfSafeUrl('https://strapi.io/assets/logo.png')).toBe(true);
   });
 
-  it('validates uploadByUrl and rejects SSRF targets', async () => {
+  it('validates uploadByUrl, infers MIME types from extension, and rejects SSRF targets', async () => {
     const service = createMediaService({ strapi: {} as any });
     await expect(service.uploadByUrl('http://127.0.0.1/test.jpg')).rejects.toThrow(
       'SSRF safety validation'
@@ -154,6 +173,13 @@ describe('server/services/media (SSRF Protection & Metadata)', () => {
     expect(asset.name).toBe('banner.jpg');
     expect(asset.url).toBe('https://cdn.example.com/photos/banner.jpg');
     expect(asset.alternativeText).toBe('Hero Banner');
+    expect(asset.mime).toBe('image/jpeg');
+
+    const videoAsset = await service.uploadByUrl('https://cdn.example.com/media/clip.mp4');
+    expect(videoAsset.mime).toBe('video/mp4');
+
+    const pdfAsset = await service.uploadByUrl('https://cdn.example.com/docs/report.pdf');
+    expect(pdfAsset.mime).toBe('application/pdf');
   });
 });
 

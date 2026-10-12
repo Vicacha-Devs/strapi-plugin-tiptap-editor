@@ -31,3 +31,66 @@ export function captureApp(app: AppBridge) {
 export function getMediaLibraryComponent(): ComponentType<MediaLibraryDialogProps> | null {
   return appRef?.library?.components?.['media-library'] ?? null;
 }
+
+export interface UploadedStrapiAsset {
+  id?: number;
+  documentId?: string;
+  url?: string;
+  name?: string;
+  alternativeText?: string;
+  caption?: string;
+  mime?: string;
+  width?: number;
+  height?: number;
+}
+
+/**
+ * Uploads a `FormData` payload to Strapi's `/upload` endpoint using `fetch`
+ * and any active Strapi admin bearer token / session cookie, avoiding top-level
+ * `@strapi/strapi/admin` imports inside extension modules.
+ */
+export async function uploadFileToStrapi(
+  formData: FormData
+): Promise<UploadedStrapiAsset | null> {
+  if (typeof fetch !== 'function') return null;
+
+  let rawToken: string | null = null;
+  try {
+    if (typeof window !== 'undefined') {
+      rawToken =
+        window.localStorage?.getItem('jwtToken') ??
+        window.sessionStorage?.getItem('jwtToken') ??
+        null;
+      if (rawToken && rawToken.startsWith('"') && rawToken.endsWith('"')) {
+        rawToken = JSON.parse(rawToken);
+      }
+    }
+  } catch {
+    rawToken = null;
+  }
+
+  const headers: Record<string, string> = {};
+  if (rawToken) {
+    headers.Authorization = `Bearer ${rawToken}`;
+  }
+
+  const response = await fetch('/upload', {
+    method: 'POST',
+    headers,
+    body: formData,
+    credentials: 'include',
+  });
+
+  if (!response.ok) {
+    return null;
+  }
+
+  const payload = await response.json();
+  const uploaded = Array.isArray(payload)
+    ? payload[0]
+    : Array.isArray(payload?.data)
+      ? payload.data[0]
+      : payload?.data;
+
+  return uploaded && typeof uploaded === 'object' ? (uploaded as UploadedStrapiAsset) : null;
+}

@@ -194,6 +194,9 @@ export const SLASH_COMMAND_ITEMS: SlashCommandItem[] = [
   },
 ];
 
+/**
+ * React hook providing the quick-insert slash command popover menu and toolbar button.
+ */
 export function useSlashCommand(
   editor: Editor | null,
   props: { disabled?: boolean } = { disabled: false }
@@ -202,7 +205,19 @@ export function useSlashCommand(
   const [open, setOpen] = useState(false);
   const [filter, setFilter] = useState('');
 
-  const filteredItems = SLASH_COMMAND_ITEMS.filter((item) => {
+  const localizedItems = SLASH_COMMAND_ITEMS.map((item) => ({
+    ...item,
+    label: formatMessage({
+      id: `tiptap-editor.slash.${item.id}.label`,
+      defaultMessage: item.label,
+    }),
+    description: formatMessage({
+      id: `tiptap-editor.slash.${item.id}.description`,
+      defaultMessage: item.description,
+    }),
+  }));
+
+  const filteredItems = localizedItems.filter((item) => {
     if (!filter.trim()) return true;
     const q = filter.toLowerCase();
     return (
@@ -237,14 +252,23 @@ export function useSlashCommand(
         <Popover.Content side="bottom">
           <div style={{ padding: '10px', width: '280px' }}>
             <TextInput
-              placeholder="Filter blocks (e.g. callout, columns, toc)..."
+              placeholder={formatMessage({
+                id: 'tiptap-editor.slash.filterPlaceholder',
+                defaultMessage: 'Filter blocks (e.g. callout, columns, toc)...',
+              })}
               value={filter}
               onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFilter(e.target.value)}
-              aria-label="Filter blocks"
+              aria-label={formatMessage({
+                id: 'tiptap-editor.slash.filterAria',
+                defaultMessage: 'Filter blocks',
+              })}
             />
             <div
               role="listbox"
-              aria-label="Quick insert blocks"
+              aria-label={formatMessage({
+                id: 'tiptap-editor.slash.listAria',
+                defaultMessage: 'Quick insert blocks',
+              })}
               style={{
                 maxHeight: '240px',
                 overflowY: 'auto',

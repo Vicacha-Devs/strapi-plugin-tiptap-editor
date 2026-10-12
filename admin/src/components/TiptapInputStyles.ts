@@ -4,7 +4,7 @@ export const TiptapInputStyles = styled.div`
   .tiptap-editor-wrapper.is-fullscreen {
     position: fixed;
     inset: 16px;
-    z-index: 1040;
+    z-index: 250;
     display: flex;
     flex-direction: column;
     box-shadow: 0 20px 60px rgba(0, 0, 0, 0.35);
@@ -33,6 +33,14 @@ export const TiptapInputStyles = styled.div`
     min-height: 15vh;
     overflow-y: auto;
     padding: 1rem;
+  }
+
+  .ProseMirror p.is-editor-empty:first-child::before {
+    color: ${({ theme }) => theme.colors.neutral500};
+    content: attr(data-placeholder);
+    float: left;
+    height: 0;
+    pointer-events: none;
   }
 
   .ProseMirror:focus-visible {

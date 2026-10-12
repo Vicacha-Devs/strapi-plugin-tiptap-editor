@@ -39,6 +39,9 @@ export const EmojiShortcodeExtension = Extension.create({
   },
 });
 
+/**
+ * React hook providing the emoji picker popover and toolbar button.
+ */
 export function useEmojiPicker(
   editor: Editor | null,
   props: { disabled?: boolean } = { disabled: false }
@@ -78,14 +81,23 @@ export function useEmojiPicker(
         <Popover.Content side="bottom">
           <div style={{ padding: '10px', width: '240px' }}>
             <TextInput
-              placeholder="Search emoji (:rocket:)..."
+              placeholder={formatMessage({
+                id: 'tiptap-editor.emoji.searchPlaceholder',
+                defaultMessage: 'Search emoji (:rocket:)...',
+              })}
               value={filter}
               onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFilter(e.target.value)}
-              aria-label="Search emoji"
+              aria-label={formatMessage({
+                id: 'tiptap-editor.emoji.searchAria',
+                defaultMessage: 'Search emoji',
+              })}
             />
             <div
               role="listbox"
-              aria-label="Emoji list"
+              aria-label={formatMessage({
+                id: 'tiptap-editor.emoji.listAria',
+                defaultMessage: 'Emoji list',
+              })}
               style={{
                 display: 'grid',
                 gridTemplateColumns: 'repeat(6, 1fr)',

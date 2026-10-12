@@ -11,6 +11,10 @@ import { TextAlignCenter } from '../icons/TextAlignCenter';
 import { TextAlignRight } from '../icons/TextAlignRight';
 import { ImageEditorModal } from './ImageEditorModal';
 
+/**
+ * Interactive NodeView for images with alignment, dimensions, alt text, caption,
+ * drag-resize handle, and HTML5 Canvas Image Studio integration.
+ */
 export function ImageNodeView({
   node,
   updateAttributes,
@@ -171,14 +175,15 @@ export function ImageNodeView({
         resizeCleanupRef.current = null;
       }
 
-      function onMouseUp() {
+      function onMouseUp(upEvent: MouseEvent) {
         cleanup();
-        if (img) {
-          updateAttributes({
-            width: Math.round(img.offsetWidth),
-            height: Math.round(img.offsetHeight),
-          });
+        const diff = upEvent.clientX - startX;
+        const finalWidth = Math.max(minWidth, startWidth + diff);
+        const attrs: Record<string, unknown> = { width: finalWidth };
+        if (preserveAspectRatio && ratio) {
+          attrs.height = Math.round(finalWidth / ratio);
         }
+        updateAttributes(attrs);
         requestAnimationFrame(() => {
           isResizingRef.current = false;
         });
@@ -239,6 +244,7 @@ export function ImageNodeView({
               onClick={() => handleAlign('left')}
               icon={<TextAlignLeft />}
               active={currentAlign === 'left'}
+              toggle
               disabled={false}
               tooltip={formatMessage({
                 id: 'tiptap-editor.image.alignLeft',
@@ -250,6 +256,7 @@ export function ImageNodeView({
               onClick={() => handleAlign('center')}
               icon={<TextAlignCenter />}
               active={currentAlign === 'center'}
+              toggle
               disabled={false}
               tooltip={formatMessage({
                 id: 'tiptap-editor.image.alignCenter',
@@ -261,6 +268,7 @@ export function ImageNodeView({
               onClick={() => handleAlign('right')}
               icon={<TextAlignRight />}
               active={currentAlign === 'right'}
+              toggle
               disabled={false}
               tooltip={formatMessage({
                 id: 'tiptap-editor.image.alignRight',
@@ -273,7 +281,14 @@ export function ImageNodeView({
                 setIsPopoverOpen(false);
                 setIsEditorOpen(true);
               }}
-              icon={<span style={{ fontSize: '1.1rem', fontWeight: 600 }}>Crop/Edit</span>}
+              icon={
+                <span style={{ fontSize: '1.1rem', fontWeight: 600 }}>
+                  {formatMessage({
+                    id: 'tiptap-editor.image.cropEditLabel',
+                    defaultMessage: 'Crop/Edit',
+                  })}
+                </span>
+              }
               active={false}
               disabled={false}
               tooltip={formatMessage({
@@ -390,8 +405,8 @@ export function ImageNodeView({
       <ImageEditorModal
         open={isEditorOpen}
         src={node.attrs.src ?? ''}
-        alt={node.attrs.alt ?? ''}
-        caption={node.attrs.caption ?? ''}
+        initialAlt={node.attrs.alt ?? ''}
+        initialCaption={node.attrs.caption ?? ''}
         onClose={() => setIsEditorOpen(false)}
         onSave={(edited) => {
           updateAttributes({
@@ -400,6 +415,8 @@ export function ImageNodeView({
             caption: edited.caption || null,
             ...(edited.width !== undefined ? { width: edited.width } : {}),
             ...(edited.height !== undefined ? { height: edited.height } : {}),
+            ...(edited.assetId !== undefined ? { 'data-asset-id': edited.assetId } : {}),
+            ...(edited.documentId !== undefined ? { 'data-document-id': edited.documentId } : {}),
           });
         }}
       />

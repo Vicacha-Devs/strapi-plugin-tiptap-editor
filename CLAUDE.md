@@ -7,11 +7,11 @@
   - `shared/relations.ts`: Defines `extractRelationsFromJSON`, `parseStrapiLinkUri`, and `formatStrapiLinkUri` for relational media (`image`, `video`, `audio`, `attachment`) and internal link (`linker` & `strapi://collectionName/documentId`) extraction.
   - `shared/contentSerializer.ts`: Defines `serializeEditorContent` (`json`, `html`, `markdown`), `isSafeUrl`, `isSafeIframeUrl`, `sanitizeHtmlString`, `jsonToMarkdown`, and `markdownToJson`.
 - **`server/src/`**:
-  - `bootstrap.ts`: Initializes runtime settings in `core-store` and registers the `links.links` component for relational internal link tracking.
-  - `services/` & `controllers/`: `preset`, `theme`, `settings`, `search` (`/search`, `/get/:collectionName/:documentId`, `/identify/:collectionName`), and `media` (SSRF-safe `/link-preview` and `/upload-by-url`).
+  - `bootstrap.ts`: Initializes runtime settings in `core-store`, registers RBAC actions (`settings.update`, `explorer.read`), and registers the `links.links` component for relational internal link tracking.
+  - `services/` & `controllers/`: `preset`, `theme`, `settings` (RBAC-protected `PUT /settings`), `search` (RBAC-filtered `/search`, `/get/:collectionName/:documentId`, `/identify/:collectionName`), and `media` (DNS-aware SSRF-safe `/link-preview` with `assertSafeResolvedHost`, manual redirect handling, and 64 KB bounded stream, plus `/upload-by-url` persisted Upload record creation).
 - **`admin/src/`**:
   - `extensions/`: Tiptap v3 extensions and toolbar hooks (`StarterKit`, `Heading`, `Link`, `Linker`, `Image`, `Video`, `Audio`, `Attachment`, `Iframe`, `Table`, `TextAlign`, `TextColor`, `HighlightColor`, `TypographyControls`, `SemanticMarks`, `InformationPane`, `StructuredBlocks`, `Mathematics`, `EmojiPicker`, `SlashCommand`, `SpeechTools`).
-  - `components/`: `RichTextInput`, `BaseTiptapInput`, `EditorFooterAndModes`, `ImageEditorModal`, `ImageAltPopover`, `MediaLibraryWrapper`, `ToolbarButton`.
+  - `components/`: `RichTextInput`, `ResponsiveToolbar`, `BaseTiptapInput`, `EditorFooterAndModes`, `ImageEditorModal`, `ImageAltPopover`, `MediaLibraryWrapper`, `ToolbarButton`, `Spacer`.
   - `hooks/`: `usePresetConfig`, `useKeyboardNavigation` (WCAG 2.1 AA roving focus), `useRelationalSync` (`<FieldName>Media` & `<FieldName>Links`).
   - `pages/`: `SettingsPage.tsx` (`/settings/tiptap-editor`).
 

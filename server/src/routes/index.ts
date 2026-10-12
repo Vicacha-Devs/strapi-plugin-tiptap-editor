@@ -1,3 +1,5 @@
+import { SETTINGS_UPDATE_PERMISSION } from '../bootstrap';
+
 export default {
   'preset-routes': {
     type: 'admin' as const,
@@ -40,7 +42,15 @@ export default {
         method: 'PUT',
         path: '/settings',
         handler: 'settings.update',
-        config: { policies: [], middlewares: [] },
+        config: {
+          policies: [
+            {
+              name: 'admin::hasPermissions',
+              config: { actions: [SETTINGS_UPDATE_PERMISSION] },
+            },
+          ],
+          middlewares: [],
+        },
       },
     ],
   },

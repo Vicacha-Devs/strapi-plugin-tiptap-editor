@@ -5,7 +5,7 @@ import Subscript from '@tiptap/extension-subscript';
 import Underline from '@tiptap/extension-underline';
 import { TableKit, TableCell, TableHeader } from '@tiptap/extension-table';
 import TextAlign from '@tiptap/extension-text-align';
-import { CharacterCount, Gapcursor } from '@tiptap/extensions';
+import { CharacterCount, Gapcursor, Placeholder } from '@tiptap/extensions';
 import {
   TextStyle,
   Color,
@@ -93,7 +93,19 @@ const starterKitFeatureValue = (
   return getFeatureOptions(value, {}) ?? {};
 };
 
-export function buildExtensions(config: TiptapPresetConfig): Extensions {
+export interface BuildExtensionsOptions {
+  characterLimit?: number;
+  placeholder?: string;
+}
+
+/**
+ * Builds the array of TipTap extensions for a given preset configuration and field options.
+ * Ensures Zero-Data-Loss schema preservation for custom blocks, media nodes, and semantic marks.
+ */
+export function buildExtensions(
+  config: TiptapPresetConfig,
+  options?: BuildExtensionsOptions
+): Extensions {
   const starterKitConfig: Record<string, unknown> = {
     heading: false as const, // ALWAYS false — heading handled separately via BaseHeadingWithSEOTag
     bold: starterKitFeatureValue(config.bold),
@@ -249,43 +261,43 @@ export function buildExtensions(config: TiptapPresetConfig): Extensions {
     extensions.push(MathematicsNode.configure({ enableContentCheck: true }));
   }
 
-  // Semantic marks & blocks (always registered for schema preservation, or enabled via config)
-  if (isFeatureEnabled(config.leadParagraph)) {
-    extensions.push(LeadParagraph);
-  }
-  if (isFeatureEnabled(config.language)) {
-    extensions.push(LanguageMark);
-  }
-  if (isFeatureEnabled(config.abbr)) {
-    extensions.push(AbbrMark);
-  }
+  // Schema-only: always registered so stored content round-trips without data loss
+  extensions.push(
+    LeadParagraph,
+    LanguageMark,
+    AbbrMark,
+    DetailsNode,
+    DetailsSummaryNode,
+    DetailsContentNode,
+    ConversationHistoryNode,
+    LayoutContainerNode,
+    LayoutColumnNode,
+    TaskListNode,
+    TaskItemNode,
+    PageBreakNode,
+    TableOfContentsNode
+  );
+
+  // Input-rule extensions: gated by preset config
   if (isFeatureEnabled(config.typography)) {
     extensions.push(SmartTypographyExtension);
   }
   if (isFeatureEnabled(config.emoji)) {
     extensions.push(EmojiShortcodeExtension);
   }
-  if (isFeatureEnabled(config.accordion)) {
-    extensions.push(DetailsNode, DetailsSummaryNode, DetailsContentNode);
+
+  const ccOpts = getFeatureOptions(config.characterCount, { limit: null });
+  const effectiveCharLimit =
+    options?.characterLimit && options.characterLimit > 0
+      ? options.characterLimit
+      : ccOpts?.limit ?? null;
+
+  if (isFeatureEnabled(config.characterCount) || (effectiveCharLimit && effectiveCharLimit > 0)) {
+    extensions.push(CharacterCount.configure({ limit: effectiveCharLimit }));
   }
-  if (isFeatureEnabled(config.conversationHistory)) {
-    extensions.push(ConversationHistoryNode);
-  }
-  if (isFeatureEnabled(config.columns)) {
-    extensions.push(LayoutContainerNode, LayoutColumnNode);
-  }
-  if (isFeatureEnabled(config.taskList)) {
-    extensions.push(TaskListNode, TaskItemNode);
-  }
-  if (isFeatureEnabled(config.pageBreak)) {
-    extensions.push(PageBreakNode);
-  }
-  if (isFeatureEnabled(config.tableOfContents)) {
-    extensions.push(TableOfContentsNode);
-  }
-  if (isFeatureEnabled(config.characterCount)) {
-    const ccOpts = getFeatureOptions(config.characterCount, { limit: null });
-    extensions.push(CharacterCount.configure({ limit: ccOpts?.limit ?? null }));
+
+  if (options?.placeholder && options.placeholder.trim()) {
+    extensions.push(Placeholder.configure({ placeholder: options.placeholder.trim() }));
   }
 
   extensions.push(Gapcursor);

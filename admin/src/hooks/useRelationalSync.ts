@@ -26,16 +26,23 @@ export function useRelationalSync(
 ) {
   const { onSyncField, availableFields, enabled = true } = options;
   const lastSignatureRef = useRef<string>('');
+  const onSyncFieldRef = useRef(onSyncField);
+  onSyncFieldRef.current = onSyncField;
+  const availableFieldsRef = useRef(availableFields);
+  availableFieldsRef.current = availableFields;
 
   const syncRelationsFromDoc = useCallback(
     (doc: unknown): ExtractedRelationsResult => {
       const extracted = extractRelationsFromJSON(doc);
-      if (!enabled || !onSyncField || !fieldName) {
+      const syncHandler = onSyncFieldRef.current;
+      if (!enabled || !syncHandler || !fieldName) {
         return extracted;
       }
 
+      const validMediaAssets = extracted.mediaAssets.filter((asset) => asset.assetId !== null);
+
       const signature = JSON.stringify({
-        mediaIds: extracted.mediaIds,
+        mediaIds: validMediaAssets.map((a) => a.assetId),
         mediaDocumentIds: extracted.mediaDocumentIds,
         links: extracted.linksByCollection,
       });
@@ -49,37 +56,35 @@ export function useRelationalSync(
       const mediaFieldName = `${fieldName}Media`;
       const linksFieldName = `${fieldName}Links`;
 
+      const currentAvailableFields = availableFieldsRef.current;
       const canSyncMedia =
-        !availableFields || availableFields.includes(mediaFieldName);
+        !currentAvailableFields || currentAvailableFields.includes(mediaFieldName);
       const canSyncLinks =
-        !availableFields || availableFields.includes(linksFieldName);
+        !currentAvailableFields || currentAvailableFields.includes(linksFieldName);
 
-      if (canSyncMedia && (extracted.mediaIds.length > 0 || extracted.mediaDocumentIds.length > 0)) {
-        const mediaPayload = extracted.mediaAssets.map((asset) => ({
+      if (canSyncMedia) {
+        const mediaPayload = validMediaAssets.map((asset) => ({
           id: asset.assetId,
           documentId: asset.documentId,
           url: asset.src,
           type: asset.nodeType,
         }));
-        onSyncField(mediaFieldName, mediaPayload);
+        syncHandler(mediaFieldName, mediaPayload);
       }
 
-      if (canSyncLinks && Object.keys(extracted.linksByCollection).length > 0) {
-        const linksPayload: Record<string, { connect: Array<{ documentId: string }> }> = {};
+      if (canSyncLinks) {
+        const linksPayload: Record<string, { set: Array<{ documentId: string }> }> = {};
         for (const [collectionUid, items] of Object.entries(extracted.linksByCollection)) {
-          const shortName = collectionUid.includes('.')
-            ? collectionUid.split('.')[1]
-            : collectionUid;
-          linksPayload[shortName] = {
-            connect: items.map((item) => ({ documentId: item.documentId })),
+          linksPayload[collectionUid] = {
+            set: items.map((item) => ({ documentId: item.documentId })),
           };
         }
-        onSyncField(linksFieldName, linksPayload);
+        syncHandler(linksFieldName, linksPayload);
       }
 
       return extracted;
     },
-    [enabled, fieldName, onSyncField, availableFields]
+    [enabled, fieldName]
   );
 
   return {

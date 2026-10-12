@@ -11,13 +11,22 @@ import { SETTINGS_STORE_KEY } from '../bootstrap';
 const VALID_OUTPUT_FORMATS = new Set<TiptapOutputFormat>(['json', 'html', 'markdown']);
 const VALID_FEATURE_KEYS = new Set<string>(PRESET_FEATURE_KEYS);
 
+/**
+ * Checks whether a value is a non-null plain object.
+ */
 const isPlainObject = (value: unknown): value is Record<string, unknown> => {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
   const proto = Object.getPrototypeOf(value);
   return proto === Object.prototype || proto === null;
 };
 
+/**
+ * Creates the Tiptap runtime settings service backed by Strapi core-store.
+ */
 const createSettingsService = ({ strapi }: { strapi: Core.Strapi }) => ({
+  /**
+   * Returns the plugin-scoped Strapi core-store instance if available.
+   */
   getStore() {
     if (typeof strapi?.store !== 'function') return null;
     return strapi.store({
@@ -26,6 +35,9 @@ const createSettingsService = ({ strapi }: { strapi: Core.Strapi }) => ({
     });
   },
 
+  /**
+   * Retrieves merged runtime settings (defaults + config/plugins.ts + core-store).
+   */
   async getSettings(): Promise<Required<TiptapRuntimeSettings>> {
     const configSettings =
       (strapi?.config?.get?.('plugin::tiptap-editor.settings', {}) as TiptapRuntimeSettings) || {};
@@ -46,6 +58,9 @@ const createSettingsService = ({ strapi }: { strapi: Core.Strapi }) => ({
     };
   },
 
+  /**
+   * Validates and persists updated runtime settings in Strapi core-store.
+   */
   async updateSettings(input: unknown): Promise<Required<TiptapRuntimeSettings>> {
     if (!isPlainObject(input)) {
       throw new Error('Settings payload must be a plain object');

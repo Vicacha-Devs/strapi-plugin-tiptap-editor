@@ -77,7 +77,7 @@ describe('admin/extensions & utilities', () => {
       expect(edificeExtensions.length).toBe(fullExtensions.length);
     });
 
-    it('registers read-only NodeView extensions even in MINIMAL_PRESET_CONFIG (Zero-Data-Loss)', () => {
+    it('registers read-only NodeView extensions and schema-preserving nodes/marks even in MINIMAL_PRESET_CONFIG (Zero-Data-Loss)', () => {
       const minimalExtensions = buildExtensions(MINIMAL_PRESET_CONFIG) as Array<{ name?: string }>;
       const names = minimalExtensions.map((ext) => ext?.name).filter(Boolean);
 
@@ -89,6 +89,19 @@ describe('admin/extensions & utilities', () => {
       expect(names).toContain('linker');
       expect(names).toContain('informationPane');
       expect(names).toContain('mathematics');
+      expect(names).toContain('leadParagraph');
+      expect(names).toContain('language');
+      expect(names).toContain('abbr');
+      expect(names).toContain('details');
+      expect(names).toContain('detailsSummary');
+      expect(names).toContain('detailsContent');
+      expect(names).toContain('conversationHistory');
+      expect(names).toContain('layoutContainer');
+      expect(names).toContain('layoutColumn');
+      expect(names).toContain('taskList');
+      expect(names).toContain('taskItem');
+      expect(names).toContain('pageBreak');
+      expect(names).toContain('tableOfContents');
     });
   });
 

@@ -1,90 +1,121 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Node, mergeAttributes, type Editor } from '@tiptap/core';
+import { ReactNodeViewRenderer, NodeViewWrapper, useEditorState } from '@tiptap/react';
+import type { NodeViewProps } from '@tiptap/react';
 import {
-  NodeViewWrapper,
-  ReactNodeViewRenderer,
-  useEditorState,
-  type NodeViewProps,
-} from '@tiptap/react';
-import { Button, Dialog, Field, IconButton, Popover, TextInput } from '@strapi/design-system';
-import { Play, Trash } from '@strapi/icons';
+  Popover,
+  TextInput,
+  IconButton,
+  Dialog,
+  Button,
+  Field,
+  Flex,
+} from '@strapi/design-system';
+import { Trash, Play } from '@strapi/icons';
 import { useIntl } from 'react-intl';
 import { ToolbarButton } from '../components/ToolbarButton';
+import { TextAlignLeft } from '../icons/TextAlignLeft';
+import { TextAlignCenter } from '../icons/TextAlignCenter';
+import { TextAlignRight } from '../icons/TextAlignRight';
 import { MediaLibraryWrapper, type StrapiFile } from '../components/MediaLibraryWrapper';
 import { isSafeUrl } from '../../../shared/contentSerializer';
 
 export interface StrapiVideoOptions {
-  enableContentCheck: boolean;
   HTMLAttributes: Record<string, unknown>;
+  enableContentCheck: boolean;
 }
 
-export function normalizeVideoEmbedUrl(rawUrl: string): {
-  src: string;
-  embedType: 'file' | 'embed';
-} | null {
+/**
+ * Normalizes YouTube or Vimeo watch URLs into privacy-enhanced embed URLs,
+ * or returns direct video file URLs.
+ */
+export function normalizeVideoEmbedUrl(
+  rawUrl: string
+): { src: string; embedType: 'file' | 'embed' } | null {
   const trimmed = rawUrl.trim();
-  if (!isSafeUrl(trimmed)) {
+  if (!isSafeUrl(trimmed)) return null;
+
+  try {
+    const parsed = new URL(trimmed, 'https://example.com');
+    const host = parsed.hostname.toLowerCase();
+
+    // YouTube watch or short URL
+    if (host.includes('youtube.com') || host.includes('youtube-nocookie.com')) {
+      const videoId = parsed.searchParams.get('v');
+      if (videoId && /^[\w-]{6,20}$/.test(videoId)) {
+        return {
+          src: `https://www.youtube-nocookie.com/embed/${videoId}`,
+          embedType: 'embed',
+        };
+      }
+      if (parsed.pathname.startsWith('/embed/')) {
+        return { src: trimmed, embedType: 'embed' };
+      }
+    }
+    if (host === 'youtu.be') {
+      const videoId = parsed.pathname.replace(/^\//, '').split('/')[0];
+      if (videoId && /^[\w-]{6,20}$/.test(videoId)) {
+        return {
+          src: `https://www.youtube-nocookie.com/embed/${videoId}`,
+          embedType: 'embed',
+        };
+      }
+    }
+
+    // Vimeo
+    if (host.includes('vimeo.com')) {
+      const match = /\/(\d+)/.exec(parsed.pathname);
+      if (match?.[1]) {
+        return {
+          src: `https://player.vimeo.com/video/${match[1]}`,
+          embedType: 'embed',
+        };
+      }
+    }
+
+    return { src: trimmed, embedType: 'file' };
+  } catch {
     return null;
   }
-  const ytMatch =
-    /(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/)([a-zA-Z0-9_-]{6,})/.exec(
-      trimmed
-    );
-  if (ytMatch?.[1]) {
-    return {
-      src: `https://www.youtube-nocookie.com/embed/${ytMatch[1]}`,
-      embedType: 'embed',
-    };
-  }
-  const vimeoMatch = /(?:vimeo\.com\/|player\.vimeo\.com\/video\/)(\d+)/.exec(trimmed);
-  if (vimeoMatch?.[1]) {
-    return {
-      src: `https://player.vimeo.com/video/${vimeoMatch[1]}`,
-      embedType: 'embed',
-    };
-  }
-  return { src: trimmed, embedType: 'file' };
 }
 
+/**
+ * Read-only NodeView for videos when the feature is disabled in the active preset.
+ */
 export function VideoNodeViewReadOnly({ node }: NodeViewProps) {
-  const { src, title, caption, width, height, embedType } = node.attrs;
-  const align = node.attrs['data-align'] ?? undefined;
-  const safeSrc = isSafeUrl(src) ? src : '';
+  const { formatMessage } = useIntl();
+  const src = String(node.attrs.src || '');
+  const embedType = node.attrs.embedType === 'embed' ? 'embed' : 'file';
+  const width = node.attrs.width ? `${node.attrs.width}px` : '100%';
+  const height = node.attrs.height ? `${node.attrs.height}px` : '360px';
 
   return (
-    <NodeViewWrapper data-drag-handle data-align={align} data-type="video">
+    <NodeViewWrapper data-drag-handle data-align={node.attrs['data-align'] ?? undefined}>
       <figure style={{ margin: '0.75em 0' }}>
         {embedType === 'embed' ? (
           <iframe
-            src={safeSrc}
-            title={title || 'Embedded video'}
+            src={src}
+            title={
+              node.attrs.title ||
+              formatMessage({
+                id: 'tiptap-editor.video.embeddedTitle',
+                defaultMessage: 'Embedded video',
+              })
+            }
+            style={{ width, maxWidth: '100%', height, border: 0, borderRadius: '6px' }}
             sandbox="allow-scripts allow-same-origin allow-presentation"
             allowFullScreen
-            style={{
-              width: width ? `${width}px` : '100%',
-              height: height ? `${height}px` : '360px',
-              border: 0,
-              borderRadius: '6px',
-            }}
           />
         ) : (
           <video
-            src={safeSrc}
+            src={src}
             controls
-            preload="metadata"
-            title={title || undefined}
-            style={{
-              maxWidth: '100%',
-              width: width ? `${width}px` : '100%',
-              height: height ? `${height}px` : 'auto',
-              borderRadius: '6px',
-              display: 'block',
-            }}
+            style={{ width, maxWidth: '100%', borderRadius: '6px', display: 'block' }}
           />
         )}
-        {caption && (
+        {node.attrs.caption && (
           <figcaption style={{ fontSize: '1.2rem', color: '#666687', marginTop: '4px' }}>
-            {caption}
+            {node.attrs.caption}
           </figcaption>
         )}
       </figure>
@@ -92,57 +123,83 @@ export function VideoNodeViewReadOnly({ node }: NodeViewProps) {
   );
 }
 
-export function VideoNodeView(props: NodeViewProps) {
-  const { node, updateAttributes, deleteNode, selected } = props;
+/**
+ * Interactive NodeView for videos with alignment, caption editing, and delete action.
+ */
+export function VideoNodeView({ node, updateAttributes, deleteNode, selected }: NodeViewProps) {
   const { formatMessage } = useIntl();
-  const [openPopover, setOpenPopover] = useState(false);
+  const [isPopoverOpen, setIsPopoverOpen] = useState(false);
   const [caption, setCaption] = useState<string>(node.attrs.caption ?? '');
-  const [title, setTitle] = useState<string>(node.attrs.title ?? '');
+  const currentAlign = node.attrs['data-align'] as 'left' | 'center' | 'right' | null;
+
+  useEffect(() => {
+    setCaption(node.attrs.caption ?? '');
+  }, [node.attrs.caption]);
+
+  const handleAlign = (val: 'left' | 'center' | 'right') => {
+    updateAttributes({ 'data-align': currentAlign === val ? null : val });
+  };
 
   return (
-    <NodeViewWrapper
-      data-drag-handle
-      data-align={node.attrs['data-align'] ?? undefined}
-      data-type="video"
-    >
-      <Popover.Root open={openPopover} onOpenChange={setOpenPopover}>
+    <NodeViewWrapper data-drag-handle data-align={node.attrs['data-align'] ?? undefined}>
+      <Popover.Root open={isPopoverOpen} onOpenChange={setIsPopoverOpen}>
         <Popover.Anchor>
           <div
-            onClick={() => setOpenPopover(true)}
+            onClick={() => setIsPopoverOpen(true)}
             style={{
               outline: selected ? '2px solid #4945ff' : undefined,
               borderRadius: '6px',
               cursor: 'pointer',
             }}
           >
-            <VideoNodeViewReadOnly {...props} />
+            <VideoNodeViewReadOnly
+              node={node}
+              updateAttributes={updateAttributes}
+              deleteNode={deleteNode}
+              selected={selected}
+              editor={{} as any}
+              getPos={() => 0}
+              decorations={[]}
+              innerDecorations={[] as any}
+              extension={{} as any}
+              HTMLAttributes={{}}
+              view={{} as any}
+            />
           </div>
         </Popover.Anchor>
         <Popover.Content side="bottom">
-          <div
-            style={{
-              display: 'flex',
-              flexDirection: 'column',
-              gap: '8px',
-              padding: '10px',
-              minWidth: '260px',
-            }}
-          >
-            <div style={{ display: 'flex', gap: '4px' }}>
-              {(['left', 'center', 'right'] as const).map((al) => (
-                <Button
-                  key={al}
-                  size="S"
-                  variant={node.attrs['data-align'] === al ? 'secondary' : 'tertiary'}
-                  onClick={() =>
-                    updateAttributes({
-                      'data-align': node.attrs['data-align'] === al ? null : al,
-                    })
-                  }
-                >
-                  {al}
-                </Button>
-              ))}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', padding: '8px' }}>
+            <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
+              <ToolbarButton
+                onClick={() => handleAlign('left')}
+                icon={<TextAlignLeft />}
+                active={currentAlign === 'left'}
+                toggle
+                tooltip={formatMessage({
+                  id: 'tiptap-editor.video.alignLeft',
+                  defaultMessage: 'Align left',
+                })}
+              />
+              <ToolbarButton
+                onClick={() => handleAlign('center')}
+                icon={<TextAlignCenter />}
+                active={currentAlign === 'center'}
+                toggle
+                tooltip={formatMessage({
+                  id: 'tiptap-editor.video.alignCenter',
+                  defaultMessage: 'Align center',
+                })}
+              />
+              <ToolbarButton
+                onClick={() => handleAlign('right')}
+                icon={<TextAlignRight />}
+                active={currentAlign === 'right'}
+                toggle
+                tooltip={formatMessage({
+                  id: 'tiptap-editor.video.alignRight',
+                  defaultMessage: 'Align right',
+                })}
+              />
               <IconButton
                 onClick={deleteNode}
                 label={formatMessage({
@@ -155,27 +212,14 @@ export function VideoNodeView(props: NodeViewProps) {
             </div>
             <TextInput
               placeholder={formatMessage({
-                id: 'tiptap-editor.video.title',
-                defaultMessage: 'Accessible video title',
-              })}
-              value={title}
-              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setTitle(e.target.value)}
-              onBlur={() => updateAttributes({ title: title || null })}
-              aria-label={formatMessage({
-                id: 'tiptap-editor.video.title',
-                defaultMessage: 'Accessible video title',
-              })}
-            />
-            <TextInput
-              placeholder={formatMessage({
-                id: 'tiptap-editor.video.caption',
+                id: 'tiptap-editor.video.captionPlaceholder',
                 defaultMessage: 'Video caption',
               })}
               value={caption}
               onChange={(e: React.ChangeEvent<HTMLInputElement>) => setCaption(e.target.value)}
               onBlur={() => updateAttributes({ caption: caption || null })}
               aria-label={formatMessage({
-                id: 'tiptap-editor.video.caption',
+                id: 'tiptap-editor.video.captionPlaceholder',
                 defaultMessage: 'Video caption',
               })}
             />
@@ -194,8 +238,8 @@ export const StrapiVideo = Node.create<StrapiVideoOptions>({
 
   addOptions() {
     return {
-      enableContentCheck: false,
       HTMLAttributes: {},
+      enableContentCheck: false,
     };
   },
 
@@ -204,16 +248,16 @@ export const StrapiVideo = Node.create<StrapiVideoOptions>({
       src: { default: null },
       title: { default: null },
       caption: { default: null },
+      embedType: { default: 'file' },
       width: { default: null },
       height: { default: null },
-      embedType: { default: 'file' },
       'data-asset-id': {
         default: null,
         parseHTML: (el: HTMLElement) => {
           const raw = el.getAttribute('data-asset-id');
           if (!raw) return null;
-          const n = parseInt(raw, 10);
-          return Number.isNaN(n) ? null : n;
+          const num = parseInt(raw, 10);
+          return Number.isNaN(num) ? null : num;
         },
         renderHTML: (attrs: Record<string, unknown>) =>
           attrs['data-asset-id'] != null ? { 'data-asset-id': String(attrs['data-asset-id']) } : {},
@@ -237,15 +281,30 @@ export const StrapiVideo = Node.create<StrapiVideoOptions>({
 
   parseHTML() {
     return [
-      { tag: 'video[src]' },
+      { tag: 'iframe[data-type="video"]', getAttrs: () => ({ embedType: 'embed' }) },
+      { tag: 'video' },
       { tag: 'div[data-type="video"]' },
     ];
   },
 
   renderHTML({ HTMLAttributes }) {
+    if (HTMLAttributes.embedType === 'embed') {
+      return [
+        'iframe',
+        mergeAttributes(this.options.HTMLAttributes, HTMLAttributes, {
+          'data-type': 'video',
+          allowfullscreen: 'true',
+          sandbox: 'allow-scripts allow-same-origin allow-presentation',
+        }),
+      ];
+    }
+
     return [
       'video',
-      mergeAttributes(this.options.HTMLAttributes, HTMLAttributes, { controls: 'true' }),
+      mergeAttributes(this.options.HTMLAttributes, HTMLAttributes, {
+        controls: 'true',
+        'data-type': 'video',
+      }),
     ];
   },
 
@@ -257,15 +316,18 @@ export const StrapiVideo = Node.create<StrapiVideoOptions>({
   },
 });
 
+/**
+ * Provides toolbar button and dialog for inserting videos from Strapi Media Library or external URLs.
+ */
 export function useVideo(
   editor: Editor | null,
   props: { disabled?: boolean } = { disabled: false }
 ) {
   const { formatMessage } = useIntl();
-  const [showMediaPicker, setShowMediaPicker] = useState(false);
+  const [showMediaLibrary, setShowMediaLibrary] = useState(false);
   const [showUrlDialog, setShowUrlDialog] = useState(false);
   const [videoUrl, setVideoUrl] = useState('');
-  const [videoTitle, setVideoTitle] = useState('');
+  const [videoCaption, setVideoCaption] = useState('');
 
   const editorState = useEditorState({
     editor,
@@ -278,7 +340,7 @@ export function useVideo(
     const asset = assets[0];
     const src = asset?.url?.trim();
     if (!asset || !editor || !src) {
-      setShowMediaPicker(false);
+      setShowMediaLibrary(false);
       return;
     }
 
@@ -289,23 +351,24 @@ export function useVideo(
         type: 'video',
         attrs: {
           src,
-          title: asset.alternativeText ?? asset.name ?? 'Video',
+          title: asset.name ?? asset.alternativeText ?? '',
           caption: asset.caption ?? null,
           embedType: 'file',
-          'data-asset-id': asset.id,
+          'data-asset-id': asset.id ?? null,
           'data-document-id': asset.documentId ?? null,
         },
       })
       .createParagraphNear()
       .run();
 
-    setShowMediaPicker(false);
+    setShowMediaLibrary(false);
   };
 
-  const handleInsertUrl = () => {
-    if (!editor || !isSafeUrl(videoUrl)) return;
+  const handleInsertExternalUrl = () => {
+    if (!editor) return;
     const normalized = normalizeVideoEmbedUrl(videoUrl);
     if (!normalized) return;
+
     editor
       .chain()
       .focus()
@@ -313,120 +376,113 @@ export function useVideo(
         type: 'video',
         attrs: {
           src: normalized.src,
-          title: videoTitle.trim() || 'Video',
           embedType: normalized.embedType,
+          caption: videoCaption.trim() || null,
         },
       })
       .createParagraphNear()
       .run();
+
     setVideoUrl('');
-    setVideoTitle('');
+    setVideoCaption('');
     setShowUrlDialog(false);
   };
 
   const videoButton = (
-    <>
-      <ToolbarButton
-        onClick={() => setShowMediaPicker(true)}
-        icon={<Play />}
-        active={false}
-        disabled={props.disabled || !editor || (editorState?.isInCodeBlock ?? false)}
-        tooltip={formatMessage({
-          id: 'tiptap-editor.toolbar.insertVideo',
-          defaultMessage: 'Insert video (Media Library)',
-        })}
-      />
-      <ToolbarButton
-        onClick={() => setShowUrlDialog(true)}
-        icon={<span style={{ fontSize: '1.1rem', fontWeight: 600 }}>🎬 URL</span>}
-        active={false}
-        disabled={props.disabled || !editor || (editorState?.isInCodeBlock ?? false)}
-        tooltip={formatMessage({
-          id: 'tiptap-editor.toolbar.insertVideoUrl',
-          defaultMessage: 'Embed video by URL (YouTube, Vimeo, MP4)',
-        })}
-      />
-    </>
+    <ToolbarButton
+      onClick={() => setShowUrlDialog(true)}
+      icon={<Play />}
+      active={false}
+      disabled={props.disabled || !editor || (editorState?.isInCodeBlock ?? false)}
+      tooltip={formatMessage({
+        id: 'tiptap-editor.toolbar.insertVideo',
+        defaultMessage: 'Insert video',
+      })}
+    />
   );
 
   const videoDialog = (
     <>
+      <Dialog.Root open={showUrlDialog} onOpenChange={setShowUrlDialog}>
+        <Dialog.Content>
+          <Dialog.Header>
+            {formatMessage({
+              id: 'tiptap-editor.video.dialogTitle',
+              defaultMessage: 'Insert Video',
+            })}
+          </Dialog.Header>
+          <Dialog.Body>
+            <Flex direction="column" alignItems="stretch" gap={4}>
+              <Button
+                variant="secondary"
+                onClick={() => {
+                  setShowUrlDialog(false);
+                  setShowMediaLibrary(true);
+                }}
+              >
+                {formatMessage({
+                  id: 'tiptap-editor.video.chooseFromLibrary',
+                  defaultMessage: 'Choose from Strapi Media Library',
+                })}
+              </Button>
+              <Field.Root name="videoUrl">
+                <Field.Label>
+                  {formatMessage({
+                    id: 'tiptap-editor.video.urlLabel',
+                    defaultMessage: 'Or External Video URL (YouTube, Vimeo, MP4)',
+                  })}
+                </Field.Label>
+                <TextInput
+                  placeholder="https://www.youtube.com/watch?v=..."
+                  value={videoUrl}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                    setVideoUrl(e.target.value)
+                  }
+                />
+              </Field.Root>
+              <Field.Root name="videoCaption">
+                <Field.Label>
+                  {formatMessage({
+                    id: 'tiptap-editor.video.captionLabel',
+                    defaultMessage: 'Caption (optional)',
+                  })}
+                </Field.Label>
+                <TextInput
+                  value={videoCaption}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                    setVideoCaption(e.target.value)
+                  }
+                />
+              </Field.Root>
+            </Flex>
+          </Dialog.Body>
+          <Dialog.Footer>
+            <Dialog.Cancel>
+              <Button variant="tertiary" onClick={() => setShowUrlDialog(false)}>
+                {formatMessage({
+                  id: 'tiptap-editor.video.cancel',
+                  defaultMessage: 'Cancel',
+                })}
+              </Button>
+            </Dialog.Cancel>
+            <Dialog.Action>
+              <Button onClick={handleInsertExternalUrl} disabled={!videoUrl.trim()}>
+                {formatMessage({
+                  id: 'tiptap-editor.video.insertUrl',
+                  defaultMessage: 'Insert URL',
+                })}
+              </Button>
+            </Dialog.Action>
+          </Dialog.Footer>
+        </Dialog.Content>
+      </Dialog.Root>
+
       <MediaLibraryWrapper
-        open={showMediaPicker}
-        onClose={() => setShowMediaPicker(false)}
+        open={showMediaLibrary}
+        onClose={() => setShowMediaLibrary(false)}
         onSelectAssets={handleSelectAssets}
         allowedTypes={['videos']}
       />
-      <Dialog.Root
-        open={showUrlDialog}
-        onOpenChange={(v: boolean) => {
-          if (!v) setShowUrlDialog(false);
-        }}
-      >
-        {showUrlDialog && (
-          <Dialog.Content>
-            <Dialog.Header>
-              {formatMessage({
-                id: 'tiptap-editor.video.dialogHeader',
-                defaultMessage: 'Embed Video (YouTube, Vimeo, or Direct Video URL)',
-              })}
-            </Dialog.Header>
-            <Dialog.Body>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', width: '100%' }}>
-                <Field.Root width="100%">
-                  <Field.Label>
-                    {formatMessage({
-                      id: 'tiptap-editor.video.urlLabel',
-                      defaultMessage: 'Video URL',
-                    })}
-                  </Field.Label>
-                  <TextInput
-                    name="video-url"
-                    placeholder="https://www.youtube.com/watch?v=..."
-                    value={videoUrl}
-                    onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-                      setVideoUrl(e.target.value)
-                    }
-                  />
-                </Field.Root>
-                <Field.Root width="100%">
-                  <Field.Label>
-                    {formatMessage({
-                      id: 'tiptap-editor.video.titleLabel',
-                      defaultMessage: 'Accessible Title (WCAG)',
-                    })}
-                  </Field.Label>
-                  <TextInput
-                    name="video-title"
-                    placeholder="Product walkthrough video"
-                    value={videoTitle}
-                    onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-                      setVideoTitle(e.target.value)
-                    }
-                  />
-                </Field.Root>
-              </div>
-            </Dialog.Body>
-            <Dialog.Footer>
-              <Dialog.Cancel>
-                <Button variant="tertiary" fullWidth onClick={() => setShowUrlDialog(false)}>
-                  {formatMessage({ id: 'tiptap-editor.common.cancel', defaultMessage: 'Cancel' })}
-                </Button>
-              </Dialog.Cancel>
-              <Dialog.Action>
-                <Button
-                  variant="success-light"
-                  fullWidth
-                  onClick={handleInsertUrl}
-                  disabled={!isSafeUrl(videoUrl)}
-                >
-                  {formatMessage({ id: 'tiptap-editor.common.insert', defaultMessage: 'Insert' })}
-                </Button>
-              </Dialog.Action>
-            </Dialog.Footer>
-          </Dialog.Content>
-        )}
-      </Dialog.Root>
     </>
   );
 

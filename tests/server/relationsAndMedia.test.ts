@@ -1,5 +1,6 @@
 import dns from 'node:dns';
 import fs from 'node:fs';
+import { fetch as undiciFetch } from 'undici';
 import { describe, it, expect, vi, afterEach } from 'vitest';
 
 vi.mock('undici', async () => {
@@ -243,6 +244,9 @@ describe('server/services/media (SSRF Protection & Metadata)', () => {
       'https://cdn.example.com/photos/banner.jpg',
       'Hero Banner'
     );
+    const call = vi.mocked(undiciFetch).mock.calls.at(-1)!;
+    expect((call[1] as any).dispatcher).toBeDefined();
+    expect((call[1] as any).redirect).toBe('manual');
     expect(asset.id).toBe(42);
     expect(asset.documentId).toBe('asset-doc-42');
     expect(asset.name).toBe('banner.jpg');
@@ -256,6 +260,18 @@ describe('server/services/media (SSRF Protection & Metadata)', () => {
 
     const pdfAsset = await service.uploadByUrl('https://cdn.example.com/docs/report.pdf');
     expect(pdfAsset.mime).toBe('application/pdf');
+
+    // Cancels response body and throws clear error on 3xx redirects
+    const cancelMock = vi.fn().mockResolvedValue(undefined);
+    vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce({
+      ok: false,
+      status: 301,
+      body: { cancel: cancelMock },
+    } as unknown as Response);
+    await expect(
+      service.uploadByUrl('https://cdn.example.com/photos/redirect.jpg')
+    ).rejects.toThrow('Remote media URL redirects. Provide the final URL.');
+    expect(cancelMock).toHaveBeenCalledTimes(1);
 
     // Propagates failure when Upload service is unavailable
     const brokenService = createMediaService({ strapi: {} as any });

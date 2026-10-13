@@ -423,6 +423,10 @@ const createMediaService = ({ strapi }: { strapi: Core.Strapi }) => ({
       });
 
       if (!response.ok) {
+        await response.body?.cancel().catch(() => undefined);
+        if (response.status >= 300 && response.status < 400) {
+          throw new Error('Remote preview URL redirects. Provide the final URL.');
+        }
         return {
           url: cleanUrl,
           title: parsedUrl.hostname,
@@ -519,7 +523,13 @@ const createMediaService = ({ strapi }: { strapi: Core.Strapi }) => ({
       });
 
       if (!response.ok) {
-        throw new Error(`Failed to download remote media (HTTP ${response.status})`);
+        await response.body?.cancel().catch(() => undefined);
+        const redirected = response.status >= 300 && response.status < 400;
+        throw new Error(
+          redirected
+            ? 'Remote media URL redirects. Provide the final URL.'
+            : `Failed to download remote media (HTTP ${response.status})`
+        );
       }
 
       const buffer = await readBoundedResponseBytes(

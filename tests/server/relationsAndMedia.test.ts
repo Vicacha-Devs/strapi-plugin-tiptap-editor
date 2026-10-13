@@ -1,6 +1,15 @@
 import dns from 'node:dns';
 import fs from 'node:fs';
 import { describe, it, expect, vi, afterEach } from 'vitest';
+
+vi.mock('undici', async () => {
+  const actual = await vi.importActual<typeof import('undici')>('undici');
+  return {
+    ...actual,
+    fetch: vi.fn((...args: any[]) => (globalThis.fetch as any)(...args)),
+  };
+});
+
 import createSettingsService from '../../server/src/services/settings';
 import createSearchService from '../../server/src/services/search';
 import createMediaService, {

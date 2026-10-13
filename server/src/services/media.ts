@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import net from 'node:net';
 import os from 'node:os';
 import path from 'node:path';
+import { Agent, fetch as undiciFetch } from 'undici';
 import type { Core } from '@strapi/strapi';
 
 export interface LinkPreviewMetadata {
@@ -215,53 +216,45 @@ export async function assertSafeResolvedHost(hostname: string): Promise<Resolved
 /**
  * Creates an undici `Agent` dispatcher whose `connect.lookup` callback is pinned to the
  * pre-validated DNS records, preventing DNS-rebinding TOCTOU between validation and `fetch`.
+ * Fails closed by throwing when no resolved records are available or dispatcher creation fails.
  */
-async function createPinnedFetchDispatcher(
-  records: ResolvedHostRecord[]
-): Promise<{ close?: () => Promise<void> } | undefined> {
-  if (!records.length) return undefined;
-  try {
-    const moduleName = 'undici';
-    const undici = (await import(moduleName)) as {
-      Agent?: new (opts: Record<string, unknown>) => { close?: () => Promise<void> };
-    };
-    if (typeof undici?.Agent !== 'function') return undefined;
-    const primary = records[0];
-    return new undici.Agent({
-      connect: {
-        lookup: (
-          _hostname: string,
-          options:
-            | { all?: boolean }
-            | ((err: Error | null, address: string, family: number) => void),
-          callback?: (
-            err: Error | null,
-            addressOrRecords: string | ResolvedHostRecord[],
-            family?: number
-          ) => void
-        ) => {
-          const cb = typeof options === 'function' ? options : callback;
-          const wantAll = typeof options === 'object' && options !== null && Boolean(options.all);
-          if (typeof cb !== 'function') return;
-          if (isPrivateIpAddress(primary.address)) {
-            cb(new Error('URL resolved to a disallowed private or internal IP address'), '', 4);
-            return;
-          }
-          if (wantAll) {
-            (cb as (err: Error | null, records: ResolvedHostRecord[]) => void)(null, records);
-          } else {
-            (cb as (err: Error | null, address: string, family: number) => void)(
-              null,
-              primary.address,
-              primary.family
-            );
-          }
-        },
-      },
-    });
-  } catch {
-    return undefined;
+function createPinnedFetchDispatcher(records: ResolvedHostRecord[]): Agent {
+  if (!records.length) {
+    throw new Error('Failed to resolve URL host');
   }
+  const primary = records[0];
+  return new Agent({
+    connect: {
+      lookup: (
+        _hostname: string,
+        options:
+          | { all?: boolean }
+          | ((err: Error | null, address: string, family: number) => void),
+        callback?: (
+          err: Error | null,
+          addressOrRecords: string | ResolvedHostRecord[],
+          family?: number
+        ) => void
+      ) => {
+        const cb = typeof options === 'function' ? options : callback;
+        const wantAll = typeof options === 'object' && options !== null && Boolean(options.all);
+        if (typeof cb !== 'function') return;
+        if (isPrivateIpAddress(primary.address)) {
+          cb(new Error('URL resolved to a disallowed private or internal IP address'), '', 4);
+          return;
+        }
+        if (wantAll) {
+          (cb as (err: Error | null, records: ResolvedHostRecord[]) => void)(null, records);
+        } else {
+          (cb as (err: Error | null, address: string, family: number) => void)(
+            null,
+            primary.address,
+            primary.family
+          );
+        }
+      },
+    },
+  });
 }
 
 /**
@@ -414,22 +407,11 @@ const createMediaService = ({ strapi }: { strapi: Core.Strapi }) => ({
     const cleanUrl = rawUrl.trim();
     const parsedUrl = new URL(cleanUrl);
     const resolvedRecords = await assertSafeResolvedHost(parsedUrl.hostname);
-
-    if (typeof globalThis.fetch !== 'function') {
-      return {
-        url: cleanUrl,
-        title: parsedUrl.hostname,
-        description: '',
-        image: null,
-        siteName: parsedUrl.hostname,
-      };
-    }
-
-    const dispatcher = await createPinnedFetchDispatcher(resolvedRecords);
+    const dispatcher = createPinnedFetchDispatcher(resolvedRecords);
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 5000);
     try {
-      const response = await globalThis.fetch(cleanUrl, {
+      const response = await undiciFetch(cleanUrl, {
         method: 'GET',
         redirect: 'manual',
         signal: controller.signal,
@@ -437,8 +419,8 @@ const createMediaService = ({ strapi }: { strapi: Core.Strapi }) => ({
           Accept: 'text/html,application/xhtml+xml',
           'User-Agent': 'StrapiTiptapLinkPreview/1.0',
         },
-        ...(dispatcher ? { dispatcher } : {}),
-      } as RequestInit);
+        dispatcher,
+      });
 
       if (!response.ok) {
         return {
@@ -450,7 +432,7 @@ const createMediaService = ({ strapi }: { strapi: Core.Strapi }) => ({
         };
       }
 
-      const html = await readBoundedResponseText(response, MAX_PREVIEW_BYTES);
+      const html = await readBoundedResponseText(response as unknown as Response, MAX_PREVIEW_BYTES);
       const title =
         extractMetaTag(html, 'og:title') ||
         extractMetaTag(html, 'twitter:title') ||
@@ -475,9 +457,7 @@ const createMediaService = ({ strapi }: { strapi: Core.Strapi }) => ({
       };
     } finally {
       clearTimeout(timeout);
-      if (dispatcher?.close) {
-        await dispatcher.close().catch(() => undefined);
-      }
+      await dispatcher.close().catch(() => undefined);
     }
   },
 
@@ -522,31 +502,30 @@ const createMediaService = ({ strapi }: { strapi: Core.Strapi }) => ({
       throw new Error('Strapi upload service is unavailable');
     }
 
-    if (typeof globalThis.fetch !== 'function') {
-      throw new Error('Fetch API is unavailable for downloading remote media');
-    }
-
-    const dispatcher = await createPinnedFetchDispatcher(resolvedRecords);
+    const dispatcher = createPinnedFetchDispatcher(resolvedRecords);
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 15000);
     let tempDir: string | null = null;
 
     try {
-      const response = await globalThis.fetch(cleanUrl, {
+      const response = await undiciFetch(cleanUrl, {
         method: 'GET',
         redirect: 'manual',
         signal: controller.signal,
         headers: {
           'User-Agent': 'StrapiTiptapMediaImporter/1.0',
         },
-        ...(dispatcher ? { dispatcher } : {}),
-      } as RequestInit);
+        dispatcher,
+      });
 
       if (!response.ok) {
         throw new Error(`Failed to download remote media (HTTP ${response.status})`);
       }
 
-      const buffer = await readBoundedResponseBytes(response, MAX_UPLOAD_BYTES);
+      const buffer = await readBoundedResponseBytes(
+        response as unknown as Response,
+        MAX_UPLOAD_BYTES
+      );
       const headerContentType = response.headers?.get?.('content-type')?.split(';')[0]?.trim();
       const resolvedMime =
         headerContentType && headerContentType !== 'application/octet-stream'
@@ -591,9 +570,7 @@ const createMediaService = ({ strapi }: { strapi: Core.Strapi }) => ({
       };
     } finally {
       clearTimeout(timeout);
-      if (dispatcher?.close) {
-        await dispatcher.close().catch(() => undefined);
-      }
+      await dispatcher.close().catch(() => undefined);
       if (tempDir) {
         await fs.promises.rm(tempDir, { recursive: true, force: true }).catch(() => undefined);
       }

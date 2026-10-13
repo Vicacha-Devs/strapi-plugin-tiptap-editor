@@ -14,6 +14,7 @@ vi.mock('react', async () => {
       capturedUseMemoDeps = deps;
       return fn();
     },
+    useRef: (init: any) => ({ current: init }),
     forwardRef: (fn: any) => fn,
     createElement: (type: any, props: any, ...children: any[]) => ({
       type,

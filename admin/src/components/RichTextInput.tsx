@@ -1,4 +1,4 @@
-import { forwardRef, useMemo } from 'react';
+import { forwardRef, useMemo, useRef } from 'react';
 import { useIntl } from 'react-intl';
 import { Box } from '@strapi/design-system';
 import BaseTiptapInput from './BaseTiptapInput';
@@ -68,10 +68,12 @@ const InnerEditor = forwardRef<HTMLDivElement, InnerEditorProps>(
       return buildExtensions(config);
     }, characterLimit !== undefined || placeholder !== undefined ? [presetName, characterLimit, placeholder] : [presetName]); // eslint-disable-line react-hooks/exhaustive-deps
 
-    let onFormChange: ((fieldName: string, value: unknown) => void) | undefined;
+    const onFormChangeRef = useRef<((fieldName: string, value: unknown) => void) | undefined>(
+      undefined
+    );
 
     const { syncRelationsFromDoc } = useRelationalSync(props.name, {
-      onSyncField: (fieldName, value) => onFormChange?.(fieldName, value),
+      onSyncField: (fieldName, value) => onFormChangeRef.current?.(fieldName, value),
     });
 
     const { editor, field } = useTiptapEditor(props.name, '', extensions, {
@@ -79,7 +81,7 @@ const InnerEditor = forwardRef<HTMLDivElement, InnerEditorProps>(
       onDocUpdate: syncRelationsFromDoc,
     });
 
-    onFormChange = field?.onChange as
+    onFormChangeRef.current = field?.onChange as
       | ((fieldName: string, value: unknown) => void)
       | undefined;
 

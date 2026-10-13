@@ -85,7 +85,9 @@ export const ResponsiveToolbar = ({ items }: { items: ToolbarItem[] }) => {
   const visibleItems = items.slice(0, visibleCount);
   const overflowItems = items.slice(visibleCount);
 
-  const filteredOverflowItems = overflowItems.filter((item) => !item.id.startsWith('spacer'));
+  const filteredOverflowItems = overflowItems.filter(
+    (item) => !item.id.toLowerCase().includes('spacer')
+  );
 
   return (
     <div style={{ position: 'relative', width: '100%' }}>
@@ -102,7 +104,9 @@ export const ResponsiveToolbar = ({ items }: { items: ToolbarItem[] }) => {
       <Flex ref={toolbarRef} gap={1} alignItems="center" width="100%">
         {visibleItems.map((item, idx) => {
           // Hide trailing spacer
-          if (item.id.startsWith('spacer') && idx === visibleItems.length - 1) return null;
+          if (item.id.toLowerCase().includes('spacer') && idx === visibleItems.length - 1) {
+            return null;
+          }
           return <React.Fragment key={item.id}>{item.content}</React.Fragment>;
         })}
 

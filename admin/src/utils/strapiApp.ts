@@ -45,52 +45,26 @@ export interface UploadedStrapiAsset {
 }
 
 /**
- * Uploads a `FormData` payload to Strapi's `/upload` endpoint using `fetch`
- * and any active Strapi admin bearer token / session cookie, avoiding top-level
- * `@strapi/strapi/admin` imports inside extension modules.
+ * Uploads a `FormData` payload to Strapi's `/upload` endpoint using Strapi's
+ * authenticated fetch client (`getFetchClient`) so both localStorage and
+ * cookie-backed sessions send the required authorization header.
  */
 export async function uploadFileToStrapi(
   formData: FormData
 ): Promise<UploadedStrapiAsset | null> {
-  if (typeof fetch !== 'function') return null;
-
-  let rawToken: string | null = null;
   try {
-    if (typeof window !== 'undefined') {
-      rawToken =
-        window.localStorage?.getItem('jwtToken') ??
-        window.sessionStorage?.getItem('jwtToken') ??
-        null;
-      if (rawToken && rawToken.startsWith('"') && rawToken.endsWith('"')) {
-        rawToken = JSON.parse(rawToken);
-      }
-    }
+    const { getFetchClient } = await import('@strapi/strapi/admin');
+    const { post } = getFetchClient();
+    const { data: payload } = await post('/upload', formData);
+
+    const uploaded = Array.isArray(payload)
+      ? payload[0]
+      : Array.isArray(payload?.data)
+        ? payload.data[0]
+        : payload?.data;
+
+    return uploaded && typeof uploaded === 'object' ? (uploaded as UploadedStrapiAsset) : null;
   } catch {
-    rawToken = null;
-  }
-
-  const headers: Record<string, string> = {};
-  if (rawToken) {
-    headers.Authorization = `Bearer ${rawToken}`;
-  }
-
-  const response = await fetch('/upload', {
-    method: 'POST',
-    headers,
-    body: formData,
-    credentials: 'include',
-  });
-
-  if (!response.ok) {
     return null;
   }
-
-  const payload = await response.json();
-  const uploaded = Array.isArray(payload)
-    ? payload[0]
-    : Array.isArray(payload?.data)
-      ? payload.data[0]
-      : payload?.data;
-
-  return uploaded && typeof uploaded === 'object' ? (uploaded as UploadedStrapiAsset) : null;
 }

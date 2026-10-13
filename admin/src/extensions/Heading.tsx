@@ -45,11 +45,27 @@ export const BaseHeadingWithSEOTag = Heading.extend({
           if (!transactions.some((tr) => tr.docChanged)) return null;
           const tr = newState.tr;
           let modified = false;
+          const slugCounts = new Map<string, number>();
+          const usedSlugs = new Set<string>();
 
           newState.doc.descendants((node, pos) => {
             if (node.type.name === 'heading') {
-              const slug = slugifyHeadingText(node.textContent);
-              const nextId = slug || null;
+              const baseSlug = slugifyHeadingText(node.textContent);
+              let nextId: string | null = null;
+              if (baseSlug) {
+                const count = (slugCounts.get(baseSlug) ?? 0) + 1;
+                slugCounts.set(baseSlug, count);
+                if (count === 1 && !usedSlugs.has(baseSlug)) {
+                  nextId = baseSlug;
+                } else {
+                  let suffix = Math.max(2, count);
+                  while (usedSlugs.has(`${baseSlug}-${suffix}`)) {
+                    suffix += 1;
+                  }
+                  nextId = `${baseSlug}-${suffix}`;
+                }
+                usedSlugs.add(nextId);
+              }
               if (node.attrs.id !== nextId) {
                 tr.setNodeMarkup(pos, undefined, { ...node.attrs, id: nextId });
                 modified = true;

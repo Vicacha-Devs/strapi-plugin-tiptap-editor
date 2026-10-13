@@ -185,11 +185,11 @@ export function useSpeechTools(
       tooltip={
         isListening
           ? formatMessage({
-              id: 'tiptap-editor.toolbar.stopDictation',
+              id: 'tiptap-editor.toolbar.speechToText.stop',
               defaultMessage: 'Stop voice dictation',
             })
           : formatMessage({
-              id: 'tiptap-editor.toolbar.speechToText',
+              id: 'tiptap-editor.toolbar.speechToText.start',
               defaultMessage: 'Voice dictation (Speech-to-Text)',
             })
       }
@@ -206,11 +206,11 @@ export function useSpeechTools(
       tooltip={
         isSpeaking
           ? formatMessage({
-              id: 'tiptap-editor.toolbar.stopReadAloud',
+              id: 'tiptap-editor.toolbar.textToSpeech.stop',
               defaultMessage: 'Stop reading aloud',
             })
           : formatMessage({
-              id: 'tiptap-editor.toolbar.textToSpeech',
+              id: 'tiptap-editor.toolbar.textToSpeech.start',
               defaultMessage: 'Read aloud (Text-to-Speech)',
             })
       }

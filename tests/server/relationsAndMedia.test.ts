@@ -1,7 +1,12 @@
-import { describe, it, expect, vi } from 'vitest';
+import dns from 'node:dns';
+import fs from 'node:fs';
+import { describe, it, expect, vi, afterEach } from 'vitest';
 import createSettingsService from '../../server/src/services/settings';
 import createSearchService from '../../server/src/services/search';
-import createMediaService, { isSsrfSafeUrl } from '../../server/src/services/media';
+import createMediaService, {
+  isSsrfSafeUrl,
+  assertSafeResolvedHost,
+} from '../../server/src/services/media';
 import bootstrap from '../../server/src/bootstrap';
 
 describe('server/services/settings', () => {
@@ -142,6 +147,10 @@ describe('server/services/search', () => {
 });
 
 describe('server/services/media (SSRF Protection & Metadata)', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
   it('blocks localhost, private IPs, metadata IPs, IPv4-mapped IPv6, CGNAT, 0.0.0.0, trailing dots, and non-http protocols', () => {
     expect(isSsrfSafeUrl('http://localhost:1337/admin')).toBe(false);
     expect(isSsrfSafeUrl('http://localhost./admin')).toBe(false);
@@ -160,8 +169,63 @@ describe('server/services/media (SSRF Protection & Metadata)', () => {
     expect(isSsrfSafeUrl('https://strapi.io/assets/logo.png')).toBe(true);
   });
 
-  it('validates uploadByUrl, infers MIME types from extension, and rejects SSRF targets', async () => {
-    const service = createMediaService({ strapi: {} as any });
+  it('fails closed on DNS lookup errors and blocks private resolved IPs', async () => {
+    vi.spyOn(dns.promises, 'lookup').mockRejectedValueOnce(new Error('ENOTFOUND'));
+    await expect(assertSafeResolvedHost('nonexistent.example.invalid')).rejects.toThrow(
+      'Failed to resolve URL host'
+    );
+
+    vi.spyOn(dns.promises, 'lookup').mockResolvedValueOnce([
+      { address: '10.0.0.42', family: 4 },
+    ] as any);
+    await expect(assertSafeResolvedHost('rebind.example.com')).rejects.toThrow(
+      'disallowed private'
+    );
+  });
+
+  it('validates uploadByUrl, downloads bounded bytes, and persists through Strapi Upload service', async () => {
+    vi.spyOn(dns.promises, 'lookup').mockResolvedValue([
+      { address: '93.184.216.34', family: 4 },
+    ] as any);
+
+    const mockBytes = new Uint8Array([0xff, 0xd8, 0xff, 0xd9]);
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async () => ({
+      ok: true,
+      status: 200,
+      headers: {
+        get: (name: string) => (name.toLowerCase() === 'content-length' ? '4' : null),
+      },
+      arrayBuffer: async () => mockBytes.buffer,
+    }) as unknown as Response);
+
+    const capturedUploads: any[] = [];
+    const mockUpload = vi.fn(async (payload: any) => {
+      expect(fs.existsSync(payload.files.filepath)).toBe(true);
+      capturedUploads.push(payload);
+      return [
+        {
+          id: 42,
+          documentId: 'asset-doc-42',
+          name: payload.data.fileInfo.name,
+          url: `/uploads/${payload.data.fileInfo.name}`,
+          mime: payload.files.mimetype,
+          size: payload.files.size,
+          alternativeText: payload.data.fileInfo.alternativeText,
+        },
+      ];
+    });
+
+    const mockStrapi = {
+      plugin: vi.fn((name: string) =>
+        name === 'upload'
+          ? {
+              service: vi.fn((svc: string) => (svc === 'upload' ? { upload: mockUpload } : null)),
+            }
+          : null
+      ),
+    } as any;
+
+    const service = createMediaService({ strapi: mockStrapi });
     await expect(service.uploadByUrl('http://127.0.0.1/test.jpg')).rejects.toThrow(
       'SSRF safety validation'
     );
@@ -170,16 +234,25 @@ describe('server/services/media (SSRF Protection & Metadata)', () => {
       'https://cdn.example.com/photos/banner.jpg',
       'Hero Banner'
     );
+    expect(asset.id).toBe(42);
+    expect(asset.documentId).toBe('asset-doc-42');
     expect(asset.name).toBe('banner.jpg');
-    expect(asset.url).toBe('https://cdn.example.com/photos/banner.jpg');
+    expect(asset.url).toBe('/uploads/banner.jpg');
     expect(asset.alternativeText).toBe('Hero Banner');
     expect(asset.mime).toBe('image/jpeg');
+    expect(fs.existsSync(capturedUploads[0].files.filepath)).toBe(false);
 
     const videoAsset = await service.uploadByUrl('https://cdn.example.com/media/clip.mp4');
     expect(videoAsset.mime).toBe('video/mp4');
 
     const pdfAsset = await service.uploadByUrl('https://cdn.example.com/docs/report.pdf');
     expect(pdfAsset.mime).toBe('application/pdf');
+
+    // Propagates failure when Upload service is unavailable
+    const brokenService = createMediaService({ strapi: {} as any });
+    await expect(
+      brokenService.uploadByUrl('https://cdn.example.com/photos/banner.jpg')
+    ).rejects.toThrow('Strapi upload service is unavailable');
   });
 });
 

@@ -1,5 +1,8 @@
 import dns from 'node:dns';
+import fs from 'node:fs';
 import net from 'node:net';
+import os from 'node:os';
+import path from 'node:path';
 import type { Core } from '@strapi/strapi';
 
 export interface LinkPreviewMetadata {
@@ -20,7 +23,13 @@ export interface UploadedRemoteAsset {
   alternativeText?: string;
 }
 
+export interface ResolvedHostRecord {
+  address: string;
+  family: 4 | 6;
+}
+
 const MAX_PREVIEW_BYTES = 65_536; // 64 KB cap for HTML metadata inspection
+const MAX_UPLOAD_BYTES = 25 * 1024 * 1024; // 25 MB cap for remote media downloads
 
 const EXTENSION_MIME_MAP: Record<string, string> = {
   '.jpg': 'image/jpeg',
@@ -163,34 +172,95 @@ export function isSsrfSafeUrl(rawUrl: string): boolean {
 }
 
 /**
- * Resolves a hostname via DNS and verifies that none of the resolved IPv4/IPv6 addresses
- * point to a private, loopback, link-local, or metadata network.
+ * Resolves a hostname via DNS, fails closed on lookup errors, and verifies that none of the
+ * resolved IPv4/IPv6 addresses point to a private, loopback, link-local, or metadata network.
+ * Returns the validated DNS records so callers can pin the connection to the validated IP.
  */
-export async function assertSafeResolvedHost(hostname: string): Promise<void> {
+export async function assertSafeResolvedHost(hostname: string): Promise<ResolvedHostRecord[]> {
   const cleanHost = hostname.toLowerCase().replace(/^\[|\]$/g, '').replace(/\.+$/, '');
-  if (net.isIP(cleanHost) !== 0) {
+  const literalFamily = net.isIP(cleanHost);
+  if (literalFamily === 4 || literalFamily === 6) {
     if (isPrivateIpAddress(cleanHost)) {
       throw new Error('URL resolved to a disallowed private or internal IP address');
     }
-    return;
+    return [{ address: cleanHost, family: literalFamily }];
   }
 
   if (typeof dns?.promises?.lookup !== 'function') {
-    return;
+    throw new Error('Failed to resolve URL host');
   }
 
   try {
     const records = await dns.promises.lookup(cleanHost, { all: true });
+    if (!Array.isArray(records) || records.length === 0) {
+      throw new Error('Failed to resolve URL host');
+    }
+    const validated: ResolvedHostRecord[] = [];
     for (const record of records) {
-      if (record?.address && isPrivateIpAddress(record.address)) {
+      if (!record?.address || isPrivateIpAddress(record.address)) {
         throw new Error('URL resolved to a disallowed private or internal IP address');
       }
+      const family: 4 | 6 = record.family === 6 || net.isIP(record.address) === 6 ? 6 : 4;
+      validated.push({ address: record.address, family });
     }
+    return validated;
   } catch (err) {
     if (err instanceof Error && err.message.includes('disallowed private')) {
       throw err;
     }
-    // Ignore transient offline DNS lookup errors in isolated test environments
+    throw new Error('Failed to resolve URL host');
+  }
+}
+
+/**
+ * Creates an undici `Agent` dispatcher whose `connect.lookup` callback is pinned to the
+ * pre-validated DNS records, preventing DNS-rebinding TOCTOU between validation and `fetch`.
+ */
+async function createPinnedFetchDispatcher(
+  records: ResolvedHostRecord[]
+): Promise<{ close?: () => Promise<void> } | undefined> {
+  if (!records.length) return undefined;
+  try {
+    const moduleName = 'undici';
+    const undici = (await import(moduleName)) as {
+      Agent?: new (opts: Record<string, unknown>) => { close?: () => Promise<void> };
+    };
+    if (typeof undici?.Agent !== 'function') return undefined;
+    const primary = records[0];
+    return new undici.Agent({
+      connect: {
+        lookup: (
+          _hostname: string,
+          options:
+            | { all?: boolean }
+            | ((err: Error | null, address: string, family: number) => void),
+          callback?: (
+            err: Error | null,
+            addressOrRecords: string | ResolvedHostRecord[],
+            family?: number
+          ) => void
+        ) => {
+          const cb = typeof options === 'function' ? options : callback;
+          const wantAll = typeof options === 'object' && options !== null && Boolean(options.all);
+          if (typeof cb !== 'function') return;
+          if (isPrivateIpAddress(primary.address)) {
+            cb(new Error('URL resolved to a disallowed private or internal IP address'), '', 4);
+            return;
+          }
+          if (wantAll) {
+            (cb as (err: Error | null, records: ResolvedHostRecord[]) => void)(null, records);
+          } else {
+            (cb as (err: Error | null, address: string, family: number) => void)(
+              null,
+              primary.address,
+              primary.family
+            );
+          }
+        },
+      },
+    });
+  } catch {
+    return undefined;
   }
 }
 
@@ -228,6 +298,60 @@ async function readBoundedResponseText(response: Response, maxBytes: number): Pr
   }
 
   return (await response.text()).slice(0, maxBytes);
+}
+
+/**
+ * Reads up to `maxBytes` of binary data from a Fetch `Response` stream, throwing if the
+ * response exceeds `maxBytes`.
+ */
+async function readBoundedResponseBytes(response: Response, maxBytes: number): Promise<Buffer> {
+  const contentLength = response.headers?.get?.('content-length');
+  if (contentLength) {
+    const declaredLength = Number(contentLength);
+    if (Number.isFinite(declaredLength) && declaredLength > maxBytes) {
+      throw new Error('Remote media file exceeds maximum allowed size');
+    }
+  }
+
+  const body = (response as { body?: { getReader?: () => ReadableStreamDefaultReader<Uint8Array> } }).body;
+  if (body && typeof body.getReader === 'function') {
+    const reader = body.getReader();
+    const chunks: Buffer[] = [];
+    let totalBytes = 0;
+    try {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done || !value) break;
+        totalBytes += value.byteLength;
+        if (totalBytes > maxBytes) {
+          throw new Error('Remote media file exceeds maximum allowed size');
+        }
+        chunks.push(Buffer.from(value.buffer, value.byteOffset, value.byteLength));
+      }
+    } finally {
+      try {
+        await reader.cancel();
+      } catch {
+        // Ignore stream cancel errors
+      }
+    }
+    return Buffer.concat(chunks, totalBytes);
+  }
+
+  if (typeof response.arrayBuffer === 'function') {
+    const ab = await response.arrayBuffer();
+    if (ab.byteLength > maxBytes) {
+      throw new Error('Remote media file exceeds maximum allowed size');
+    }
+    return Buffer.from(ab);
+  }
+
+  const text = await response.text();
+  const buf = Buffer.from(text, 'utf-8');
+  if (buf.byteLength > maxBytes) {
+    throw new Error('Remote media file exceeds maximum allowed size');
+  }
+  return buf;
 }
 
 /**
@@ -279,8 +403,8 @@ const createMediaService = ({ strapi }: { strapi: Core.Strapi }) => ({
   isSsrfSafeUrl,
 
   /**
-   * Fetches OpenGraph/Twitter preview metadata from an SSRF-validated URL with DNS verification
-   * and a 64 KB response stream cap.
+   * Fetches OpenGraph/Twitter preview metadata from an SSRF-validated URL with DNS verification,
+   * pinned undici dispatcher, and a 64 KB response stream cap.
    */
   async getLinkPreview(rawUrl: string): Promise<LinkPreviewMetadata> {
     if (!isSsrfSafeUrl(rawUrl)) {
@@ -289,7 +413,7 @@ const createMediaService = ({ strapi }: { strapi: Core.Strapi }) => ({
 
     const cleanUrl = rawUrl.trim();
     const parsedUrl = new URL(cleanUrl);
-    await assertSafeResolvedHost(parsedUrl.hostname);
+    const resolvedRecords = await assertSafeResolvedHost(parsedUrl.hostname);
 
     if (typeof globalThis.fetch !== 'function') {
       return {
@@ -301,6 +425,7 @@ const createMediaService = ({ strapi }: { strapi: Core.Strapi }) => ({
       };
     }
 
+    const dispatcher = await createPinnedFetchDispatcher(resolvedRecords);
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 5000);
     try {
@@ -312,7 +437,8 @@ const createMediaService = ({ strapi }: { strapi: Core.Strapi }) => ({
           Accept: 'text/html,application/xhtml+xml',
           'User-Agent': 'StrapiTiptapLinkPreview/1.0',
         },
-      });
+        ...(dispatcher ? { dispatcher } : {}),
+      } as RequestInit);
 
       if (!response.ok) {
         return {
@@ -349,12 +475,15 @@ const createMediaService = ({ strapi }: { strapi: Core.Strapi }) => ({
       };
     } finally {
       clearTimeout(timeout);
+      if (dispatcher?.close) {
+        await dispatcher.close().catch(() => undefined);
+      }
     }
   },
 
   /**
-   * Validates a remote media URL against SSRF, resolves its MIME type, and registers
-   * a Strapi Upload asset record when the Upload plugin/database is available.
+   * Validates a remote media URL against SSRF, downloads the asset with a bounded size,
+   * writes a temporary file, and creates the media record through Strapi's Upload service.
    */
   async uploadByUrl(rawUrl: string, customAlt?: string): Promise<UploadedRemoteAsset> {
     if (!isSsrfSafeUrl(rawUrl)) {
@@ -363,7 +492,7 @@ const createMediaService = ({ strapi }: { strapi: Core.Strapi }) => ({
 
     const cleanUrl = rawUrl.trim();
     const parsedUrl = new URL(cleanUrl);
-    await assertSafeResolvedHost(parsedUrl.hostname);
+    const resolvedRecords = await assertSafeResolvedHost(parsedUrl.hostname);
 
     const pathnameParts = parsedUrl.pathname.split('/').filter(Boolean);
     const rawFilename = pathnameParts[pathnameParts.length - 1] || 'remote-media';
@@ -371,49 +500,104 @@ const createMediaService = ({ strapi }: { strapi: Core.Strapi }) => ({
     const inferredMime = inferMimeFromFilename(safeFilename);
     const altText = customAlt || safeFilename;
 
-    // Register in Strapi Upload plugin if available
+    const uploadService = (
+      strapi as unknown as {
+        plugin?: (name: string) => {
+          service?: (name: string) => {
+            upload?: (payload: {
+              data: { fileInfo: { name: string; alternativeText: string; caption: string } };
+              files: {
+                filepath: string;
+                originalFilename: string;
+                mimetype: string;
+                size: number;
+              };
+            }) => Promise<unknown>;
+          };
+        };
+      }
+    )?.plugin?.('upload')?.service?.('upload');
+
+    if (typeof uploadService?.upload !== 'function') {
+      throw new Error('Strapi upload service is unavailable');
+    }
+
+    if (typeof globalThis.fetch !== 'function') {
+      throw new Error('Fetch API is unavailable for downloading remote media');
+    }
+
+    const dispatcher = await createPinnedFetchDispatcher(resolvedRecords);
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 15000);
+    let tempDir: string | null = null;
+
     try {
-      const dbQuery = (strapi as unknown as { db?: { query?: (uid: string) => any } })?.db?.query;
-      if (typeof dbQuery === 'function') {
-        const dotIdx = safeFilename.lastIndexOf('.');
-        const ext = dotIdx !== -1 ? safeFilename.slice(dotIdx) : '';
-        const hash = `${safeFilename.replace(/\.[^.]+$/, '')}_${Date.now()}`;
-        const created = await dbQuery('plugin::upload.file').create({
-          data: {
+      const response = await globalThis.fetch(cleanUrl, {
+        method: 'GET',
+        redirect: 'manual',
+        signal: controller.signal,
+        headers: {
+          'User-Agent': 'StrapiTiptapMediaImporter/1.0',
+        },
+        ...(dispatcher ? { dispatcher } : {}),
+      } as RequestInit);
+
+      if (!response.ok) {
+        throw new Error(`Failed to download remote media (HTTP ${response.status})`);
+      }
+
+      const buffer = await readBoundedResponseBytes(response, MAX_UPLOAD_BYTES);
+      const headerContentType = response.headers?.get?.('content-type')?.split(';')[0]?.trim();
+      const resolvedMime =
+        headerContentType && headerContentType !== 'application/octet-stream'
+          ? headerContentType
+          : inferredMime;
+
+      tempDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'strapi-tiptap-upload-'));
+      const tempFilePath = path.join(tempDir, safeFilename);
+      await fs.promises.writeFile(tempFilePath, buffer);
+
+      const uploadedResult = await uploadService.upload({
+        data: {
+          fileInfo: {
             name: safeFilename,
             alternativeText: altText,
             caption: altText,
-            hash,
-            ext,
-            mime: inferredMime,
-            size: 0,
-            url: cleanUrl,
-            provider: 'local',
           },
-        });
-        if (created) {
-          return {
-            id: typeof created.id === 'number' ? created.id : null,
-            documentId: typeof created.documentId === 'string' ? created.documentId : null,
-            name: safeFilename,
-            url: cleanUrl,
-            mime: inferredMime,
-            alternativeText: altText,
-          };
-        }
-      }
-    } catch {
-      // Fallback to non-persisted descriptor if upload DB query is unavailable
-    }
+        },
+        files: {
+          filepath: tempFilePath,
+          originalFilename: safeFilename,
+          mimetype: resolvedMime,
+          size: buffer.byteLength,
+        },
+      });
 
-    return {
-      id: null,
-      documentId: null,
-      name: safeFilename,
-      url: cleanUrl,
-      mime: inferredMime,
-      alternativeText: altText,
-    };
+      const created = Array.isArray(uploadedResult) ? uploadedResult[0] : uploadedResult;
+      if (!created || typeof created !== 'object') {
+        throw new Error('Upload service did not return a created file record');
+      }
+
+      const record = created as Record<string, unknown>;
+      return {
+        id: typeof record.id === 'number' ? record.id : null,
+        documentId: typeof record.documentId === 'string' ? record.documentId : null,
+        name: typeof record.name === 'string' ? record.name : safeFilename,
+        url: typeof record.url === 'string' ? record.url : cleanUrl,
+        mime: typeof record.mime === 'string' ? record.mime : resolvedMime,
+        size: typeof record.size === 'number' ? record.size : buffer.byteLength,
+        alternativeText:
+          typeof record.alternativeText === 'string' ? record.alternativeText : altText,
+      };
+    } finally {
+      clearTimeout(timeout);
+      if (dispatcher?.close) {
+        await dispatcher.close().catch(() => undefined);
+      }
+      if (tempDir) {
+        await fs.promises.rm(tempDir, { recursive: true, force: true }).catch(() => undefined);
+      }
+    }
   },
 });
 

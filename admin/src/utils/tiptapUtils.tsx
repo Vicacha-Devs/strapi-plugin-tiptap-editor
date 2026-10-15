@@ -68,7 +68,8 @@ export function parseJSONContent(
   }
 
   if (outputFormat === 'markdown') {
-    return markdownToJson(trimmed) as JSONContent;
+    const parsedDoc = markdownToJson(trimmed) as JSONContent;
+    return parsedDoc?.type === 'doc' ? parsedDoc : tiptapContent(defaultValue);
   }
 
   try {

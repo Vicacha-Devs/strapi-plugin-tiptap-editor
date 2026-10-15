@@ -370,6 +370,16 @@ describe('RichTextInput', () => {
     expect(capturedUseMemoDeps).toEqual([undefined]);
   });
 
+  it('forwards attribute.options.placeholder to buildExtensions even when top-level placeholder is undefined', () => {
+    const props = {
+      name: 'content',
+      placeholder: undefined,
+      attribute: { options: { preset: 'blog', placeholder: 'Write something...' } },
+    };
+    shallowRender(RichTextInput(props as any, null));
+    expect(capturedUseMemoDeps).toEqual(['blog', undefined, 'Write something...']);
+  });
+
   it('wraps output in EditorErrorBoundary (rendered through InnerEditor)', () => {
     const props = { name: 'content' };
     const result = RichTextInput(props as any, null) as any;

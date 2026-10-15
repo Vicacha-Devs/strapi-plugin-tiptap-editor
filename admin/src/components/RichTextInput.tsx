@@ -437,7 +437,11 @@ const RichTextInput = forwardRef<HTMLDivElement, RichTextInputProps>((props, for
   const normalizedPresetName = rawPresetName?.trim() || undefined;
   const outputFormat = props.attribute?.options?.outputFormat;
   const characterLimit = props.attribute?.options?.characterLimit;
-  const placeholder = props.attribute?.options?.placeholder;
+  const placeholder =
+    props.attribute?.options?.placeholder ??
+    (typeof (props as { placeholder?: unknown }).placeholder === 'string'
+      ? (props as { placeholder?: string }).placeholder
+      : undefined);
 
   const { config, isLoading } = usePresetConfig(normalizedPresetName);
 
@@ -451,13 +455,13 @@ const RichTextInput = forwardRef<HTMLDivElement, RichTextInputProps>((props, for
 
   return (
     <InnerEditor
+      {...props}
       ref={forwardedRef}
       config={config ?? MINIMAL_PRESET_CONFIG}
       presetName={normalizedPresetName}
       outputFormat={outputFormat}
       characterLimit={characterLimit}
       placeholder={placeholder}
-      {...props}
     />
   );
 });

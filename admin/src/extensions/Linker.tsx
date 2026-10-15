@@ -82,22 +82,23 @@ export function LinkerNodeViewReadOnly({ node }: NodeViewProps) {
  * Interactive NodeView for internal Strapi content links with live document title resolution and removal.
  */
 export function LinkerNodeView(props: NodeViewProps) {
-  const { node, updateAttributes, deleteNode } = props;
+  const { node, deleteNode } = props;
   const { formatMessage } = useIntl();
   const { get } = useFetchClient();
   const collectionName = String(node.attrs.collectionName || '');
   const documentId = String(node.attrs.documentId || '');
   const currentLabel = String(node.attrs.label || '');
+  const [resolvedLabel, setResolvedLabel] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!collectionName || !documentId || currentLabel) return;
+    if (!collectionName || !documentId) return;
     let cancelled = false;
     get(
       `/${PLUGIN_ID}/get/${encodeURIComponent(collectionName)}/${encodeURIComponent(documentId)}`
     )
       .then((res: { data?: SearchHit }) => {
         if (!cancelled && res?.data?.label) {
-          updateAttributes({ label: res.data.label });
+          setResolvedLabel(res.data.label);
         }
       })
       .catch(() => {
@@ -106,12 +107,20 @@ export function LinkerNodeView(props: NodeViewProps) {
     return () => {
       cancelled = true;
     };
-  }, [collectionName, documentId, currentLabel, get, updateAttributes]);
+  }, [collectionName, documentId, get]);
+
+  const displayNode = {
+    ...node,
+    attrs: {
+      ...node.attrs,
+      label: resolvedLabel ?? currentLabel,
+    },
+  } as unknown as NodeViewProps['node'];
 
   return (
     <NodeViewWrapper as="span" style={{ display: 'inline' }}>
       <span style={{ display: 'inline-flex', alignItems: 'center', gap: '2px' }}>
-        <LinkerNodeViewReadOnly {...props} />
+        <LinkerNodeViewReadOnly {...props} node={displayNode} />
         <IconButton
           onClick={deleteNode}
           label={formatMessage({

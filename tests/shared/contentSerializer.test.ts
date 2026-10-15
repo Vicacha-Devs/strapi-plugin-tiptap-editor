@@ -188,6 +188,18 @@ describe('shared/contentSerializer', () => {
       expect(md).toContain('title="a&quot; onclick=&quot;evil()"');
       expect(md).toContain('![paren](<https://example.com/img(1).png>)');
     });
+
+    it('preserves full document structure, inline marks, and attributes on a JSON -> Markdown -> JSON round-trip of fixtures/all-features-payload.json', async () => {
+      const fs = await import('node:fs');
+      const path = await import('node:path');
+      const fixturePath = path.resolve(__dirname, '../../fixtures/all-features-payload.json');
+      const allFeaturesPayload = JSON.parse(fs.readFileSync(fixturePath, 'utf8'));
+
+      const markdown = jsonToMarkdown(allFeaturesPayload);
+      const roundTripped = markdownToJson(markdown);
+
+      expect(roundTripped).toEqual(allFeaturesPayload);
+    });
   });
 
   describe('serializeEditorContent', () => {

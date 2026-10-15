@@ -1,3 +1,4 @@
+import DOMPurify from 'isomorphic-dompurify';
 import type { TiptapOutputFormat } from './types';
 
 export interface ProseMirrorJSONNode {
@@ -9,6 +10,50 @@ export interface ProseMirrorJSONNode {
 }
 
 const SAFE_URL_PROTOCOLS = new Set(['https:', 'http:', 'mailto:', 'tel:', 'strapi:']);
+
+const DOMPURIFY_ALLOWED_URI_REGEXP =
+  /^(?:https?:|mailto:|tel:|strapi:\/\/|data:image\/(?:png|jpe?g|gif|webp|avif);|data:audio\/|\/(?!\/|\\)|#|\.\.?\/)/i;
+
+const DOMPURIFY_ADD_TAGS = ['iframe', 'details', 'summary', 'abbr', 'mark'];
+
+const DOMPURIFY_FORBID_TAGS = [
+  'script',
+  'style',
+  'svg',
+  'math',
+  'form',
+  'object',
+  'embed',
+  'applet',
+  'base',
+  'meta',
+  'link',
+];
+
+const DOMPURIFY_ADD_ATTR = [
+  'allowfullscreen',
+  'data-asset-id',
+  'data-document-id',
+  'data-type',
+  'data-align',
+  'data-collection',
+  'data-label',
+  'data-variant',
+  'data-title',
+  'data-author',
+  'data-columns',
+  'data-latex',
+  'data-display-mode',
+  'data-lead',
+  'data-background-color',
+  'data-color',
+  'target',
+  'rel',
+  'dir',
+  'lang',
+  'title',
+  'open',
+];
 
 /**
  * Decodes HTML character references (named & numeric decimal/hex) and strips control characters
@@ -129,41 +174,22 @@ export function isSafeIframeUrl(url: string, allowedDomains?: string[]): boolean
 }
 
 /**
- * Sanitizes an HTML string by removing dangerous tags (`<script>`, `<style>`, `<svg>`, `<form>`,
- * `<object>`, `<embed>`, `<applet>`, `<base>`, `<meta>`, `<link>`), inline `on*` event attributes,
- * `srcdoc` attributes, and unsafe URLs in `href`/`src`/`action`/`formaction`/`xlink:href`.
+ * Sanitizes an HTML string using DOMPurify (`isomorphic-dompurify`), stripping dangerous elements
+ * (`<script>`, `<style>`, `<svg>`, `<math>`, `<form>`, `<object>`, `<embed>`), inline event handlers,
+ * `srcdoc`, and unsafe URI schemes while preserving Tiptap editor nodes and data attributes.
  */
 export function sanitizeHtmlString(html: string): string {
   if (!html || typeof html !== 'string') return '';
 
-  let sanitized = html
-    // Remove paired dangerous container elements and their contents
-    .replace(/<\s*(script|style|svg|math|object|embed|applet)\b[^>]*>[\s\S]*?<\s*\/\s*\1\s*>/gi, '')
-    // Remove standalone or unclosed dangerous tags (including form, base, meta, link)
-    .replace(/<\s*\/?\s*(script|style|svg|math|form|object|embed|applet|base|meta|link)\b[^>]*>/gi, '')
-    // Remove event handler attributes (e.g. onclick="...", /onerror=alert(1), onload='...')
-    .replace(
-      /(?:[\s/"']|^)on[a-z0-9_]+\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>"']*)/gi,
-      (match) => (match.startsWith('"') || match.startsWith("'") ? match[0] : '')
-    )
-    // Remove iframe srcdoc attributes (quoted or unquoted)
-    .replace(/(?:[\s/"']|^)srcdoc\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>"']*)/gi, (match) =>
-      match.startsWith('"') || match.startsWith("'") ? match[0] : ''
-    );
-
-  // Sanitize URL-bearing attributes (double-quoted, single-quoted, or unquoted)
-  sanitized = sanitized.replace(
-    /\b(href|src|action|formaction|xlink:href|poster|data)\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>"']+))/gi,
-    (_full, attr: string, dq?: string, sq?: string, uq?: string) => {
-      const rawVal = dq ?? sq ?? uq ?? '';
-      if (isSafeUrl(rawVal)) {
-        return `${attr}="${escAttr(rawVal.trim())}"`;
-      }
-      return `${attr}="#"`;
-    }
+  return String(
+    DOMPurify.sanitize(html, {
+      ADD_TAGS: DOMPURIFY_ADD_TAGS,
+      FORBID_TAGS: DOMPURIFY_FORBID_TAGS,
+      ADD_ATTR: DOMPURIFY_ADD_ATTR,
+      FORBID_ATTR: ['srcdoc'],
+      ALLOWED_URI_REGEXP: DOMPURIFY_ALLOWED_URI_REGEXP,
+    })
   );
-
-  return sanitized;
 }
 
 /**
@@ -173,6 +199,46 @@ function mdUrl(raw: unknown): string {
   const str = String(raw ?? '').trim();
   if (!str || !isSafeUrl(str)) return '#';
   return /[\s()]/.test(str) ? `<${str.replace(/>/g, '%3E')}>` : str;
+}
+
+/**
+ * Formats `textStyle` mark attributes into a CSS inline style string.
+ */
+function formatTextStyleAttr(attrs?: Record<string, unknown>): string {
+  if (!attrs) return '';
+  const parts: string[] = [];
+  if (typeof attrs.color === 'string' && attrs.color) {
+    parts.push(`color: ${attrs.color}`);
+  }
+  if (typeof attrs.fontFamily === 'string' && attrs.fontFamily) {
+    parts.push(`font-family: ${attrs.fontFamily}`);
+  }
+  if (typeof attrs.fontSize === 'string' && attrs.fontSize) {
+    parts.push(`font-size: ${attrs.fontSize}`);
+  }
+  if (typeof attrs.lineHeight === 'string' && attrs.lineHeight) {
+    parts.push(`line-height: ${attrs.lineHeight}`);
+  }
+  return parts.join('; ');
+}
+
+/**
+ * Parses an inline CSS style string from a `<span style="...">` tag into `textStyle` mark attributes.
+ */
+function parseTextStyleAttr(styleStr: string): Record<string, unknown> {
+  const attrs: Record<string, unknown> = {};
+  for (const decl of styleStr.split(';')) {
+    const colonIdx = decl.indexOf(':');
+    if (colonIdx === -1) continue;
+    const prop = decl.slice(0, colonIdx).trim().toLowerCase();
+    const val = decl.slice(colonIdx + 1).trim();
+    if (!val) continue;
+    if (prop === 'color') attrs.color = val;
+    else if (prop === 'font-family') attrs.fontFamily = val;
+    else if (prop === 'font-size') attrs.fontSize = val;
+    else if (prop === 'line-height') attrs.lineHeight = val;
+  }
+  return attrs;
 }
 
 /**
@@ -195,7 +261,7 @@ function serializeInline(nodes?: ProseMirrorJSONNode[]): string {
         return `$${latex}$`;
       }
       if (node.type !== 'text' || typeof node.text !== 'string') {
-        return jsonToMarkdown(node);
+        return serializeBlockToMarkdown(node);
       }
 
       const marks = Array.isArray(node.marks) ? node.marks : [];
@@ -204,11 +270,15 @@ function serializeInline(nodes?: ProseMirrorJSONNode[]): string {
         ? node.text
         : node.text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
-      for (const mark of marks) {
+      // Apply code mark innermost first, then apply remaining marks in reverse order
+      // so outer-to-inner parsing reconstructs marks in their exact original sequence.
+      if (hasCodeMark) {
+        text = `\`${text}\``;
+      }
+
+      const nonCodeMarks = marks.filter((m) => m.type !== 'code').reverse();
+      for (const mark of nonCodeMarks) {
         switch (mark.type) {
-          case 'code':
-            text = `\`${text}\``;
-            break;
           case 'bold':
             text = `**${text}**`;
             break;
@@ -243,6 +313,16 @@ function serializeInline(nodes?: ProseMirrorJSONNode[]): string {
             text = lang ? `<span lang="${lang}" dir="${dir}">${text}</span>` : text;
             break;
           }
+          case 'highlight': {
+            const color = mark.attrs?.color ? escAttr(mark.attrs.color) : '';
+            text = color ? `<mark data-color="${color}">${text}</mark>` : `<mark>${text}</mark>`;
+            break;
+          }
+          case 'textStyle': {
+            const styleStr = formatTextStyleAttr(mark.attrs);
+            text = styleStr ? `<span style="${escAttr(styleStr)}">${text}</span>` : text;
+            break;
+          }
           default:
             break;
         }
@@ -253,7 +333,181 @@ function serializeInline(nodes?: ProseMirrorJSONNode[]): string {
 }
 
 /**
+ * Serializes a single ProseMirror block node into pure Markdown without metadata comments.
+ */
+function serializeBlockToMarkdown(node: ProseMirrorJSONNode): string {
+  switch (node.type) {
+    case 'heading': {
+      const level = Math.min(Math.max(Number(node.attrs?.level) || 1, 1), 6);
+      return `${'#'.repeat(level)} ${serializeInline(node.content)}`;
+    }
+    case 'leadParagraph': {
+      return `> **Lead:** ${serializeInline(node.content)}`;
+    }
+    case 'paragraph': {
+      return serializeInline(node.content);
+    }
+    case 'blockquote': {
+      return jsonToMarkdownPure(node)
+        .split('\n')
+        .map((l) => `> ${l}`)
+        .join('\n');
+    }
+    case 'informationPane': {
+      const variant = String(node.attrs?.variant || 'info').toUpperCase();
+      const title = String(node.attrs?.title || variant);
+      const body = jsonToMarkdownPure(node)
+        .split('\n')
+        .map((l) => `> ${l}`)
+        .join('\n');
+      return `> [!${variant}] ${title}\n${body}`;
+    }
+    case 'conversationHistory': {
+      const author = String(node.attrs?.author || 'Comment');
+      const body = jsonToMarkdownPure(node)
+        .split('\n')
+        .map((l) => `> ${l}`)
+        .join('\n');
+      return `> **Conversation History** *(${author})*\n${body}`;
+    }
+    case 'details': {
+      const summaryNode = node.content?.find((c) => c.type === 'detailsSummary');
+      const contentNode = node.content?.find((c) => c.type === 'detailsContent');
+      const summaryText = serializeInline(summaryNode?.content) || 'Details';
+      const bodyText = contentNode ? jsonToMarkdownPure(contentNode) : '';
+      return `<details>\n<summary>${summaryText}</summary>\n\n${bodyText}\n</details>`;
+    }
+    case 'codeBlock': {
+      const lang = String(node.attrs?.language || '');
+      const codeText = (node.content || []).map((c) => c.text || '').join('');
+      return `\`\`\`${lang}\n${codeText}\n\`\`\``;
+    }
+    case 'bulletList': {
+      const items = (node.content || []).map((item) => `- ${jsonToMarkdownPure(item).trim()}`);
+      return items.join('\n');
+    }
+    case 'orderedList': {
+      const start = Number(node.attrs?.start) || 1;
+      const items = (node.content || []).map(
+        (item, idx) => `${start + idx}. ${jsonToMarkdownPure(item).trim()}`
+      );
+      return items.join('\n');
+    }
+    case 'taskList': {
+      const items = (node.content || []).map((item) => {
+        const checked = item.attrs?.checked ? 'x' : ' ';
+        return `- [${checked}] ${jsonToMarkdownPure(item).trim()}`;
+      });
+      return items.join('\n');
+    }
+    case 'listItem':
+    case 'taskItem': {
+      return (node.content || []).map((c) => serializeInline(c.content)).join('\n');
+    }
+    case 'horizontalRule': {
+      return '---';
+    }
+    case 'pageBreak': {
+      return '<!-- pagebreak -->';
+    }
+    case 'tableOfContents': {
+      return '<!-- toc -->';
+    }
+    case 'image': {
+      const alt = String(node.attrs?.alt || '');
+      const src = mdUrl(node.attrs?.src);
+      return `![${alt}](${src})`;
+    }
+    case 'video': {
+      const src = mdUrl(node.attrs?.src);
+      const title = String(node.attrs?.title || 'Video');
+      return `[Video: ${title}](${src})`;
+    }
+    case 'audio': {
+      const src = mdUrl(node.attrs?.src);
+      const title = String(node.attrs?.title || 'Audio');
+      return `[Audio: ${title}](${src})`;
+    }
+    case 'attachment': {
+      const href = mdUrl(node.attrs?.href || node.attrs?.src);
+      const filename = String(node.attrs?.filename || node.attrs?.title || 'Attachment');
+      return `[Attachment: ${filename}](${href})`;
+    }
+    case 'iframe': {
+      const rawSrc = String(node.attrs?.src || '');
+      const src = isSafeIframeUrl(rawSrc) ? mdUrl(rawSrc) : '#';
+      const title = String(node.attrs?.title || 'Embed');
+      return `[Embed: ${title}](${src})`;
+    }
+    case 'mathematics': {
+      const latex = String(node.attrs?.latex || '');
+      const isBlock =
+        node.attrs?.displayMode === 'block' || node.attrs?.displayMode === true;
+      return isBlock ? `$$\n${latex}\n$$` : `$${latex}$`;
+    }
+    case 'table': {
+      const rows = node.content || [];
+      const mdRows: string[] = [];
+      rows.forEach((row, rIdx) => {
+        const cells = (row.content || []).map((cell) =>
+          jsonToMarkdownPure(cell).replace(/\n+/g, ' ').trim()
+        );
+        mdRows.push(`| ${cells.join(' | ')} |`);
+        if (rIdx === 0) {
+          mdRows.push(`| ${cells.map(() => '---').join(' | ')} |`);
+        }
+      });
+      return mdRows.join('\n');
+    }
+    case 'tableCell':
+    case 'tableHeader': {
+      return (node.content || []).map((c) => serializeInline(c.content)).join(' ');
+    }
+    case 'layoutContainer': {
+      const columns = String(node.attrs?.columns || '1:1');
+      const cols = (node.content || []).map(
+        (col) => `<div data-type="layout-column">\n\n${jsonToMarkdownPure(col)}\n\n</div>`
+      );
+      return `<div data-type="layout-container" data-columns="${escAttr(columns)}">\n${cols.join('\n')}\n</div>`;
+    }
+    case 'layoutColumn': {
+      return jsonToMarkdownPure({ type: 'doc', content: node.content });
+    }
+    default: {
+      if (Array.isArray(node.content)) {
+        return serializeInline(node.content);
+      }
+      return '';
+    }
+  }
+}
+
+/**
+ * Pure Markdown serializer used for nested block bodies.
+ */
+function jsonToMarkdownPure(doc: ProseMirrorJSONNode | null | undefined): string {
+  if (!doc || typeof doc !== 'object') return '';
+  const blocks = Array.isArray(doc.content) ? doc.content : [];
+  return blocks
+    .map((node) => serializeBlockToMarkdown(node))
+    .filter((l) => l !== undefined)
+    .join('\n\n');
+}
+
+/**
+ * Encodes a ProseMirror node for lossless round-trip preservation when the node carries
+ * rich Strapi/Edifice attributes (e.g. `data-asset-id`, `data-document-id`, `width`, `textAlign`,
+ * `backgroundColor`, `colspan`, `timestamp`, etc.) that plain Markdown syntax cannot represent.
+ */
+function encodeNodeMetaComment(node: ProseMirrorJSONNode): string {
+  const json = JSON.stringify(node).replace(/-->/g, '--\\u003e');
+  return `<!-- tiptap-node:${json} -->`;
+}
+
+/**
  * Converts a ProseMirror JSON document tree into Markdown.
+ * Emits clean Markdown for standard blocks and attaches a non-rendering HTML comment metadata
+ * annotation only when a block contains rich attributes that plain Markdown syntax would drop.
  */
 export function jsonToMarkdown(doc: ProseMirrorJSONNode | null | undefined): string {
   if (!doc || typeof doc !== 'object') return '';
@@ -262,165 +516,14 @@ export function jsonToMarkdown(doc: ProseMirrorJSONNode | null | undefined): str
   const lines: string[] = [];
 
   for (const node of blocks) {
-    switch (node.type) {
-      case 'heading': {
-        const level = Math.min(Math.max(Number(node.attrs?.level) || 1, 1), 6);
-        lines.push(`${'#'.repeat(level)} ${serializeInline(node.content)}`);
-        break;
-      }
-      case 'leadParagraph': {
-        lines.push(`> **Lead:** ${serializeInline(node.content)}`);
-        break;
-      }
-      case 'paragraph': {
-        lines.push(serializeInline(node.content));
-        break;
-      }
-      case 'blockquote': {
-        const inner = jsonToMarkdown(node)
-          .split('\n')
-          .map((l) => `> ${l}`)
-          .join('\n');
-        lines.push(inner);
-        break;
-      }
-      case 'informationPane': {
-        const variant = String(node.attrs?.variant || 'info').toUpperCase();
-        const title = String(node.attrs?.title || variant);
-        const body = jsonToMarkdown(node)
-          .split('\n')
-          .map((l) => `> ${l}`)
-          .join('\n');
-        lines.push(`> [!${variant}] ${title}\n${body}`);
-        break;
-      }
-      case 'conversationHistory': {
-        const author = String(node.attrs?.author || 'Comment');
-        const body = jsonToMarkdown(node)
-          .split('\n')
-          .map((l) => `> ${l}`)
-          .join('\n');
-        lines.push(`> **Conversation History** *(${author})*\n${body}`);
-        break;
-      }
-      case 'details': {
-        const summaryNode = node.content?.find((c) => c.type === 'detailsSummary');
-        const contentNode = node.content?.find((c) => c.type === 'detailsContent');
-        const summaryText = serializeInline(summaryNode?.content) || 'Details';
-        const bodyText = contentNode ? jsonToMarkdown(contentNode) : '';
-        lines.push(`<details>\n<summary>${summaryText}</summary>\n\n${bodyText}\n</details>`);
-        break;
-      }
-      case 'codeBlock': {
-        const lang = String(node.attrs?.language || '');
-        const codeText = (node.content || []).map((c) => c.text || '').join('');
-        lines.push(`\`\`\`${lang}\n${codeText}\n\`\`\``);
-        break;
-      }
-      case 'bulletList': {
-        const items = (node.content || []).map((item) => `- ${jsonToMarkdown(item).trim()}`);
-        lines.push(items.join('\n'));
-        break;
-      }
-      case 'orderedList': {
-        const items = (node.content || []).map(
-          (item, idx) => `${idx + 1}. ${jsonToMarkdown(item).trim()}`
-        );
-        lines.push(items.join('\n'));
-        break;
-      }
-      case 'taskList': {
-        const items = (node.content || []).map((item) => {
-          const checked = item.attrs?.checked ? 'x' : ' ';
-          return `- [${checked}] ${jsonToMarkdown(item).trim()}`;
-        });
-        lines.push(items.join('\n'));
-        break;
-      }
-      case 'listItem':
-      case 'taskItem': {
-        lines.push((node.content || []).map((c) => serializeInline(c.content)).join('\n'));
-        break;
-      }
-      case 'horizontalRule': {
-        lines.push('---');
-        break;
-      }
-      case 'pageBreak': {
-        lines.push('<!-- pagebreak -->');
-        break;
-      }
-      case 'image': {
-        const alt = String(node.attrs?.alt || '');
-        const src = mdUrl(node.attrs?.src);
-        lines.push(`![${alt}](${src})`);
-        break;
-      }
-      case 'video': {
-        const src = mdUrl(node.attrs?.src);
-        const title = String(node.attrs?.title || 'Video');
-        lines.push(`[Video: ${title}](${src})`);
-        break;
-      }
-      case 'audio': {
-        const src = mdUrl(node.attrs?.src);
-        const title = String(node.attrs?.title || 'Audio');
-        lines.push(`[Audio: ${title}](${src})`);
-        break;
-      }
-      case 'attachment': {
-        const href = mdUrl(node.attrs?.href || node.attrs?.src);
-        const filename = String(node.attrs?.filename || node.attrs?.title || 'Attachment');
-        lines.push(`[Attachment: ${filename}](${href})`);
-        break;
-      }
-      case 'iframe': {
-        const rawSrc = String(node.attrs?.src || '');
-        const src = isSafeIframeUrl(rawSrc) ? mdUrl(rawSrc) : '#';
-        const title = String(node.attrs?.title || 'Embed');
-        lines.push(`[Embed: ${title}](${src})`);
-        break;
-      }
-      case 'mathematics': {
-        const latex = String(node.attrs?.latex || '');
-        const isBlock =
-          node.attrs?.displayMode === 'block' || node.attrs?.displayMode === true;
-        lines.push(isBlock ? `$$\n${latex}\n$$` : `$${latex}$`);
-        break;
-      }
-      case 'table': {
-        const rows = node.content || [];
-        const mdRows: string[] = [];
-        rows.forEach((row, rIdx) => {
-          const cells = (row.content || []).map((cell) => jsonToMarkdown(cell).replace(/\n+/g, ' ').trim());
-          mdRows.push(`| ${cells.join(' | ')} |`);
-          if (rIdx === 0) {
-            mdRows.push(`| ${cells.map(() => '---').join(' | ')} |`);
-          }
-        });
-        lines.push(mdRows.join('\n'));
-        break;
-      }
-      case 'tableCell':
-      case 'tableHeader': {
-        lines.push((node.content || []).map((c) => serializeInline(c.content)).join(' '));
-        break;
-      }
-      case 'layoutContainer': {
-        const cols = (node.content || []).map((col) => jsonToMarkdown(col));
-        lines.push(cols.join('\n\n'));
-        break;
-      }
-      case 'layoutColumn': {
-        lines.push(jsonToMarkdown({ type: 'doc', content: node.content }));
-        break;
-      }
-      default: {
-        if (Array.isArray(node.content)) {
-          lines.push(serializeInline(node.content));
-        }
-        break;
-      }
+    const pureMd = serializeBlockToMarkdown(node);
+    const reparsed = parseSingleMarkdownBlock(pureMd);
+    if (reparsed && JSON.stringify(reparsed) === JSON.stringify(node)) {
+      lines.push(pureMd);
+    } else {
+      lines.push(
+        pureMd ? `${pureMd}\n${encodeNodeMetaComment(node)}` : encodeNodeMetaComment(node)
+      );
     }
   }
 
@@ -448,7 +551,7 @@ export function parseInlineMarkdown(
 
   const nodes: ProseMirrorJSONNode[] = [];
   const tokenRegex =
-    /(\$([^$\n]+)\$|!\[([^\]]*)\]\((<[^>]+>|[^)]+)\)|\[([^\]]+)\]\((<[^>]+>|[^)]+)\)|`([^`]+)`|\*\*([\s\S]+?)\*\*|~~([\s\S]+?)~~|\*([^*]+)\*|<(u|sup|sub)>([\s\S]*?)<\/\1>|<abbr\s+title="([^"]*)"\s*>([\s\S]*?)<\/abbr>|<span\s+lang="([^"]*)"(?:\s+dir="([^"]*)")?\s*>([\s\S]*?)<\/span>)/;
+    /( {2,}\n|<br\s*\/?>|\$([^$\n]+)\$|!\[([^\]]*)\]\((<[^>]+>|[^)]+)\)|\[([^\]]+)\]\((<[^>]+>|[^)]+)\)|`([^`]+)`|\*\*\*([^\n*][\s\S]*?)\*\*\*|\*\*([\s\S]+?)\*\*|~~([\s\S]+?)~~|\*([^*]+)\*|<u>([\s\S]*?)<\/u>|<sup>([\s\S]*?)<\/sup>|<sub>([\s\S]*?)<\/sub>|<abbr\s+title="([^"]*)"\s*>([\s\S]*?)<\/abbr>|<span\s+lang="([^"]*)"(?:\s+dir="([^"]*)")?\s*>([\s\S]*?)<\/span>|<span\s+style="([^"]*)"\s*>([\s\S]*?)<\/span>|<mark(?:\s+data-color="([^"]*)")?\s*>([\s\S]*?)<\/mark>)/;
 
   let remaining = input;
   while (remaining.length > 0) {
@@ -485,19 +588,27 @@ export function parseInlineMarkdown(
       linkText,
       linkHref,
       codeText,
+      boldItalicInner,
       boldInner,
       strikeInner,
       italicInner,
-      htmlSimpleTag,
-      htmlSimpleInner,
+      uInner,
+      supInner,
+      subInner,
       abbrTitle,
       abbrInner,
       spanLang,
       spanDir,
       spanInner,
+      styleAttr,
+      styleInner,
+      markColor,
+      markInner,
     ] = match;
 
-    if (mathLatex !== undefined) {
+    if (/^(?: {2,}\n|<br\s*\/?>)$/i.test(fullMatch)) {
+      nodes.push({ type: 'hardBreak' });
+    } else if (mathLatex !== undefined) {
       nodes.push({
         type: 'mathematics',
         attrs: { latex: mathLatex, displayMode: 'inline' },
@@ -534,20 +645,26 @@ export function parseInlineMarkdown(
         text: codeText,
         marks: [...inheritedMarks, { type: 'code' }],
       });
+    } else if (boldItalicInner !== undefined) {
+      nodes.push(
+        ...parseInlineMarkdown(boldItalicInner, [
+          ...inheritedMarks,
+          { type: 'bold' },
+          { type: 'italic' },
+        ])
+      );
     } else if (boldInner !== undefined) {
       nodes.push(...parseInlineMarkdown(boldInner, [...inheritedMarks, { type: 'bold' }]));
     } else if (strikeInner !== undefined) {
       nodes.push(...parseInlineMarkdown(strikeInner, [...inheritedMarks, { type: 'strike' }]));
     } else if (italicInner !== undefined) {
       nodes.push(...parseInlineMarkdown(italicInner, [...inheritedMarks, { type: 'italic' }]));
-    } else if (htmlSimpleTag !== undefined && htmlSimpleInner !== undefined) {
-      const markType =
-        htmlSimpleTag === 'u'
-          ? 'underline'
-          : htmlSimpleTag === 'sup'
-            ? 'superscript'
-            : 'subscript';
-      nodes.push(...parseInlineMarkdown(htmlSimpleInner, [...inheritedMarks, { type: markType }]));
+    } else if (uInner !== undefined) {
+      nodes.push(...parseInlineMarkdown(uInner, [...inheritedMarks, { type: 'underline' }]));
+    } else if (supInner !== undefined) {
+      nodes.push(...parseInlineMarkdown(supInner, [...inheritedMarks, { type: 'superscript' }]));
+    } else if (subInner !== undefined) {
+      nodes.push(...parseInlineMarkdown(subInner, [...inheritedMarks, { type: 'subscript' }]));
     } else if (abbrTitle !== undefined && abbrInner !== undefined) {
       nodes.push(
         ...parseInlineMarkdown(abbrInner, [
@@ -568,6 +685,22 @@ export function parseInlineMarkdown(
           },
         ])
       );
+    } else if (styleAttr !== undefined && styleInner !== undefined) {
+      const parsedStyle = parseTextStyleAttr(unescapeHtmlEntities(styleAttr));
+      nodes.push(
+        ...parseInlineMarkdown(styleInner, [
+          ...inheritedMarks,
+          { type: 'textStyle', attrs: parsedStyle },
+        ])
+      );
+    } else if (markInner !== undefined) {
+      const color = markColor ? unescapeHtmlEntities(markColor) : undefined;
+      nodes.push(
+        ...parseInlineMarkdown(markInner, [
+          ...inheritedMarks,
+          { type: 'highlight', ...(color ? { attrs: { color } } : {}) },
+        ])
+      );
     }
 
     remaining = remaining.slice(match.index + fullMatch.length);
@@ -577,7 +710,403 @@ export function parseInlineMarkdown(
 }
 
 /**
- * Parses a Markdown string into a ProseMirror JSON document tree.
+ * Splits a normalized Markdown document into top-level block chunks while keeping
+ * multi-paragraph `<details>`, `<div data-type="layout-container">`, fenced code blocks,
+ * and display math blocks intact across blank lines.
+ */
+function splitMarkdownBlocks(normalized: string): string[] {
+  const lines = normalized.split('\n');
+  const blocks: string[] = [];
+  let current: string[] = [];
+  let inFence = false;
+  let inMath = false;
+  let detailsDepth = 0;
+  let layoutDivDepth = 0;
+
+  for (const line of lines) {
+    const trimmedLine = line.trim();
+
+    if (trimmedLine.startsWith('```')) {
+      inFence = !inFence;
+    } else if (!inFence && trimmedLine === '$$') {
+      inMath = !inMath;
+    } else if (!inFence && !inMath) {
+      const detailsOpens = (line.match(/<details\b[^>]*>/gi) || []).length;
+      const detailsCloses = (line.match(/<\/details\s*>/gi) || []).length;
+      detailsDepth = Math.max(0, detailsDepth + detailsOpens - detailsCloses);
+
+      if (layoutDivDepth > 0 || /<div\s+data-type="layout-container"/i.test(line)) {
+        const divOpens = (line.match(/<div\b[^>]*>/gi) || []).length;
+        const divCloses = (line.match(/<\/div\s*>/gi) || []).length;
+        layoutDivDepth = Math.max(0, layoutDivDepth + divOpens - divCloses);
+      }
+    }
+
+    const insideContainer = inFence || inMath || detailsDepth > 0 || layoutDivDepth > 0;
+    if (!insideContainer && trimmedLine === '') {
+      if (current.length > 0) {
+        blocks.push(current.join('\n'));
+        current = [];
+      }
+    } else {
+      current.push(line);
+    }
+  }
+
+  if (current.length > 0) {
+    blocks.push(current.join('\n'));
+  }
+
+  return blocks;
+}
+
+/**
+ * Parses a single pure Markdown block (without metadata comments) into a ProseMirror JSON node.
+ */
+function parseSingleMarkdownBlock(rawBlock: string): ProseMirrorJSONNode | null {
+  const trimmed = rawBlock.trim();
+  if (!trimmed) return null;
+
+  // Fenced code block
+  if (trimmed.startsWith('```') && trimmed.endsWith('```')) {
+    const firstNewline = trimmed.indexOf('\n');
+    const language = firstNewline > 3 ? trimmed.slice(3, firstNewline).trim() : null;
+    const rawCode = firstNewline > -1 ? trimmed.slice(firstNewline + 1, -3) : '';
+    const code = rawCode.replace(/\n$/, '');
+    return {
+      type: 'codeBlock',
+      attrs: { language },
+      content: code ? [{ type: 'text', text: code }] : [],
+    };
+  }
+
+  // Display math block $$ ... $$
+  if (trimmed.startsWith('$$') && trimmed.endsWith('$$') && trimmed.length >= 4) {
+    const latex = trimmed.slice(2, -2).trim();
+    return {
+      type: 'mathematics',
+      attrs: { latex, displayMode: 'block' },
+    };
+  }
+
+  // Multi-column layout container
+  const layoutMatch =
+    /^<div\s+data-type="layout-container"(?:\s+data-columns="([^"]*)")?\s*>([\s\S]*?)<\/div>$/i.exec(
+      trimmed
+    );
+  if (layoutMatch) {
+    const columns = unescapeHtmlEntities(layoutMatch[1] || '1:1');
+    const inner = layoutMatch[2];
+    const colRegex = /<div\s+data-type="layout-column"\s*>([\s\S]*?)<\/div>/gi;
+    const colNodes: ProseMirrorJSONNode[] = [];
+    let colMatch: RegExpExecArray | null;
+    while ((colMatch = colRegex.exec(inner)) !== null) {
+      const colDoc = markdownToJson(colMatch[1].trim());
+      colNodes.push({
+        type: 'layoutColumn',
+        content:
+          colDoc.content && colDoc.content.length > 0 ? colDoc.content : [{ type: 'paragraph' }],
+      });
+    }
+    if (colNodes.length > 0) {
+      return {
+        type: 'layoutContainer',
+        attrs: { columns },
+        content: colNodes,
+      };
+    }
+  }
+
+  // Collapsible <details> block
+  const detailsMatch =
+    /^<details>\s*<summary>([\s\S]*?)<\/summary>\s*([\s\S]*?)\s*<\/details>$/i.exec(trimmed);
+  if (detailsMatch) {
+    const summaryInline = parseInlineMarkdown(detailsMatch[1].trim());
+    const bodyDoc = markdownToJson(detailsMatch[2].trim());
+    return {
+      type: 'details',
+      attrs: { open: true },
+      content: [
+        {
+          type: 'detailsSummary',
+          content: summaryInline.length > 0 ? summaryInline : [{ type: 'text', text: 'Details' }],
+        },
+        {
+          type: 'detailsContent',
+          content:
+            bodyDoc.content && bodyDoc.content.length > 0
+              ? bodyDoc.content
+              : [{ type: 'paragraph' }],
+        },
+      ],
+    };
+  }
+
+  // Page break
+  if (/^<!--\s*pagebreak\s*-->$/i.test(trimmed)) {
+    return { type: 'pageBreak' };
+  }
+
+  // Table of contents
+  if (/^<!--\s*toc\s*-->$/i.test(trimmed)) {
+    return { type: 'tableOfContents', attrs: { headings: [] } };
+  }
+
+  // Horizontal rule
+  if (/^(-{3,}|\*{3,})$/.test(trimmed)) {
+    return { type: 'horizontalRule' };
+  }
+
+  // Heading
+  const headingMatch = /^(#{1,6})\s+(.+)$/.exec(trimmed);
+  if (headingMatch) {
+    const inlineNodes = parseInlineMarkdown(headingMatch[2]);
+    return {
+      type: 'heading',
+      attrs: { level: headingMatch[1].length },
+      content: inlineNodes,
+    };
+  }
+
+  // Standalone media / embed lines
+  const videoMatch = /^\[Video:\s*([^\]]*)\]\((<[^>]+>|[^)]+)\)$/i.exec(trimmed);
+  if (videoMatch) {
+    return {
+      type: 'video',
+      attrs: {
+        title: unescapeHtmlEntities(videoMatch[1].trim() || 'Video'),
+        src: parseMdUrl(videoMatch[2]),
+      },
+    };
+  }
+
+  const audioMatch = /^\[Audio:\s*([^\]]*)\]\((<[^>]+>|[^)]+)\)$/i.exec(trimmed);
+  if (audioMatch) {
+    return {
+      type: 'audio',
+      attrs: {
+        title: unescapeHtmlEntities(audioMatch[1].trim() || 'Audio'),
+        src: parseMdUrl(audioMatch[2]),
+      },
+    };
+  }
+
+  const attachmentMatch = /^\[Attachment:\s*([^\]]*)\]\((<[^>]+>|[^)]+)\)$/i.exec(trimmed);
+  if (attachmentMatch) {
+    const href = parseMdUrl(attachmentMatch[2]);
+    const filename = unescapeHtmlEntities(attachmentMatch[1].trim() || 'Attachment');
+    return {
+      type: 'attachment',
+      attrs: { href, src: href, filename, title: filename },
+    };
+  }
+
+  const embedMatch = /^\[Embed:\s*([^\]]*)\]\((<[^>]+>|[^)]+)\)$/i.exec(trimmed);
+  if (embedMatch) {
+    const rawUrl = embedMatch[2].trim();
+    const unwrapped =
+      rawUrl.startsWith('<') && rawUrl.endsWith('>') ? rawUrl.slice(1, -1).trim() : rawUrl;
+    return {
+      type: 'iframe',
+      attrs: {
+        title: unescapeHtmlEntities(embedMatch[1].trim() || 'Embed'),
+        src: isSafeIframeUrl(unwrapped) ? unwrapped : '',
+      },
+    };
+  }
+
+  const standaloneImgMatch = /^!\[([^\]]*)\]\((<[^>]+>|[^)]+)\)$/.exec(trimmed);
+  if (standaloneImgMatch) {
+    return {
+      type: 'image',
+      attrs: {
+        alt: unescapeHtmlEntities(standaloneImgMatch[1]),
+        src: parseMdUrl(standaloneImgMatch[2]),
+      },
+    };
+  }
+
+  // Markdown table
+  const lines = trimmed.split('\n');
+  if (
+    lines.length >= 2 &&
+    lines.every((l) => l.trim().startsWith('|') && l.trim().endsWith('|')) &&
+    /^\|[\s:-]+(\|[\s:-]+)*\|$/.test(lines[1].trim())
+  ) {
+    const parseCells = (line: string) =>
+      line
+        .trim()
+        .slice(1, -1)
+        .split('|')
+        .map((c) => c.trim());
+
+    const headerCells = parseCells(lines[0]);
+    const bodyLines = lines.slice(2);
+    const tableRows: ProseMirrorJSONNode[] = [
+      {
+        type: 'tableRow',
+        content: headerCells.map((cellText) => ({
+          type: 'tableHeader',
+          content: [{ type: 'paragraph', content: parseInlineMarkdown(cellText) }],
+        })),
+      },
+      ...bodyLines.map((rowLine) => ({
+        type: 'tableRow',
+        content: parseCells(rowLine).map((cellText) => ({
+          type: 'tableCell',
+          content: [{ type: 'paragraph', content: parseInlineMarkdown(cellText) }],
+        })),
+      })),
+    ];
+    return { type: 'table', content: tableRows };
+  }
+
+  // Task list
+  if (lines.every((l) => /^-\s+\[([ xX])\]\s+/.test(l))) {
+    return {
+      type: 'taskList',
+      content: lines.map((l) => {
+        const checked = /^-\s+\[[xX]\]/.test(l);
+        const text = l.replace(/^-\s+\[[ xX]\]\s+/, '');
+        return {
+          type: 'taskItem',
+          attrs: { checked },
+          content: [{ type: 'paragraph', content: parseInlineMarkdown(text) }],
+        };
+      }),
+    };
+  }
+
+  // Bullet list
+  if (lines.every((l) => /^[-*]\s+/.test(l))) {
+    return {
+      type: 'bulletList',
+      content: lines.map((l) => ({
+        type: 'listItem',
+        content: [{ type: 'paragraph', content: parseInlineMarkdown(l.replace(/^[-*]\s+/, '')) }],
+      })),
+    };
+  }
+
+  // Ordered list
+  if (lines.every((l) => /^\d+\.\s+/.test(l))) {
+    const firstMatch = /^(\d+)\.\s+/.exec(lines[0]);
+    const start = firstMatch ? Number(firstMatch[1]) || 1 : 1;
+    return {
+      type: 'orderedList',
+      attrs: { start },
+      content: lines.map((l) => ({
+        type: 'listItem',
+        content: [{ type: 'paragraph', content: parseInlineMarkdown(l.replace(/^\d+\.\s+/, '')) }],
+      })),
+    };
+  }
+
+  // Blockquote / Lead / InformationPane / ConversationHistory
+  if (lines.every((l) => /^>\s?/.test(l))) {
+    const strippedLines = lines.map((l) => l.replace(/^>\s?/, ''));
+    const firstLine = strippedLines[0] || '';
+
+    const leadMatch = /^\*\*Lead:\*\*\s*(.+)$/i.exec(firstLine);
+    if (leadMatch && strippedLines.length === 1) {
+      return {
+        type: 'leadParagraph',
+        content: parseInlineMarkdown(leadMatch[1]),
+      };
+    }
+
+    const infoMatch = /^\[!(INFO|SUCCESS|WARNING|DANGER)\]\s*(.*)$/i.exec(firstLine);
+    if (infoMatch) {
+      const variant = infoMatch[1].toLowerCase();
+      const title = infoMatch[2].trim() || infoMatch[1];
+      const bodyText = strippedLines.slice(1).join('\n').trim();
+      return {
+        type: 'informationPane',
+        attrs: { variant, title },
+        content: [
+          {
+            type: 'paragraph',
+            content: bodyText ? parseInlineMarkdown(bodyText) : [],
+          },
+        ],
+      };
+    }
+
+    const convMatch = /^\*\*Conversation History\*\*\s*\*\(([^)]*)\)\*$/i.exec(firstLine);
+    if (convMatch) {
+      const author = convMatch[1].trim() || 'Comment';
+      const bodyText = strippedLines.slice(1).join('\n').trim();
+      return {
+        type: 'conversationHistory',
+        attrs: { author },
+        content: [
+          {
+            type: 'paragraph',
+            content: bodyText ? parseInlineMarkdown(bodyText) : [],
+          },
+        ],
+      };
+    }
+
+    return {
+      type: 'blockquote',
+      content: strippedLines.map((line) => ({
+        type: 'paragraph',
+        content: parseInlineMarkdown(line),
+      })),
+    };
+  }
+
+  // Standard paragraph
+  return {
+    type: 'paragraph',
+    content: parseInlineMarkdown(trimmed),
+  };
+}
+
+/**
+ * Sanitizes URL attributes inside a restored ProseMirror JSON node tree so metadata comments
+ * cannot bypass URL validation.
+ */
+function sanitizeRestoredNodeTree(node: ProseMirrorJSONNode): ProseMirrorJSONNode {
+  const copy: ProseMirrorJSONNode = { ...node };
+  if (copy.attrs && typeof copy.attrs === 'object') {
+    const attrs = { ...copy.attrs };
+    if (typeof attrs.src === 'string') {
+      if (copy.type === 'iframe') {
+        attrs.src = isSafeIframeUrl(attrs.src) ? attrs.src : '';
+      } else {
+        attrs.src = isSafeUrl(attrs.src) ? attrs.src : '#';
+      }
+    }
+    if (typeof attrs.href === 'string') {
+      attrs.href = isSafeUrl(attrs.href) ? attrs.href : '#';
+    }
+    copy.attrs = attrs;
+  }
+  if (Array.isArray(copy.marks)) {
+    copy.marks = copy.marks.map((m) => {
+      if (m.attrs && typeof m.attrs.href === 'string') {
+        return {
+          ...m,
+          attrs: {
+            ...m.attrs,
+            href: isSafeUrl(m.attrs.href) ? m.attrs.href : '#',
+          },
+        };
+      }
+      return m;
+    });
+  }
+  if (Array.isArray(copy.content)) {
+    copy.content = copy.content.map(sanitizeRestoredNodeTree);
+  }
+  return copy;
+}
+
+/**
+ * Parses a Markdown string into a ProseMirror JSON document tree with full fidelity for
+ * inline formatting, lists, tables, custom blocks, and rich node attributes.
  */
 export function markdownToJson(markdown: string): ProseMirrorJSONNode {
   if (!markdown || typeof markdown !== 'string') {
@@ -585,295 +1114,49 @@ export function markdownToJson(markdown: string): ProseMirrorJSONNode {
   }
 
   const normalized = markdown.replace(/\r\n/g, '\n');
-  const blocks = normalized.split(/\n{2,}/);
+  const blocks = splitMarkdownBlocks(normalized);
   const content: ProseMirrorJSONNode[] = [];
 
   for (const rawBlock of blocks) {
     const trimmed = rawBlock.trim();
     if (!trimmed) continue;
 
-    // Fenced code block
-    if (trimmed.startsWith('```') && trimmed.endsWith('```')) {
-      const firstNewline = trimmed.indexOf('\n');
-      const language = firstNewline > 3 ? trimmed.slice(3, firstNewline).trim() : null;
-      const code = firstNewline > -1 ? trimmed.slice(firstNewline + 1, -3) : '';
-      content.push({
-        type: 'codeBlock',
-        attrs: { language },
-        content: code ? [{ type: 'text', text: code }] : [],
-      });
-      continue;
-    }
-
-    // Display math block $$ ... $$
-    if (trimmed.startsWith('$$') && trimmed.endsWith('$$') && trimmed.length >= 4) {
-      const latex = trimmed.slice(2, -2).trim();
-      content.push({
-        type: 'mathematics',
-        attrs: { latex, displayMode: 'block' },
-      });
-      continue;
-    }
-
-    // Collapsible <details> block
-    const detailsMatch =
-      /^<details>\s*<summary>([\s\S]*?)<\/summary>\s*([\s\S]*?)\s*<\/details>$/i.exec(trimmed);
-    if (detailsMatch) {
-      const summaryInline = parseInlineMarkdown(detailsMatch[1].trim());
-      const bodyDoc = markdownToJson(detailsMatch[2].trim());
-      content.push({
-        type: 'details',
-        attrs: { open: true },
-        content: [
-          {
-            type: 'detailsSummary',
-            content: summaryInline.length > 0 ? summaryInline : [{ type: 'text', text: 'Details' }],
-          },
-          {
-            type: 'detailsContent',
-            content:
-              bodyDoc.content && bodyDoc.content.length > 0
-                ? bodyDoc.content
-                : [{ type: 'paragraph' }],
-          },
-        ],
-      });
-      continue;
-    }
-
-    // Page break
-    if (/^<!--\s*pagebreak\s*-->$/i.test(trimmed)) {
-      content.push({ type: 'pageBreak' });
-      continue;
-    }
-
-    // Horizontal rule
-    if (/^(-{3,}|\*{3,})$/.test(trimmed)) {
-      content.push({ type: 'horizontalRule' });
-      continue;
-    }
-
-    // Heading
-    const headingMatch = /^(#{1,6})\s+(.+)$/.exec(trimmed);
-    if (headingMatch) {
-      const inlineNodes = parseInlineMarkdown(headingMatch[2]);
-      content.push({
-        type: 'heading',
-        attrs: { level: headingMatch[1].length },
-        content: inlineNodes,
-      });
-      continue;
-    }
-
-    // Standalone media / embed lines
-    const videoMatch = /^\[Video:\s*([^\]]*)\]\((<[^>]+>|[^)]+)\)$/i.exec(trimmed);
-    if (videoMatch) {
-      content.push({
-        type: 'video',
-        attrs: {
-          title: unescapeHtmlEntities(videoMatch[1].trim() || 'Video'),
-          src: parseMdUrl(videoMatch[2]),
-        },
-      });
-      continue;
-    }
-
-    const audioMatch = /^\[Audio:\s*([^\]]*)\]\((<[^>]+>|[^)]+)\)$/i.exec(trimmed);
-    if (audioMatch) {
-      content.push({
-        type: 'audio',
-        attrs: {
-          title: unescapeHtmlEntities(audioMatch[1].trim() || 'Audio'),
-          src: parseMdUrl(audioMatch[2]),
-        },
-      });
-      continue;
-    }
-
-    const attachmentMatch = /^\[Attachment:\s*([^\]]*)\]\((<[^>]+>|[^)]+)\)$/i.exec(trimmed);
-    if (attachmentMatch) {
-      const href = parseMdUrl(attachmentMatch[2]);
-      const filename = unescapeHtmlEntities(attachmentMatch[1].trim() || 'Attachment');
-      content.push({
-        type: 'attachment',
-        attrs: { href, src: href, filename, title: filename },
-      });
-      continue;
-    }
-
-    const embedMatch = /^\[Embed:\s*([^\]]*)\]\((<[^>]+>|[^)]+)\)$/i.exec(trimmed);
-    if (embedMatch) {
-      const rawUrl = embedMatch[2].trim();
-      const unwrapped =
-        rawUrl.startsWith('<') && rawUrl.endsWith('>') ? rawUrl.slice(1, -1).trim() : rawUrl;
-      content.push({
-        type: 'iframe',
-        attrs: {
-          title: unescapeHtmlEntities(embedMatch[1].trim() || 'Embed'),
-          src: isSafeIframeUrl(unwrapped) ? unwrapped : '',
-        },
-      });
-      continue;
-    }
-
-    const standaloneImgMatch = /^!\[([^\]]*)\]\((<[^>]+>|[^)]+)\)$/.exec(trimmed);
-    if (standaloneImgMatch) {
-      content.push({
-        type: 'image',
-        attrs: {
-          alt: unescapeHtmlEntities(standaloneImgMatch[1]),
-          src: parseMdUrl(standaloneImgMatch[2]),
-        },
-      });
-      continue;
-    }
-
-    // Markdown table
-    const lines = trimmed.split('\n');
-    if (
-      lines.length >= 2 &&
-      lines.every((l) => l.trim().startsWith('|') && l.trim().endsWith('|')) &&
-      /^\|[\s:-]+(\|[\s:-]+)*\|$/.test(lines[1].trim())
-    ) {
-      const parseCells = (line: string) =>
-        line
-          .trim()
-          .slice(1, -1)
-          .split('|')
-          .map((c) => c.trim());
-
-      const headerCells = parseCells(lines[0]);
-      const bodyLines = lines.slice(2);
-      const tableRows: ProseMirrorJSONNode[] = [
-        {
-          type: 'tableRow',
-          content: headerCells.map((cellText) => ({
-            type: 'tableHeader',
-            content: [{ type: 'paragraph', content: parseInlineMarkdown(cellText) }],
-          })),
-        },
-        ...bodyLines.map((rowLine) => ({
-          type: 'tableRow',
-          content: parseCells(rowLine).map((cellText) => ({
-            type: 'tableCell',
-            content: [{ type: 'paragraph', content: parseInlineMarkdown(cellText) }],
-          })),
-        })),
-      ];
-      content.push({ type: 'table', content: tableRows });
-      continue;
-    }
-
-    // Task list
-    if (lines.every((l) => /^-\s+\[([ xX])\]\s+/.test(l))) {
-      content.push({
-        type: 'taskList',
-        content: lines.map((l) => {
-          const checked = /^-\s+\[[xX]\]/.test(l);
-          const text = l.replace(/^-\s+\[[ xX]\]\s+/, '');
-          return {
-            type: 'taskItem',
-            attrs: { checked },
-            content: [{ type: 'paragraph', content: parseInlineMarkdown(text) }],
-          };
-        }),
-      });
-      continue;
-    }
-
-    // Bullet list
-    if (lines.every((l) => /^[-*]\s+/.test(l))) {
-      content.push({
-        type: 'bulletList',
-        content: lines.map((l) => ({
-          type: 'listItem',
-          content: [
-            { type: 'paragraph', content: parseInlineMarkdown(l.replace(/^[-*]\s+/, '')) },
-          ],
-        })),
-      });
-      continue;
-    }
-
-    // Ordered list
-    if (lines.every((l) => /^\d+\.\s+/.test(l))) {
-      content.push({
-        type: 'orderedList',
-        attrs: { start: 1 },
-        content: lines.map((l) => ({
-          type: 'listItem',
-          content: [
-            { type: 'paragraph', content: parseInlineMarkdown(l.replace(/^\d+\.\s+/, '')) },
-          ],
-        })),
-      });
-      continue;
-    }
-
-    // Blockquote / Lead / InformationPane / ConversationHistory
-    if (lines.every((l) => /^>\s?/.test(l))) {
-      const strippedLines = lines.map((l) => l.replace(/^>\s?/, ''));
-      const firstLine = strippedLines[0] || '';
-
-      const leadMatch = /^\*\*Lead:\*\*\s*(.+)$/i.exec(firstLine);
-      if (leadMatch && strippedLines.length === 1) {
-        content.push({
-          type: 'leadParagraph',
-          content: parseInlineMarkdown(leadMatch[1]),
-        });
-        continue;
+    // Check for optional lossless metadata comment at the end of the block
+    const metaMatch = /^(?:([\s\S]*?)\n)?<!--\s*tiptap-node:([\s\S]+?)\s*-->$/.exec(trimmed);
+    if (metaMatch) {
+      const mdPart = (metaMatch[1] ?? '').trim();
+      const rawJson = metaMatch[2].replace(/--\\u003e/g, '-->');
+      try {
+        const storedNode = sanitizeRestoredNodeTree(JSON.parse(rawJson) as ProseMirrorJSONNode);
+        const expectedMd = serializeBlockToMarkdown(storedNode).trim();
+        if (!mdPart || mdPart === expectedMd) {
+          content.push(storedNode);
+          continue;
+        }
+        // If the user edited the visible Markdown text, parse the updated Markdown
+        // and preserve the block's rich attributes (e.g. id, tag, textAlign, data-asset-id)
+        const parsedEdited = parseSingleMarkdownBlock(mdPart);
+        if (parsedEdited) {
+          if (storedNode.attrs || parsedEdited.attrs) {
+            parsedEdited.attrs = { ...(storedNode.attrs || {}), ...(parsedEdited.attrs || {}) };
+          }
+          content.push(parsedEdited);
+          continue;
+        }
+      } catch {
+        // Fall through to normal Markdown parsing if metadata comment is malformed
       }
-
-      const infoMatch = /^\[!(INFO|SUCCESS|WARNING|DANGER)\]\s*(.*)$/i.exec(firstLine);
-      if (infoMatch) {
-        const variant = infoMatch[1].toLowerCase();
-        const title = infoMatch[2].trim() || infoMatch[1];
-        const bodyText = strippedLines.slice(1).join('\n').trim();
-        content.push({
-          type: 'informationPane',
-          attrs: { variant, title },
-          content: [
-            {
-              type: 'paragraph',
-              content: bodyText ? parseInlineMarkdown(bodyText) : [],
-            },
-          ],
-        });
-        continue;
+      if (mdPart) {
+        const fallbackNode = parseSingleMarkdownBlock(mdPart);
+        if (fallbackNode) content.push(fallbackNode);
       }
-
-      const convMatch = /^\*\*Conversation History\*\*\s*\*\(([^)]*)\)\*$/i.exec(firstLine);
-      if (convMatch) {
-        const author = convMatch[1].trim() || 'Comment';
-        const bodyText = strippedLines.slice(1).join('\n').trim();
-        content.push({
-          type: 'conversationHistory',
-          attrs: { author },
-          content: [
-            {
-              type: 'paragraph',
-              content: bodyText ? parseInlineMarkdown(bodyText) : [],
-            },
-          ],
-        });
-        continue;
-      }
-
-      content.push({
-        type: 'blockquote',
-        content: strippedLines.map((line) => ({
-          type: 'paragraph',
-          content: parseInlineMarkdown(line),
-        })),
-      });
       continue;
     }
 
-    // Standard paragraph
-    content.push({
-      type: 'paragraph',
-      content: parseInlineMarkdown(trimmed),
-    });
+    const parsedBlock = parseSingleMarkdownBlock(trimmed);
+    if (parsedBlock) {
+      content.push(parsedBlock);
+    }
   }
 
   return {

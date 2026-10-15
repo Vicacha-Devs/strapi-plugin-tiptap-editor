@@ -8,6 +8,22 @@ interface MediaService {
   uploadByUrl(url: string, alt?: string): Promise<UploadedRemoteAsset>;
 }
 
+interface UploadUserAbility {
+  cannot?: (action: string, subject?: string) => boolean;
+  can?: (action: string, subject?: string) => boolean;
+}
+
+function canCreateUploadAsset(userAbility?: UploadUserAbility): boolean {
+  if (!userAbility) return false;
+  if (typeof userAbility.cannot === 'function') {
+    return !userAbility.cannot('plugin::upload.assets.create');
+  }
+  if (typeof userAbility.can === 'function') {
+    return Boolean(userAbility.can('plugin::upload.assets.create'));
+  }
+  return false;
+}
+
 /**
  * Controller for SSRF-safe external link previews and remote media imports.
  */
@@ -41,6 +57,12 @@ const createMediaController = ({ strapi }: { strapi: Core.Strapi }) => ({
    * Handles `POST /upload-by-url` and imports or registers a remote media asset.
    */
   async uploadByUrl(ctx: Context): Promise<void> {
+    const userAbility = (ctx.state as { userAbility?: UploadUserAbility })?.userAbility;
+    if (!canCreateUploadAsset(userAbility)) {
+      ctx.throw(403, 'Forbidden');
+      return;
+    }
+
     const body = ((ctx.request as { body?: Record<string, unknown> })?.body || {}) as Record<
       string,
       unknown

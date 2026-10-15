@@ -179,6 +179,10 @@ export function isSsrfSafeUrl(rawUrl: string): boolean {
  */
 export async function assertSafeResolvedHost(hostname: string): Promise<ResolvedHostRecord[]> {
   const cleanHost = hostname.toLowerCase().replace(/^\[|\]$/g, '').replace(/\.+$/, '');
+  if (!cleanHost) {
+    throw new Error('Failed to resolve URL host');
+  }
+
   const literalFamily = net.isIP(cleanHost);
   if (literalFamily === 4 || literalFamily === 6) {
     if (isPrivateIpAddress(cleanHost)) {
@@ -219,7 +223,7 @@ export async function assertSafeResolvedHost(hostname: string): Promise<Resolved
  * Fails closed by throwing when no resolved records are available or dispatcher creation fails.
  */
 function createPinnedFetchDispatcher(records: ResolvedHostRecord[]): Agent {
-  if (!records.length) {
+  if (!records.length || records.some((r) => !r.address || isPrivateIpAddress(r.address))) {
     throw new Error('Failed to resolve URL host');
   }
   const primary = records[0];
@@ -239,7 +243,7 @@ function createPinnedFetchDispatcher(records: ResolvedHostRecord[]): Agent {
         const cb = typeof options === 'function' ? options : callback;
         const wantAll = typeof options === 'object' && options !== null && Boolean(options.all);
         if (typeof cb !== 'function') return;
-        if (isPrivateIpAddress(primary.address)) {
+        if (records.some((r) => !r.address || isPrivateIpAddress(r.address))) {
           cb(new Error('URL resolved to a disallowed private or internal IP address'), '', 4);
           return;
         }

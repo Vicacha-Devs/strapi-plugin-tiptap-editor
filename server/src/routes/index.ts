@@ -90,7 +90,15 @@ export default {
         method: 'POST',
         path: '/upload-by-url',
         handler: 'media.uploadByUrl',
-        config: { policies: [], middlewares: [] },
+        config: {
+          policies: [
+            {
+              name: 'admin::hasPermissions',
+              config: { actions: ['plugin::upload.assets.create'] },
+            },
+          ],
+          middlewares: [],
+        },
       },
     ],
   },

@@ -17,6 +17,8 @@ import createMediaService, {
   isSsrfSafeUrl,
   assertSafeResolvedHost,
 } from '../../server/src/services/media';
+import createMediaController from '../../server/src/controllers/media';
+import createSearchController from '../../server/src/controllers/search';
 import bootstrap from '../../server/src/bootstrap';
 
 describe('server/services/settings', () => {
@@ -109,11 +111,16 @@ describe('server/services/search', () => {
     })),
   } as any;
 
+  const allowAllAbility = {
+    can: () => true,
+    cannot: () => false,
+  };
+
   it('identifies collection title field and searches across linkable collections', async () => {
     const service = createSearchService({ strapi: mockStrapi });
     expect(service.identifyCollectionTitleField('api::article.article')).toBe('title');
 
-    const results = await service.search('Tiptap', 'en');
+    const results = await service.search('Tiptap', 'en', allowAllAbility);
     expect(results['api::article.article']).toHaveLength(1);
     expect(results['api::article.article'][0]).toEqual({
       documentId: 'doc-101',
@@ -127,7 +134,12 @@ describe('server/services/search', () => {
 
   it('resolves a single document by collection UID and documentId', async () => {
     const service = createSearchService({ strapi: mockStrapi });
-    const doc = await service.getDocument('api::article.article', 'doc-101');
+    const doc = await service.getDocument(
+      'api::article.article',
+      'doc-101',
+      undefined,
+      allowAllAbility
+    );
     expect(doc?.label).toBe('Getting Started with Tiptap');
     expect(doc?.status).toBe('draft');
   });
@@ -138,12 +150,19 @@ describe('server/services/search', () => {
       'Invalid collectionName format'
     );
     await expect(
-      service.getDocument('api::article.article', '../traversal')
+      service.getDocument('api::article.article', '../traversal', undefined, allowAllAbility)
     ).rejects.toThrow('Invalid documentId format');
   });
 
-  it('filters out collections that userAbility cannot read', async () => {
+  it('fails closed when userAbility is missing or denies read access', async () => {
     const service = createSearchService({ strapi: mockStrapi });
+
+    // Missing userAbility fails closed
+    expect(await service.search('Tiptap', 'en')).toEqual({});
+    await expect(service.getDocument('api::article.article', 'doc-101')).rejects.toThrow(
+      'Forbidden'
+    );
+
     const restrictedAbility = {
       cannot: (action: string, subject: string) =>
         action === 'plugin::content-manager.explorer.read' && subject === 'api::article.article',
@@ -304,3 +323,105 @@ describe('server/bootstrap', () => {
     expect(mockCreateComponent).toHaveBeenCalledTimes(1);
   });
 });
+
+describe('server/controllers/media & search authorization', () => {
+  it('enforces plugin::upload.assets.create ability in media.uploadByUrl controller', async () => {
+    const uploadByUrlMock = vi.fn(async () => ({ id: 1, documentId: 'doc-1' }));
+    const mockStrapi = {
+      plugin: vi.fn(() => ({
+        service: vi.fn(() => ({
+          isSsrfSafeUrl: () => true,
+          uploadByUrl: uploadByUrlMock,
+        })),
+      })),
+    } as any;
+
+    const controller = createMediaController({ strapi: mockStrapi });
+
+    const throwMock = vi.fn((status: number, msg: string) => {
+      const err = new Error(msg) as Error & { status?: number };
+      err.status = status;
+      throw err;
+    });
+
+    // Missing userAbility -> 403
+    await expect(
+      controller.uploadByUrl({
+        state: {},
+        request: { body: { url: 'https://example.com/a.jpg' } },
+        throw: throwMock,
+      } as any)
+    ).rejects.toThrow('Forbidden');
+
+    // Denied userAbility -> 403
+    await expect(
+      controller.uploadByUrl({
+        state: {
+          userAbility: {
+            cannot: (action: string) => action === 'plugin::upload.assets.create',
+          },
+        },
+        request: { body: { url: 'https://example.com/a.jpg' } },
+        throw: throwMock,
+      } as any)
+    ).rejects.toThrow('Forbidden');
+
+    expect(uploadByUrlMock).not.toHaveBeenCalled();
+
+    // Permitted userAbility -> succeeds
+    const ctxAllowed: any = {
+      state: {
+        userAbility: {
+          cannot: () => false,
+        },
+      },
+      request: { body: { url: 'https://example.com/a.jpg', alt: 'Alt' } },
+      throw: throwMock,
+    };
+    await controller.uploadByUrl(ctxAllowed);
+    expect(uploadByUrlMock).toHaveBeenCalledWith('https://example.com/a.jpg', 'Alt');
+    expect(ctxAllowed.body).toEqual({ id: 1, documentId: 'doc-1' });
+  });
+
+  it('requires usable userAbility in search controller handlers', async () => {
+    const mockStrapi = {
+      plugin: vi.fn(() => ({
+        service: vi.fn(() => ({
+          search: vi.fn(async () => ({})),
+          getLinkableCollections: vi.fn(() => []),
+          getDocument: vi.fn(async () => null),
+          identifyCollectionTitleField: vi.fn(() => 'title'),
+        })),
+      })),
+    } as any;
+
+    const controller = createSearchController({ strapi: mockStrapi });
+    const throwMock = vi.fn((status: number, msg: string) => {
+      const err = new Error(msg) as Error & { status?: number };
+      err.status = status;
+      throw err;
+    });
+
+    await expect(
+      controller.search({ query: { q: 'hello' }, state: {}, throw: throwMock } as any)
+    ).rejects.toThrow('Forbidden');
+
+    await expect(
+      controller.getDocument({
+        params: { collectionName: 'api::article.article', documentId: 'doc-1' },
+        query: {},
+        state: {},
+        throw: throwMock,
+      } as any)
+    ).rejects.toThrow('Forbidden');
+
+    await expect(
+      controller.identify({
+        params: { collectionName: 'api::article.article' },
+        state: {},
+        throw: throwMock,
+      } as any)
+    ).rejects.toThrow('Forbidden');
+  });
+});
+

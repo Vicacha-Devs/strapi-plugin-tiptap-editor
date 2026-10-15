@@ -1,6 +1,10 @@
 import type { Core } from '@strapi/strapi';
 import type { Context } from 'koa';
-import type { AdminUserAbility, SearchDocumentHit } from '../services/search';
+import {
+  canReadCollection,
+  type AdminUserAbility,
+  type SearchDocumentHit,
+} from '../services/search';
 
 interface SearchService {
   identifyCollectionTitleField(collectionName: string): string;
@@ -20,6 +24,13 @@ interface SearchService {
   ): Promise<SearchDocumentHit | null>;
 }
 
+function hasUsableAbility(userAbility?: AdminUserAbility): userAbility is AdminUserAbility {
+  return Boolean(
+    userAbility &&
+      (typeof userAbility.can === 'function' || typeof userAbility.cannot === 'function')
+  );
+}
+
 /**
  * Controller for searching and resolving internal Strapi content documents.
  */
@@ -32,6 +43,11 @@ const createSearchController = ({ strapi }: { strapi: Core.Strapi }) => ({
     const q = typeof queryObj.q === 'string' ? queryObj.q.trim() : '';
     const locale = typeof queryObj.locale === 'string' ? queryObj.locale.trim() : undefined;
     const userAbility = (ctx.state as { userAbility?: AdminUserAbility })?.userAbility;
+
+    if (!hasUsableAbility(userAbility)) {
+      ctx.throw(403, 'Forbidden');
+      return;
+    }
 
     if (!q) {
       ctx.body = { results: {}, collections: [] };
@@ -53,6 +69,11 @@ const createSearchController = ({ strapi }: { strapi: Core.Strapi }) => ({
     const queryObj = (ctx.query || {}) as Record<string, unknown>;
     const locale = typeof queryObj.locale === 'string' ? queryObj.locale.trim() : undefined;
     const userAbility = (ctx.state as { userAbility?: AdminUserAbility })?.userAbility;
+
+    if (!hasUsableAbility(userAbility)) {
+      ctx.throw(403, 'Forbidden');
+      return;
+    }
 
     if (typeof collectionName !== 'string' || typeof documentId !== 'string') {
       ctx.throw(400, 'collectionName and documentId are required');
@@ -88,11 +109,7 @@ const createSearchController = ({ strapi }: { strapi: Core.Strapi }) => ({
     }
 
     const userAbility = (ctx.state as { userAbility?: AdminUserAbility })?.userAbility;
-    if (
-      userAbility &&
-      typeof userAbility.cannot === 'function' &&
-      userAbility.cannot('plugin::content-manager.explorer.read', collectionName)
-    ) {
+    if (!canReadCollection(collectionName, userAbility)) {
       ctx.throw(403, 'Forbidden');
       return;
     }

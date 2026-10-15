@@ -62,4 +62,20 @@ describe('theme routes (THEME-03)', () => {
       },
     ]);
   });
+
+  it('enforces admin::hasPermissions policy on POST /upload-by-url', () => {
+    const routeList = (routes as any)['media-routes'].routes as any[];
+    const uploadByUrlRoute = routeList.find(
+      (r) => r.method === 'POST' && r.path === '/upload-by-url'
+    );
+    expect(uploadByUrlRoute).toBeDefined();
+    expect(uploadByUrlRoute.config.policies).toEqual([
+      {
+        name: 'admin::hasPermissions',
+        config: {
+          actions: ['plugin::upload.assets.create'],
+        },
+      },
+    ]);
+  });
 });

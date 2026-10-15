@@ -26,16 +26,17 @@ const isSafeCollectionUid = (uid: string): boolean =>
 
 /**
  * Checks whether the current admin user ability permits reading from `collectionUid`.
+ * Fails closed (`false`) when `userAbility` is absent or lacks permission-checking methods.
  */
-function canReadCollection(collectionUid: string, userAbility?: AdminUserAbility): boolean {
-  if (!userAbility) return true;
+export function canReadCollection(collectionUid: string, userAbility?: AdminUserAbility): boolean {
+  if (!userAbility) return false;
   if (typeof userAbility.cannot === 'function') {
     return !userAbility.cannot('plugin::content-manager.explorer.read', collectionUid);
   }
   if (typeof userAbility.can === 'function') {
     return Boolean(userAbility.can('plugin::content-manager.explorer.read', collectionUid));
   }
-  return true;
+  return false;
 }
 
 /**

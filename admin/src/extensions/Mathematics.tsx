@@ -103,6 +103,120 @@ export function MathematicsNodeViewReadOnly({ node }: NodeViewProps) {
   );
 }
 
+/**
+ * Interactive node view component allowing editors to click to edit or remove a mathematical formula.
+ */
+export function MathematicsNodeView(props: NodeViewProps) {
+  const { node, updateAttributes, deleteNode, editor } = props;
+  const { formatMessage } = useIntl();
+  const [editing, setEditing] = useState(false);
+  const latex = String(node.attrs.latex ?? '');
+  const displayMode = node.attrs.displayMode === 'block' ? 'block' : 'inline';
+  const [draftLatex, setDraftLatex] = useState(latex);
+  const rendered = formatLatexPreview(latex);
+
+  if (!editor?.isEditable) {
+    return <MathematicsNodeViewReadOnly {...props} />;
+  }
+
+  return (
+    <NodeViewWrapper
+      as={displayMode === 'block' ? 'div' : 'span'}
+      data-type="mathematics"
+      style={{
+        display: displayMode === 'block' ? 'block' : 'inline-block',
+        textAlign: displayMode === 'block' ? 'center' : undefined,
+        padding: displayMode === 'block' ? '10px 14px' : '1px 6px',
+        margin: displayMode === 'block' ? '0.5em 0' : '0 2px',
+        backgroundColor: '#f6f6f9',
+        border: '1px solid #dcdce4',
+        borderRadius: '4px',
+        fontFamily: 'Cambria Math, Georgia, serif',
+        fontStyle: 'italic',
+        cursor: 'pointer',
+      }}
+      onClick={() => {
+        if (!editing) {
+          setDraftLatex(latex);
+          setEditing(true);
+        }
+      }}
+    >
+      {editing ? (
+        <span
+          style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', fontStyle: 'normal' }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <input
+            type="text"
+            value={draftLatex}
+            onChange={(e) => setDraftLatex(e.target.value)}
+            aria-label={formatMessage({
+              id: 'tiptap-editor.mathematics.latexLabel',
+              defaultMessage: 'LaTeX Expression',
+            })}
+            style={{
+              fontFamily: 'monospace',
+              fontSize: '0.85em',
+              padding: '2px 6px',
+              border: '1px solid #4945ff',
+              borderRadius: '3px',
+            }}
+          />
+          <button
+            type="button"
+            onClick={() => {
+              if (draftLatex.trim()) {
+                updateAttributes({ latex: draftLatex.trim() });
+              }
+              setEditing(false);
+            }}
+            style={{
+              border: 'none',
+              background: '#4945ff',
+              color: '#fff',
+              borderRadius: '3px',
+              padding: '2px 6px',
+              fontSize: '0.75em',
+              cursor: 'pointer',
+            }}
+          >
+            ✓
+          </button>
+          <button
+            type="button"
+            onClick={() => deleteNode()}
+            style={{
+              border: 'none',
+              background: '#d02b20',
+              color: '#fff',
+              borderRadius: '3px',
+              padding: '2px 6px',
+              fontSize: '0.75em',
+              cursor: 'pointer',
+            }}
+          >
+            ✕
+          </button>
+        </span>
+      ) : (
+        <span
+          role="math"
+          aria-label={formatMessage(
+            {
+              id: 'tiptap-editor.mathematics.formulaAria',
+              defaultMessage: 'Mathematical formula: {latex}',
+            },
+            { latex }
+          )}
+        >
+          {rendered || latex}
+        </span>
+      )}
+    </NodeViewWrapper>
+  );
+}
+
 export const MathematicsNode = Node.create<MathematicsOptions>({
   name: 'mathematics',
   group: 'inline',
@@ -141,8 +255,9 @@ export const MathematicsNode = Node.create<MathematicsOptions>({
 
   renderHTML({ HTMLAttributes }) {
     const latex = String(HTMLAttributes['data-latex'] ?? '');
+    const isBlock = HTMLAttributes['data-display'] === 'block';
     return [
-      'span',
+      isBlock ? 'div' : 'span',
       mergeAttributes(this.options.HTMLAttributes, HTMLAttributes, {
         'data-type': 'mathematics',
         role: 'math',
@@ -153,7 +268,10 @@ export const MathematicsNode = Node.create<MathematicsOptions>({
   },
 
   addNodeView() {
-    return ReactNodeViewRenderer(MathematicsNodeViewReadOnly);
+    if (this.options.enableContentCheck) {
+      return ReactNodeViewRenderer(MathematicsNodeViewReadOnly);
+    }
+    return ReactNodeViewRenderer(MathematicsNodeView);
   },
 });
 

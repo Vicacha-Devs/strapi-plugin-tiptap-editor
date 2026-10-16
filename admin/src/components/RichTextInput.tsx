@@ -1,4 +1,4 @@
-import { forwardRef, useMemo, useRef } from 'react';
+import { forwardRef, useEffect, useMemo, useRef, useState } from 'react';
 import { useIntl } from 'react-intl';
 import { Box } from '@strapi/design-system';
 import BaseTiptapInput from './BaseTiptapInput';
@@ -26,6 +26,7 @@ import { useInformationPane } from '../extensions/InformationPane';
 import { useStructuredBlocks } from '../extensions/StructuredBlocks';
 import { useMathematics } from '../extensions/Mathematics';
 import { useEmojiPicker } from '../extensions/EmojiPicker';
+import { useSlashCommand } from '../extensions/SlashCommand';
 import { useSpeechTools } from '../extensions/SpeechTools';
 import { useEditorModes } from './EditorFooterAndModes';
 import { usePresetConfig } from '../hooks/usePresetConfig';
@@ -35,6 +36,7 @@ import { buildExtensions } from '../utils/buildExtensions';
 import {
   TiptapPresetConfig,
   MINIMAL_PRESET_CONFIG,
+  DEFAULT_RUNTIME_SETTINGS,
   getFeatureOptions,
   type TiptapOutputFormat,
 } from '../../../shared/types';
@@ -58,6 +60,36 @@ type InnerEditorProps = TiptapInputProps & {
  */
 const isToolbarItem = (item: ToolbarItem | false | undefined): item is ToolbarItem => Boolean(item);
 
+/**
+ * Extracts current content-type field names from input props so relational sync
+ * only writes to companion fields (`<field>Media`, `<field>Links`) that exist on the schema.
+ */
+function extractAvailableFieldNames(props: unknown): string[] {
+  const candidate = props as {
+    availableFields?: string[];
+    contentType?: { attributes?: Record<string, unknown> };
+    layout?: { attributes?: Record<string, unknown> };
+    attributes?: Record<string, unknown>;
+    values?: Record<string, unknown>;
+  } | null;
+
+  if (Array.isArray(candidate?.availableFields)) {
+    return candidate.availableFields;
+  }
+  const attrSource =
+    candidate?.contentType?.attributes ??
+    candidate?.layout?.attributes ??
+    candidate?.attributes ??
+    candidate?.values;
+  if (attrSource && typeof attrSource === 'object') {
+    return Object.keys(attrSource);
+  }
+  return [];
+}
+
+/**
+ * Inner TipTap editor component rendered once the preset configuration is loaded.
+ */
 const InnerEditor = forwardRef<HTMLDivElement, InnerEditorProps>(
   ({ config, presetName, outputFormat, characterLimit, placeholder, ...props }, forwardedRef) => {
     // Memoize on primitive options (presetName, characterLimit, placeholder) — stable across parent re-renders
@@ -68,11 +100,40 @@ const InnerEditor = forwardRef<HTMLDivElement, InnerEditorProps>(
       return buildExtensions(config);
     }, characterLimit !== undefined || placeholder !== undefined ? [presetName, characterLimit, placeholder] : [presetName]); // eslint-disable-line react-hooks/exhaustive-deps
 
+    const [relationalSyncEnabled, setRelationalSyncEnabled] = useState<boolean>(
+      DEFAULT_RUNTIME_SETTINGS.enableRelationalSync
+    );
+
+    useEffect(() => {
+      let mounted = true;
+      import('@strapi/strapi/admin')
+        .then(({ getFetchClient }) => {
+          if (typeof getFetchClient !== 'function') return undefined;
+          return getFetchClient().get('/tiptap-editor/settings');
+        })
+        .then((res: { data?: { enableRelationalSync?: boolean } } | undefined) => {
+          if (mounted && typeof res?.data?.enableRelationalSync === 'boolean') {
+            setRelationalSyncEnabled(res.data.enableRelationalSync);
+          }
+        })
+        .catch(() => {
+          // Keep default in isolated/offline environments
+        });
+      return () => {
+        mounted = false;
+      };
+    }, []);
+
     const onFormChangeRef = useRef<((fieldName: string, value: unknown) => void) | undefined>(
       undefined
     );
 
+    const availableFields = extractAvailableFieldNames(props);
+
     const { syncRelationsFromDoc } = useRelationalSync(props.name, {
+      enabled: relationalSyncEnabled,
+      availableFields,
+      initialDocument: (props as { value?: unknown }).value,
       onSyncField: (fieldName, value) => onFormChangeRef.current?.(fieldName, value),
     });
 
@@ -81,9 +142,11 @@ const InnerEditor = forwardRef<HTMLDivElement, InnerEditorProps>(
       onDocUpdate: syncRelationsFromDoc,
     });
 
-    onFormChangeRef.current = field?.onChange as
-      | ((fieldName: string, value: unknown) => void)
-      | undefined;
+    useEffect(() => {
+      onFormChangeRef.current = field?.onChange as
+        | ((fieldName: string, value: unknown) => void)
+        | undefined;
+    }, [field?.onChange]);
 
     const { toolbarRef, handleToolbarKeyDown } = useKeyboardNavigation(editor);
 
@@ -112,6 +175,7 @@ const InnerEditor = forwardRef<HTMLDivElement, InnerEditorProps>(
     const structuredBlocks = useStructuredBlocks(editor, { disabled: props.disabled });
     const mathematics = useMathematics(editor, { disabled: props.disabled });
     const emoji = useEmojiPicker(editor, { disabled: props.disabled });
+    const slashCommand = useSlashCommand(editor, { disabled: props.disabled });
     const speech = useSpeechTools(editor, { disabled: props.disabled });
 
     const charCountOpts = getFeatureOptions(config.characterCount, {
@@ -247,6 +311,10 @@ const InnerEditor = forwardRef<HTMLDivElement, InnerEditorProps>(
         ),
       },
       Boolean(config?.emoji) && { id: 'emoji', content: emoji.emojiButton },
+      Boolean(config?.slashCommands) && {
+        id: 'slashCommands',
+        content: slashCommand.slashCommandButton,
+      },
       Boolean(config?.pageBreak) && {
         id: 'pageBreak',
         content: structuredBlocks.pageBreakButton,
@@ -327,6 +395,7 @@ const InnerEditor = forwardRef<HTMLDivElement, InnerEditorProps>(
           config?.columns ||
           config?.mathematics ||
           config?.emoji ||
+          config?.slashCommands ||
           config?.pageBreak ||
           config?.tableOfContents ||
           config?.link ||
@@ -436,6 +505,10 @@ type RichTextInputProps = TiptapInputProps & {
   };
 };
 
+/**
+ * Top-level Strapi custom field wrapper that resolves the field's preset configuration
+ * before mounting the inner TipTap editor.
+ */
 const RichTextInput = forwardRef<HTMLDivElement, RichTextInputProps>((props, forwardedRef) => {
   const { formatMessage } = useIntl();
   const rawPresetName = props.attribute?.options?.preset;

@@ -138,18 +138,20 @@ describe('buildExtensions', () => {
 
   it('includes TableKit when table is true', () => {
     const extensions = buildExtensions({ table: true });
-    const hasTable = extensions.some(
+    const tableKit = extensions.find(
       (ext: any) => ext.name === 'tableKit'
     );
-    expect(hasTable).toBe(true);
+    expect(tableKit).toBeDefined();
+    expect((tableKit as any).options.table.resizable).toBe(true);
   });
 
-  it('does not include TableKit when table is false', () => {
+  it('always includes TableKit with resizable: false when table is false (Zero-Data-Loss)', () => {
     const extensions = buildExtensions({ table: false });
-    const hasTable = extensions.some(
+    const tableKit = extensions.find(
       (ext: any) => ext.name === 'tableKit'
     );
-    expect(hasTable).toBe(false);
+    expect(tableKit).toBeDefined();
+    expect((tableKit as any).options.table.resizable).toBe(false);
   });
 
   it('includes TextAlign when textAlign is true', () => {
@@ -263,10 +265,10 @@ describe('buildExtensions', () => {
 
     expect(names).toContain('starterKit');
     expect(names).toContain('gapCursor');
+    expect(names).toContain('tableKit');
     expect(names).not.toContain('heading');
     expect(names).not.toContain('superscript');
     expect(names).not.toContain('subscript');
-    expect(names).not.toContain('tableKit');
     expect(names).not.toContain('textAlign');
     expect(names).not.toContain('textStyle');
     expect(names).not.toContain('color');

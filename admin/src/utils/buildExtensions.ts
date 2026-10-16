@@ -82,8 +82,10 @@ const CustomTableHeader = TableHeader.extend({
   },
 });
 
-// Helper: converts a preset feature value to StarterKit's expected format
-// false = disable the sub-extension, {} = enable with defaults
+/**
+ * Converts a preset feature value to StarterKit's expected configuration format
+ * (`false` to disable the sub-extension, or an options object to enable with defaults).
+ */
 const starterKitFeatureValue = (
   value: TiptapPresetConfig[keyof TiptapPresetConfig]
 ): false | Record<string, unknown> => {
@@ -149,20 +151,20 @@ export function buildExtensions(
     extensions.push(Subscript);
   }
 
-  if (isFeatureEnabled(config.table)) {
-    extensions.push(
-      TableKit.configure({
-        table: {
-          resizable: true,
-          ...getFeatureOptions(config.table, {}),
-        },
-        tableCell: false,
-        tableHeader: false,
-      }),
-      CustomTableCell,
-      CustomTableHeader
-    );
-  }
+  // Zero-Data-Loss Table schema (always registered so existing tables and cell colors are preserved)
+  const tableOptions = isFeatureEnabled(config.table) ? getFeatureOptions(config.table, {}) : {};
+  extensions.push(
+    TableKit.configure({
+      table: {
+        resizable: isFeatureEnabled(config.table),
+        ...tableOptions,
+      },
+      tableCell: false,
+      tableHeader: false,
+    }),
+    CustomTableCell,
+    CustomTableHeader
+  );
 
   if (isFeatureEnabled(config.textAlign)) {
     const textAlignConfig = getFeatureOptions(config.textAlign, {

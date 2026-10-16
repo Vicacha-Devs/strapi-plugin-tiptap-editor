@@ -174,9 +174,11 @@ export const StrapiAudio = Node.create<StrapiAudioOptions>({
   },
 
   renderHTML({ HTMLAttributes }) {
+    const src = String(HTMLAttributes.src || '');
     return [
       'audio',
       mergeAttributes(this.options.HTMLAttributes, HTMLAttributes, {
+        src: isSafeUrl(src) ? src : '',
         controls: 'true',
         'data-type': 'audio',
       }),

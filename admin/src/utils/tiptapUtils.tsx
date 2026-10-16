@@ -19,6 +19,9 @@ export interface UseTiptapEditorOptions {
   onDocUpdate?: (json: JSONContent) => void;
 }
 
+/**
+ * Wraps a plain text string into a basic ProseMirror document JSON structure.
+ */
 export function tiptapContent(text: string): JSONContent {
   return {
     type: 'doc',
@@ -36,6 +39,10 @@ export function tiptapContent(text: string): JSONContent {
   };
 }
 
+/**
+ * Parses a stored field value (JSON object, JSON string, HTML string, or Markdown string)
+ * into a TipTap-compatible `JSONContent` or sanitized HTML string.
+ */
 export function parseJSONContent(
   value: string | JSONContent | null | undefined,
   defaultValue: string,
@@ -83,6 +90,9 @@ export function parseJSONContent(
   }
 }
 
+/**
+ * React hook that initializes a TipTap editor bound to a Strapi Content-Manager field.
+ */
 export function useTiptapEditor(
   name: string,
   defaultValue: string = '',

@@ -24,10 +24,17 @@ interface AppBridge {
  */
 let appRef: AppBridge | null = null;
 
+/**
+ * Captures the host Strapi admin application reference during plugin registration.
+ */
 export function captureApp(app: AppBridge) {
   appRef = app;
 }
 
+/**
+ * Returns the host Strapi Media Library dialog component registered in `app.library.components`,
+ * or `null` if unavailable.
+ */
 export function getMediaLibraryComponent(): ComponentType<MediaLibraryDialogProps> | null {
   return appRef?.library?.components?.['media-library'] ?? null;
 }

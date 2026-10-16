@@ -57,6 +57,9 @@ export const useEditorModes = (editor: Editor | null, options?: EditorModesOptio
   useEffect(() => {
     if (!editor || options?.disabled) return;
     editor.setEditable(!isPreviewMode);
+    return () => {
+      if (isPreviewMode) editor.setEditable(true);
+    };
   }, [editor, isPreviewMode, options?.disabled]);
 
   const stats = useEditorState({

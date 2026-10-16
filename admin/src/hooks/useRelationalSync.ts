@@ -1,4 +1,4 @@
-import { useCallback, useRef } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 import { extractRelationsFromJSON, ExtractedRelationsResult } from '../../../shared/relations';
 
 export interface RelationalSyncCallbacks {
@@ -12,7 +12,33 @@ export interface RelationalSyncCallbacks {
    * When provided, sync only dispatches for companion fields that exist on the schema.
    */
   availableFields?: string[];
+  /**
+   * Initial document value used to seed the relation signature so the first unchanged
+   * update after mount does not mark the form as dirty.
+   */
+  initialDocument?: unknown;
   enabled?: boolean;
+}
+
+/**
+ * Computes a deterministic JSON signature for extracted media and internal link relations.
+ */
+function buildRelationSignature(doc: unknown): string {
+  let normalized = doc;
+  if (typeof doc === 'string' && doc.trim().startsWith('{')) {
+    try {
+      normalized = JSON.parse(doc);
+    } catch {
+      normalized = null;
+    }
+  }
+  const extracted = extractRelationsFromJSON(normalized);
+  const validMediaAssets = extracted.mediaAssets.filter((asset) => asset.assetId !== null);
+  return JSON.stringify({
+    mediaIds: validMediaAssets.map((a) => a.assetId),
+    mediaDocumentIds: extracted.mediaDocumentIds,
+    links: extracted.linksByCollection,
+  });
 }
 
 /**
@@ -24,12 +50,22 @@ export function useRelationalSync(
   fieldName: string,
   options: RelationalSyncCallbacks = {}
 ) {
-  const { onSyncField, availableFields, enabled = true } = options;
-  const lastSignatureRef = useRef<string>('');
+  const { onSyncField, availableFields, initialDocument, enabled = true } = options;
+  const lastSignatureRef = useRef<string>(buildRelationSignature(initialDocument));
+  const hasSyncedUpdateRef = useRef<boolean>(false);
   const onSyncFieldRef = useRef(onSyncField);
-  onSyncFieldRef.current = onSyncField;
   const availableFieldsRef = useRef(availableFields);
-  availableFieldsRef.current = availableFields;
+
+  useEffect(() => {
+    onSyncFieldRef.current = onSyncField;
+    availableFieldsRef.current = availableFields;
+  }, [onSyncField, availableFields]);
+
+  useEffect(() => {
+    if (!hasSyncedUpdateRef.current) {
+      lastSignatureRef.current = buildRelationSignature(initialDocument);
+    }
+  }, [initialDocument]);
 
   const syncRelationsFromDoc = useCallback(
     (doc: unknown): ExtractedRelationsResult => {
@@ -51,6 +87,7 @@ export function useRelationalSync(
       if (signature === lastSignatureRef.current) {
         return extracted;
       }
+      hasSyncedUpdateRef.current = true;
       lastSignatureRef.current = signature;
 
       const mediaFieldName = `${fieldName}Media`;

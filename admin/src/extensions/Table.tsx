@@ -59,7 +59,6 @@ export function useTable(
   });
 
   const [open, setOpen] = useState(false);
-  const [colorCycleIdx, setColorCycleIdx] = useState(0);
 
   const handleOpenDialog = () => {
     if (!editor) return;
@@ -81,8 +80,12 @@ export function useTable(
 
   const cycleCellBackgroundColor = () => {
     if (!editor) return;
-    const nextIdx = (colorCycleIdx + 1) % TABLE_CELL_COLORS.length;
-    setColorCycleIdx(nextIdx);
+    const current =
+      editor.getAttributes('tableCell').backgroundColor ??
+      editor.getAttributes('tableHeader').backgroundColor ??
+      '';
+    const idx = TABLE_CELL_COLORS.findIndex((c) => c.value === (current || ''));
+    const nextIdx = (Math.max(idx, 0) + 1) % TABLE_CELL_COLORS.length;
     const nextColor = TABLE_CELL_COLORS[nextIdx].value || null;
     editor.chain().focus().setCellAttribute('backgroundColor', nextColor).run();
   };

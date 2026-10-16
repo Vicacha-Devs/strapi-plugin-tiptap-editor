@@ -38,9 +38,10 @@ export function normalizeVideoEmbedUrl(
   try {
     const parsed = new URL(trimmed, 'https://example.com');
     const host = parsed.hostname.toLowerCase();
+    const isHost = (domain: string) => host === domain || host.endsWith(`.${domain}`);
 
-    // YouTube watch or short URL
-    if (host.includes('youtube.com') || host.includes('youtube-nocookie.com')) {
+    // YouTube watch or embed URL
+    if (isHost('youtube.com') || isHost('youtube-nocookie.com')) {
       const videoId = parsed.searchParams.get('v');
       if (videoId && /^[\w-]{6,20}$/.test(videoId)) {
         return {
@@ -49,7 +50,14 @@ export function normalizeVideoEmbedUrl(
         };
       }
       if (parsed.pathname.startsWith('/embed/')) {
-        return { src: trimmed, embedType: 'embed' };
+        const embedId = parsed.pathname.slice('/embed/'.length).split('/')[0];
+        if (embedId && /^[\w-]{6,20}$/.test(embedId)) {
+          return {
+            src: `https://www.youtube-nocookie.com/embed/${embedId}`,
+            embedType: 'embed',
+          };
+        }
+        return null;
       }
     }
     if (host === 'youtu.be') {
@@ -63,7 +71,7 @@ export function normalizeVideoEmbedUrl(
     }
 
     // Vimeo
-    if (host.includes('vimeo.com')) {
+    if (isHost('vimeo.com')) {
       const match = /\/(\d+)/.exec(parsed.pathname);
       if (match?.[1]) {
         return {
@@ -85,6 +93,7 @@ export function normalizeVideoEmbedUrl(
 export function VideoNodeViewReadOnly({ node }: NodeViewProps) {
   const { formatMessage } = useIntl();
   const src = String(node.attrs.src || '');
+  const safeSrc = isSafeUrl(src) ? src : '';
   const embedType = node.attrs.embedType === 'embed' ? 'embed' : 'file';
   const width = node.attrs.width ? `${node.attrs.width}px` : '100%';
   const height = node.attrs.height ? `${node.attrs.height}px` : '360px';
@@ -93,25 +102,29 @@ export function VideoNodeViewReadOnly({ node }: NodeViewProps) {
     <NodeViewWrapper data-drag-handle data-align={node.attrs['data-align'] ?? undefined}>
       <figure style={{ margin: '0.75em 0' }}>
         {embedType === 'embed' ? (
-          <iframe
-            src={src}
-            title={
-              node.attrs.title ||
-              formatMessage({
-                id: 'tiptap-editor.video.embeddedTitle',
-                defaultMessage: 'Embedded video',
-              })
-            }
-            style={{ width, maxWidth: '100%', height, border: 0, borderRadius: '6px' }}
-            sandbox="allow-scripts allow-same-origin allow-presentation"
-            allowFullScreen
-          />
+          safeSrc && (
+            <iframe
+              src={safeSrc}
+              title={
+                node.attrs.title ||
+                formatMessage({
+                  id: 'tiptap-editor.video.embeddedTitle',
+                  defaultMessage: 'Embedded video',
+                })
+              }
+              style={{ width, maxWidth: '100%', height, border: 0, borderRadius: '6px' }}
+              sandbox="allow-scripts allow-same-origin allow-presentation"
+              allowFullScreen
+            />
+          )
         ) : (
-          <video
-            src={src}
-            controls
-            style={{ width, maxWidth: '100%', borderRadius: '6px', display: 'block' }}
-          />
+          safeSrc && (
+            <video
+              src={safeSrc}
+              controls
+              style={{ width, maxWidth: '100%', borderRadius: '6px', display: 'block' }}
+            />
+          )
         )}
         {node.attrs.caption && (
           <figcaption style={{ fontSize: '1.2rem', color: '#666687', marginTop: '4px' }}>
@@ -288,10 +301,16 @@ export const StrapiVideo = Node.create<StrapiVideoOptions>({
   },
 
   renderHTML({ HTMLAttributes }) {
+    const rawSrc = typeof HTMLAttributes.src === 'string' ? HTMLAttributes.src : '';
+    const safeAttrs = {
+      ...HTMLAttributes,
+      src: isSafeUrl(rawSrc) ? rawSrc : '',
+    };
+
     if (HTMLAttributes.embedType === 'embed') {
       return [
         'iframe',
-        mergeAttributes(this.options.HTMLAttributes, HTMLAttributes, {
+        mergeAttributes(this.options.HTMLAttributes, safeAttrs, {
           'data-type': 'video',
           allowfullscreen: 'true',
           sandbox: 'allow-scripts allow-same-origin allow-presentation',
@@ -301,7 +320,7 @@ export const StrapiVideo = Node.create<StrapiVideoOptions>({
 
     return [
       'video',
-      mergeAttributes(this.options.HTMLAttributes, HTMLAttributes, {
+      mergeAttributes(this.options.HTMLAttributes, safeAttrs, {
         controls: 'true',
         'data-type': 'video',
       }),

@@ -9,6 +9,10 @@ vi.mock('react', async () => {
   const actual = await vi.importActual<typeof import('react')>('react');
   return {
     ...actual,
+    useState: (init: any) => [typeof init === 'function' ? init() : init, vi.fn()],
+    useEffect: (fn: () => void) => {
+      fn();
+    },
     useMemo: (fn: () => any, deps: any[]) => {
       capturedUseMemoFactory = fn;
       capturedUseMemoDeps = deps;
@@ -186,6 +190,10 @@ vi.mock('../../admin/src/extensions/Mathematics', () => ({
 
 vi.mock('../../admin/src/extensions/EmojiPicker', () => ({
   useEmojiPicker: () => ({ emojiButton: null }),
+}));
+
+vi.mock('../../admin/src/extensions/SlashCommand', () => ({
+  useSlashCommand: () => ({ slashCommandButton: null }),
 }));
 
 vi.mock('../../admin/src/extensions/SpeechTools', () => ({

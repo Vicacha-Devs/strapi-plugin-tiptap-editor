@@ -92,7 +92,11 @@ export function SettingsPage() {
       };
       const res = await put('/tiptap-editor/settings', payload);
       if (res?.data) {
-        setSettings(res.data);
+        setSettings({
+          ...DEFAULT_RUNTIME_SETTINGS,
+          ...res.data,
+          presetOverrides: res.data.presetOverrides || {},
+        });
       }
       setSaveMessage(
         formatMessage({

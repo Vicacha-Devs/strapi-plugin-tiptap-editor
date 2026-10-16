@@ -134,6 +134,7 @@ export const ImageEditorModal: React.FC<ImageEditorModalProps> = ({
   const [caption, setCaption] = useState<string>(initialCaption);
   const [canvasReady, setCanvasReady] = useState<boolean>(false);
   const [canvasError, setCanvasError] = useState<string | null>(null);
+  const [uploadError, setUploadError] = useState<string | null>(null);
   const [isUploading, setIsUploading] = useState<boolean>(false);
 
   useEffect(() => {
@@ -146,6 +147,7 @@ export const ImageEditorModal: React.FC<ImageEditorModalProps> = ({
     setAlt(initialAlt);
     setCaption(initialCaption);
     setCanvasError(null);
+    setUploadError(null);
     setCanvasReady(false);
 
     const img = new window.Image();
@@ -182,6 +184,7 @@ export const ImageEditorModal: React.FC<ImageEditorModalProps> = ({
     rotation !== 0 || flipH || flipV || zoom !== 1 || aspectPreset !== 'free';
 
   const handleApply = async () => {
+    setUploadError(null);
     if (canvasReady && imageObjRef.current && hasTransformations) {
       try {
         setIsUploading(true);
@@ -195,42 +198,49 @@ export const ImageEditorModal: React.FC<ImageEditorModalProps> = ({
         });
 
         const blob = await canvasToBlob(exportCanvas);
-        if (blob && typeof FormData !== 'undefined') {
-          try {
-            const formData = new FormData();
-            formData.append('files', blob, `edited-image-${Date.now()}.png`);
-            const uploadedFile = await uploadFileToStrapi(formData);
-            if (uploadedFile?.url) {
-              onSave({
-                src: uploadedFile.url,
-                alt,
-                caption,
-                width: uploadedFile.width || fullDims.width,
-                height: uploadedFile.height || fullDims.height,
-                assetId: typeof uploadedFile.id === 'number' ? uploadedFile.id : undefined,
-                documentId:
-                  typeof uploadedFile.documentId === 'string' ? uploadedFile.documentId : undefined,
-              });
-              onClose();
-              return;
-            }
-          } catch {
-            // Fall back to data URL if /upload is unavailable in offline/test environment
-          }
+        if (!blob || typeof FormData === 'undefined') {
+          setUploadError(
+            formatMessage({
+              id: `${getPluginId()}.imageEditor.uploadError`,
+              defaultMessage: 'Failed to export or upload edited image. Please try again.',
+            })
+          );
+          return;
         }
 
-        const dataUrl = exportCanvas.toDataURL('image/png', 0.92);
+        const formData = new FormData();
+        formData.append('files', blob, `edited-image-${Date.now()}.png`);
+        const uploadedFile = await uploadFileToStrapi(formData);
+        if (!uploadedFile?.url) {
+          setUploadError(
+            formatMessage({
+              id: `${getPluginId()}.imageEditor.uploadError`,
+              defaultMessage: 'Failed to upload edited image. Please try again.',
+            })
+          );
+          return;
+        }
+
         onSave({
-          src: dataUrl,
+          src: uploadedFile.url,
           alt,
           caption,
-          width: fullDims.width,
-          height: fullDims.height,
+          width: uploadedFile.width || fullDims.width,
+          height: uploadedFile.height || fullDims.height,
+          assetId: typeof uploadedFile.id === 'number' ? uploadedFile.id : undefined,
+          documentId:
+            typeof uploadedFile.documentId === 'string' ? uploadedFile.documentId : undefined,
         });
         onClose();
         return;
       } catch {
-        // Fallback if canvas is tainted by cross-origin image
+        setUploadError(
+          formatMessage({
+            id: `${getPluginId()}.imageEditor.uploadError`,
+            defaultMessage: 'Failed to upload edited image. Please try again.',
+          })
+        );
+        return;
       } finally {
         setIsUploading(false);
       }
@@ -256,6 +266,11 @@ export const ImageEditorModal: React.FC<ImageEditorModalProps> = ({
         </Dialog.Header>
         <Dialog.Body>
           <Flex direction="column" alignItems="stretch" gap={4}>
+            {uploadError && (
+              <Typography variant="pi" textColor="danger600" role="alert">
+                {uploadError}
+              </Typography>
+            )}
             <Box
               padding={3}
               background="neutral150"

@@ -217,6 +217,7 @@ export default () => ({
 ### Admin Settings UI (`/settings/tiptap-editor`)
 
 Navigate to **Settings → Global Settings → Tiptap Editor** in the Strapi Admin panel to configure:
+
 - **Default Preset** (`minimal`, `default`, `full`, `edifice`, or any custom preset)
 - **Default Output Format** (`json`, `html`, or `markdown`)
 - **Allowed Iframe Domains** (comma-separated hostnames, e.g. `youtube.com, player.vimeo.com`)
@@ -226,9 +227,10 @@ Navigate to **Settings → Global Settings → Tiptap Editor** in the Strapi Adm
 ### Field-Level Options (Content-Type Builder)
 
 When adding a **Rich Text (Tiptap)** custom field in the Strapi Content-Type Builder:
-- **Basic Settings → Editor Preset (`options.preset`)**: Select which preset this field uses.
+
+- **Basic Settings → Output Format (`options.outputFormat`)**: `json` (default ProseMirror JSON), `html` (sanitized HTML string), or `markdown` (Markdown string).
 - **Advanced Settings**:
-  - **Output Format (`options.outputFormat`)**: `json` (default ProseMirror JSON), `html` (sanitized HTML string), or `markdown` (Markdown string).
+  - **Editor Preset (`options.preset`)**: Select which preset this field uses (`default`, `minimal`, `full`, `edifice`).
   - **Character Limit (`options.characterLimit`)**: Optional maximum character count for the field.
   - **Placeholder (`options.placeholder`)**: Custom placeholder text when the editor is empty.
 
@@ -241,6 +243,7 @@ Inspired by `hashbite/strapi-plugin-lexical` and expanded for all 4 Edifice IO m
 ### Companion `<FieldName>Media` Field
 
 If your Rich Text field is named `content`, add a Media field named `contentMedia` (Multiple Media) to the same Content-Type. Whenever the document changes, `useRelationalSync` extracts all embedded:
+
 - `image` (`data-asset-id` / `data-document-id`)
 - `video` (`data-asset-id` / `data-document-id`)
 - `audio` (`data-asset-id` / `data-document-id`)
@@ -250,7 +253,7 @@ and updates `contentMedia` without triggering redundant form updates when relati
 
 ### Companion `<FieldName>Links` Component
 
-On server bootstrap, the plugin automatically creates a `links.links` component if it does not already exist. If you add a repeatable or single component field named `<FieldName>Links` (e.g. `contentLinks`) using `links.links`, any internal Strapi link inserted via the **Linker (`linker`)** tool or `strapi://api::collection.collection/documentId` URI is automatically grouped by collection and synced to `<FieldName>Links`.
+To use companion internal link fields, first define a `links.links` component in your Strapi project (the plugin does not create schema components during server bootstrap). Once `links.links` is defined with your target collection relations, add a repeatable or single component field named `<FieldName>Links` (e.g. `contentLinks`) using `links.links` to the Content-Type. Any internal Strapi link inserted via the **Linker (`linker`)** tool or `strapi://api::collection.collection/documentId` URI is automatically grouped by collection and synced to `<FieldName>Links`.
 
 ---
 
@@ -330,25 +333,30 @@ On server bootstrap, the plugin automatically creates a `links.links` component 
 ### Edifice IO Multimedia Suite
 
 #### Images & In-Editor HTML5 Canvas Image Studio (`mediaLibrary`)
+
 - Pick images from the Strapi Media Library with prefilled `alt`, `data-asset-id`, and `data-document-id`.
 - Click any image in the editor to open the floating toolbar with:
   - **Alignment** (`left`, `center`, `right`)
   - **Width & Height** pixel inputs + aspect-ratio lock + **Reset**
   - **Alt Text** & **Figure Caption (`<figcaption>`)** inputs
-  - **Edit Image (`ImageEditorModal`)**: In-editor HTML5 Canvas studio supporting **Aspect-Ratio Crop** (`Free`, `16:9`, `4:3`, `1:1`), **90° Rotation** (`-90°` / `+90°`), **Horizontal/Vertical Flip**, and **Zoom** (`1x`–`3x`), automatically uploading the edited asset back to `/upload` (or falling back to a data URL).
+  - **Edit Image (`ImageEditorModal`)**: In-editor HTML5 Canvas studio supporting **Aspect-Ratio Crop** (`Free`, `16:9`, `4:3`, `1:1`), **90° Rotation** (`-90°` / `+90°`), **Horizontal/Vertical Flip**, and **Zoom** (`1x`–`3x`), automatically uploading the edited asset back to `/upload`.
 
 #### Video (`video`)
+
 - Insert videos from the **Strapi Media Library** (`<video controls>`) or embed external **YouTube**, **Vimeo**, or direct **MP4/WebM** URLs.
 - Supports alignment, custom dimensions, captions, and read-only zero-data-loss rendering.
 
 #### Audio (`audio`)
+
 - Insert audio files from the **Strapi Media Library** or record voice notes directly in the browser using the **Web `MediaRecorder` API** with a live `mm:ss` timer and automatic upload to Strapi Media Library.
 
 #### Attachment Cards (`attachment`)
+
 - Insert downloadable file cards from the Strapi Media Library displaying filename, extension badge, MIME type, and human-readable file size (`KB` / `MB`).
 
 #### Sandboxed HTTPS Iframes (`iframe`)
-- Embed external interactive widgets over `https:` with strict `sandbox="allow-scripts allow-same-origin allow-popups allow-presentation"`, `loading="lazy"`, and optional domain allowlisting (`allowedDomains`).
+
+- Embed external interactive widgets over `https:` with strict `sandbox="allow-scripts allow-popups"`, `loading="lazy"`, and optional domain allowlisting (`allowedDomains`).
 
 ### Mathematics, Emoji, Slash Commands & Speech Tools
 
@@ -557,4 +565,5 @@ Built and maintained by [Notum Technologies](https://notum.tech/?utm_source=stra
 ### Contributing
 
 Contributions of all kinds are welcome: code, documentation, bug reports, and feature ideas.
-<br> <br> Browse the [open issues](https://github.com/notum-cz/strapi-plugin-tiptap-editor/issues) to find something to work on, or open a new one to start a discussion. Pull requests are always appreciated!
+
+Browse the [open issues](https://github.com/notum-cz/strapi-plugin-tiptap-editor/issues) to find something to work on, or open a new one to start a discussion. Pull requests are always appreciated!

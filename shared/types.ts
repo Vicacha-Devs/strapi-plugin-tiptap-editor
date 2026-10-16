@@ -247,7 +247,7 @@ export const BUILT_IN_PRESETS: Record<string, TiptapPresetConfig> = {
   minimal: MINIMAL_PRESET_CONFIG,
   default: DEFAULT_PRESET_CONFIG,
   full: FULL_PRESET_CONFIG,
-  edifice: FULL_PRESET_CONFIG,
+  edifice: { ...FULL_PRESET_CONFIG },
 };
 
 export const DEFAULT_RUNTIME_SETTINGS: Required<TiptapRuntimeSettings> = {

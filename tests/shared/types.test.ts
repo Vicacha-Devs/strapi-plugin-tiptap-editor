@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   PRESET_FEATURE_KEYS,
   MINIMAL_PRESET_CONFIG,
+  BUILT_IN_PRESETS,
   isFeatureEnabled,
   getFeatureOptions,
   ThemeColorEntry,
@@ -59,9 +60,13 @@ describe('TiptapThemeConfig type (THEME-02)', () => {
   });
 });
 
-describe('MINIMAL_PRESET_CONFIG', () => {
+describe('MINIMAL_PRESET_CONFIG & BUILT_IN_PRESETS', () => {
   it('equals { bold: true, italic: true }', () => {
     expect(MINIMAL_PRESET_CONFIG).toStrictEqual({ bold: true, italic: true });
+  });
+  it('gives edifice its own copy of FULL_PRESET_CONFIG', () => {
+    expect(BUILT_IN_PRESETS.edifice).toEqual(BUILT_IN_PRESETS.full);
+    expect(BUILT_IN_PRESETS.edifice).not.toBe(BUILT_IN_PRESETS.full);
   });
 });
 

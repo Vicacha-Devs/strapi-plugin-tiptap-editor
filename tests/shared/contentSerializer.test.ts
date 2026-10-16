@@ -200,6 +200,35 @@ describe('shared/contentSerializer', () => {
 
       expect(roundTripped).toEqual(allFeaturesPayload);
     });
+
+    it('round-trips neutral and tip informationPane variants without metadata comments', () => {
+      const parsed = markdownToJson('> [!NEUTRAL] Note\n> Neutral body\n\n> [!TIP] Pro Tip\n> Tip body');
+      expect(parsed.content?.[0]).toEqual({
+        type: 'informationPane',
+        attrs: { variant: 'neutral', title: 'Note' },
+        content: [{ type: 'paragraph', content: [{ type: 'text', text: 'Neutral body' }] }],
+      });
+      expect(parsed.content?.[1]).toEqual({
+        type: 'informationPane',
+        attrs: { variant: 'tip', title: 'Pro Tip' },
+        content: [{ type: 'paragraph', content: [{ type: 'text', text: 'Tip body' }] }],
+      });
+    });
+
+    it('does not carry storedNode.attrs onto a different block type when Markdown is edited', () => {
+      const storedImageNode = {
+        type: 'image',
+        attrs: {
+          src: 'https://example.com/old.png',
+          alt: 'Old',
+          'data-asset-id': 99,
+        },
+      };
+      const editedMd = `Plain paragraph text\n<!-- tiptap-node:${JSON.stringify(storedImageNode)} -->`;
+      const parsed = markdownToJson(editedMd);
+      expect(parsed.content?.[0]?.type).toBe('paragraph');
+      expect(parsed.content?.[0]?.attrs).toBeUndefined();
+    });
   });
 
   describe('serializeEditorContent', () => {

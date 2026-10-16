@@ -71,6 +71,12 @@ describe('server/services/settings', () => {
         presetOverrides: { default: { unknownFeatureXYZ: true } },
       })
     ).rejects.toThrow('Unknown feature key');
+
+    await expect(
+      service.updateSettings({
+        presetOverrides: { default: { bold: 'invalid-string' as any } },
+      })
+    ).rejects.toThrow('Invalid value for "bold"');
   });
 });
 
@@ -259,6 +265,11 @@ describe('server/services/media (SSRF Protection & Metadata)', () => {
       'SSRF safety validation'
     );
 
+    // Rejects SVG / active content extensions
+    await expect(service.uploadByUrl('https://cdn.example.com/vector.svg')).rejects.toThrow(
+      'Unsupported or unsafe remote media file type'
+    );
+
     const asset = await service.uploadByUrl(
       'https://cdn.example.com/photos/banner.jpg',
       'Hero Banner'
@@ -279,6 +290,21 @@ describe('server/services/media (SSRF Protection & Metadata)', () => {
 
     const pdfAsset = await service.uploadByUrl('https://cdn.example.com/docs/report.pdf');
     expect(pdfAsset.mime).toBe('application/pdf');
+
+    // Rejects mismatched Content-Type header (e.g. text/html served for .jpg)
+    const cancelMismatchMock = vi.fn().mockResolvedValue(undefined);
+    vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      headers: {
+        get: (name: string) => (name.toLowerCase() === 'content-type' ? 'text/html' : null),
+      },
+      body: { cancel: cancelMismatchMock },
+    } as unknown as Response);
+    await expect(
+      service.uploadByUrl('https://cdn.example.com/photos/spoofed.jpg')
+    ).rejects.toThrow('does not match expected type');
+    expect(cancelMismatchMock).toHaveBeenCalledTimes(1);
 
     // Cancels response body and throws clear error on 3xx redirects
     const cancelMock = vi.fn().mockResolvedValue(undefined);
@@ -301,7 +327,7 @@ describe('server/services/media (SSRF Protection & Metadata)', () => {
 });
 
 describe('server/bootstrap', () => {
-  it('initializes settings in core-store and creates links.links component when missing', async () => {
+  it('initializes settings in core-store without mutating schema components at runtime', async () => {
     const mockSet = vi.fn();
     const mockCreateComponent = vi.fn();
     const mockStrapi = {
@@ -320,7 +346,7 @@ describe('server/bootstrap', () => {
 
     await bootstrap({ strapi: mockStrapi });
     expect(mockSet).toHaveBeenCalledTimes(1);
-    expect(mockCreateComponent).toHaveBeenCalledTimes(1);
+    expect(mockCreateComponent).not.toHaveBeenCalled();
   });
 });
 

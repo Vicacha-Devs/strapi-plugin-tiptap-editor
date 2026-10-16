@@ -119,6 +119,9 @@ const createSettingsService = ({ strapi }: { strapi: Core.Strapi }) => ({
           if (!VALID_FEATURE_KEYS.has(fKey)) {
             throw new Error(`Unknown feature key "${fKey}" in presetOverrides.${presetName}`);
           }
+          if (typeof fVal !== 'boolean' && !isPlainObject(fVal)) {
+            throw new Error(`Invalid value for "${fKey}" in presetOverrides.${presetName}`);
+          }
           (cleanPreset as Record<string, unknown>)[fKey] = fVal;
         }
         sanitizedOverrides[presetName] = cleanPreset;

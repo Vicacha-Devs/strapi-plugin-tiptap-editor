@@ -7,26 +7,46 @@ import {
 
 const DEFAULT_CONFIG: TiptapPluginConfig = { presets: {} };
 
+/**
+ * Creates the preset configuration service for resolving built-in, file-configured,
+ * and runtime-overridden Tiptap editor presets.
+ */
 const createPresetService = ({ strapi }: { strapi: Core.Strapi }) => ({
+  /**
+   * Returns the raw plugin configuration from Strapi config.
+   */
   getConfig(): TiptapPluginConfig {
     return strapi.config.get('plugin::tiptap-editor', DEFAULT_CONFIG) as TiptapPluginConfig;
   },
 
+  /**
+   * Lists preset names explicitly defined in the plugin configuration file.
+   */
   listPresetNames(): string[] {
     return Object.keys(this.getConfig().presets || {});
   },
 
+  /**
+   * Lists all available preset names combining custom presets and built-in presets.
+   */
   listAvailablePresets(): string[] {
     const configured = Object.keys(this.getConfig().presets || {});
     const builtIn = Object.keys(BUILT_IN_PRESETS);
     return Array.from(new Set([...configured, ...builtIn]));
   },
 
+  /**
+   * Returns a file-configured preset by name, or `null` if not found.
+   */
   getPreset(name: string): TiptapPresetConfig | null {
     const presets = this.getConfig().presets || {};
     return presets[name] ?? null;
   },
 
+  /**
+   * Resolves the effective preset configuration by merging the base preset
+   * with runtime overrides and `allowedIframeDomains` from the Strapi core-store.
+   */
   async getEffectivePreset(name: string): Promise<TiptapPresetConfig | null> {
     const presets = this.getConfig().presets || {};
     const basePreset = presets[name] ?? BUILT_IN_PRESETS[name] ?? null;
@@ -34,14 +54,29 @@ const createPresetService = ({ strapi }: { strapi: Core.Strapi }) => ({
 
     try {
       const settingsService = strapi.plugin?.('tiptap-editor')?.service?.('settings') as
-        | { getSettings?: () => Promise<{ presetOverrides?: Record<string, Partial<TiptapPresetConfig>> }> }
+        | {
+            getSettings?: () => Promise<{
+              presetOverrides?: Record<string, Partial<TiptapPresetConfig>>;
+              allowedIframeDomains?: string[];
+            }>;
+          }
         | undefined;
       if (settingsService && typeof settingsService.getSettings === 'function') {
         const runtime = await settingsService.getSettings();
         const override = runtime?.presetOverrides?.[name];
-        if (override && typeof override === 'object') {
-          return { ...basePreset, ...override };
+        const merged: TiptapPresetConfig =
+          override && typeof override === 'object' ? { ...basePreset, ...override } : { ...basePreset };
+
+        if (merged.iframe && Array.isArray(runtime?.allowedIframeDomains)) {
+          const existingIframeOpts =
+            typeof merged.iframe === 'object' && merged.iframe !== null ? merged.iframe : {};
+          merged.iframe = {
+            ...existingIframeOpts,
+            allowedDomains: existingIframeOpts.allowedDomains ?? runtime.allowedIframeDomains,
+          };
         }
+
+        return merged;
       }
     } catch {
       // Ignore runtime store lookup failure and return base preset

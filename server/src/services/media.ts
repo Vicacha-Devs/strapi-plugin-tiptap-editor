@@ -39,7 +39,6 @@ const EXTENSION_MIME_MAP: Record<string, string> = {
   '.gif': 'image/gif',
   '.webp': 'image/webp',
   '.avif': 'image/avif',
-  '.svg': 'image/svg+xml',
   '.mp4': 'video/mp4',
   '.webm': 'video/webm',
   '.ogg': 'audio/ogg',
@@ -49,6 +48,8 @@ const EXTENSION_MIME_MAP: Record<string, string> = {
   '.pdf': 'application/pdf',
   '.zip': 'application/zip',
 };
+
+const ALLOWED_REMOTE_MIMES = new Set<string>(Object.values(EXTENSION_MIME_MAP));
 
 /**
  * Checks whether an IPv4 dotted-quad address belongs to a loopback, private, link-local,
@@ -384,13 +385,13 @@ function extractHtmlTitle(html: string): string | null {
 }
 
 /**
- * Infers a MIME type from a filename extension.
+ * Infers an allowlisted MIME type from a filename extension, or returns `null` if unsupported.
  */
-function inferMimeFromFilename(filename: string): string {
+function inferMimeFromFilename(filename: string): string | null {
   const dotIdx = filename.lastIndexOf('.');
-  if (dotIdx === -1) return 'image/jpeg';
+  if (dotIdx === -1) return null;
   const ext = filename.slice(dotIdx).toLowerCase();
-  return EXTENSION_MIME_MAP[ext] || 'image/jpeg';
+  return EXTENSION_MIME_MAP[ext] ?? null;
 }
 
 /**
@@ -486,6 +487,9 @@ const createMediaService = ({ strapi }: { strapi: Core.Strapi }) => ({
     const rawFilename = pathnameParts[pathnameParts.length - 1] || 'remote-media';
     const safeFilename = rawFilename.replace(/[^a-zA-Z0-9._-]/g, '_');
     const inferredMime = inferMimeFromFilename(safeFilename);
+    if (!inferredMime || !ALLOWED_REMOTE_MIMES.has(inferredMime)) {
+      throw new Error('Unsupported or unsafe remote media file type');
+    }
     const altText = customAlt || safeFilename;
 
     const uploadService = (
@@ -536,15 +540,27 @@ const createMediaService = ({ strapi }: { strapi: Core.Strapi }) => ({
         );
       }
 
+      const headerContentType = response.headers
+        ?.get?.('content-type')
+        ?.split(';')[0]
+        ?.trim()
+        .toLowerCase();
+      if (
+        headerContentType &&
+        headerContentType !== 'application/octet-stream' &&
+        headerContentType !== inferredMime
+      ) {
+        await response.body?.cancel().catch(() => undefined);
+        throw new Error(
+          `Remote media Content-Type "${headerContentType}" does not match expected type "${inferredMime}"`
+        );
+      }
+
       const buffer = await readBoundedResponseBytes(
         response as unknown as Response,
         MAX_UPLOAD_BYTES
       );
-      const headerContentType = response.headers?.get?.('content-type')?.split(';')[0]?.trim();
-      const resolvedMime =
-        headerContentType && headerContentType !== 'application/octet-stream'
-          ? headerContentType
-          : inferredMime;
+      const resolvedMime = inferredMime;
 
       tempDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'strapi-tiptap-upload-'));
       const tempFilePath = path.join(tempDir, safeFilename);

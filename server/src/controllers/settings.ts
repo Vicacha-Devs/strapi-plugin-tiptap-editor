@@ -26,11 +26,13 @@ const createSettingsController = ({ strapi }: { strapi: Core.Strapi }) => ({
   async update(ctx: Context): Promise<void> {
     const userAbility = (ctx.state as { userAbility?: { cannot?: (action: string) => boolean } })
       ?.userAbility;
-    if (userAbility && typeof userAbility.cannot === 'function') {
-      if (userAbility.cannot(SETTINGS_UPDATE_PERMISSION)) {
-        ctx.throw(403, 'You do not have permission to update Tiptap Editor settings');
-        return;
-      }
+    if (
+      !userAbility ||
+      typeof userAbility.cannot !== 'function' ||
+      userAbility.cannot(SETTINGS_UPDATE_PERMISSION)
+    ) {
+      ctx.throw(403, 'You do not have permission to update Tiptap Editor settings');
+      return;
     }
 
     const settingsService = strapi.plugin('tiptap-editor').service('settings') as SettingsService;

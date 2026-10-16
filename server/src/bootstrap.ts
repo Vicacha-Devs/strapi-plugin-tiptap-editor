@@ -7,8 +7,7 @@ export const SETTINGS_UPDATE_PERMISSION = 'plugin::tiptap-editor.settings.update
 export const EXPLORER_READ_PERMISSION = 'plugin::tiptap-editor.explorer.read';
 
 /**
- * Initializes plugin runtime settings in Strapi core-store, registers RBAC permissions,
- * and ensures the `links.links` component exists for relational internal link tracking.
+ * Initializes plugin runtime settings in Strapi core-store and registers RBAC permissions.
  */
 const bootstrap = async ({ strapi }: { strapi: Core.Strapi }) => {
   try {
@@ -56,38 +55,6 @@ const bootstrap = async ({ strapi }: { strapi: Core.Strapi }) => {
           key: SETTINGS_STORE_KEY,
           value: DEFAULT_RUNTIME_SETTINGS,
         });
-      }
-    }
-
-    // 3. Ensure 'links.links' component exists for Relational Internal Links Sync
-    const components = (strapi as unknown as { components?: Record<string, unknown> })?.components;
-    if (components && !components[LINKS_COMPONENT_UID]) {
-      const ctbPlugin = strapi.plugin?.('content-type-builder');
-      const componentService = ctbPlugin?.service?.('components') as
-        | {
-            createComponent?: (payload: {
-              component: {
-                category: string;
-                displayName: string;
-                icon: string;
-                attributes: Record<string, unknown>;
-              };
-            }) => Promise<unknown>;
-          }
-        | undefined;
-
-      if (componentService && typeof componentService.createComponent === 'function') {
-        await componentService.createComponent({
-          component: {
-            category: 'links',
-            displayName: 'Links',
-            icon: 'link',
-            attributes: {},
-          },
-        });
-        strapi.log?.info?.(
-          '[tiptap-editor] Created "links.links" component for relational internal link tracking.'
-        );
       }
     }
   } catch (error) {

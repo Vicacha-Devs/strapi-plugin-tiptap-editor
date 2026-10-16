@@ -53,6 +53,7 @@ vi.mock('@strapi/strapi/admin', () => ({
 
 import { FULL_PRESET_CONFIG, MINIMAL_PRESET_CONFIG, BUILT_IN_PRESETS } from '../../shared/types';
 import { buildExtensions } from '../../admin/src/utils/buildExtensions';
+import { calculateReadingTimeMinutes } from '../../admin/src/components/EditorFooterAndModes';
 import { normalizeVideoEmbedUrl } from '../../admin/src/extensions/Video';
 import { parseJSONContent } from '../../admin/src/utils/tiptapUtils';
 
@@ -72,6 +73,7 @@ describe('admin/extensions & utilities', () => {
       expect(fullNames).toContain('leadParagraph');
       expect(fullNames).toContain('abbr');
       expect(fullNames).toContain('language');
+      expect(fullNames).toContain('characterCount');
 
       const edificeExtensions = buildExtensions(BUILT_IN_PRESETS.edifice);
       expect(edificeExtensions.length).toBe(fullExtensions.length);
@@ -102,6 +104,34 @@ describe('admin/extensions & utilities', () => {
       expect(names).toContain('taskItem');
       expect(names).toContain('pageBreak');
       expect(names).toContain('tableOfContents');
+      expect(names).toContain('characterCount');
+    });
+
+    it('omits characterCount when explicitly disabled with characterCount: false and no characterLimit', () => {
+      const extensions = buildExtensions({ ...MINIMAL_PRESET_CONFIG, characterCount: false }) as Array<{
+        name?: string;
+      }>;
+      const names = extensions.map((ext) => ext?.name).filter(Boolean);
+      expect(names).not.toContain('characterCount');
+    });
+  });
+
+  describe('calculateReadingTimeMinutes', () => {
+    it('returns 0 minutes when wordCount is 0 or negative', () => {
+      expect(calculateReadingTimeMinutes(0)).toBe(0);
+      expect(calculateReadingTimeMinutes(-10)).toBe(0);
+    });
+
+    it('calculates reading time at 200 WPM by default and rounds up to at least 1 minute', () => {
+      expect(calculateReadingTimeMinutes(1)).toBe(1);
+      expect(calculateReadingTimeMinutes(200)).toBe(1);
+      expect(calculateReadingTimeMinutes(201)).toBe(2);
+      expect(calculateReadingTimeMinutes(450)).toBe(3);
+    });
+
+    it('supports custom wordsPerMinute and falls back to 200 WPM when invalid', () => {
+      expect(calculateReadingTimeMinutes(300, 150)).toBe(2);
+      expect(calculateReadingTimeMinutes(300, 0)).toBe(2);
     });
   });
 

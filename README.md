@@ -364,7 +364,7 @@ On server bootstrap, the plugin automatically creates a `links.links` component 
 
 | Key              | Description                                                                                  | Toolbar / Footer                        |
 | ---------------- | -------------------------------------------------------------------------------------------- | --------------------------------------- |
-| `characterCount` | Live word & character counter with progress bar and warning/danger states (`{ limit: 500 }`) | Bottom status bar                       |
+| `characterCount` | Live word count, character counter, and estimated reading time (`~X min read`) with progress bar and warning/danger states (`{ limit: 500, wordsPerMinute: 200 }`) | Bottom status bar                       |
 | `fullscreen`     | Toggle Fullscreen (`Escape` exits), Edifice Read-Only Preview, and JSON/HTML/Markdown Source Inspector | Preview, `{}` Source, and Fullscreen buttons |
 
 ---

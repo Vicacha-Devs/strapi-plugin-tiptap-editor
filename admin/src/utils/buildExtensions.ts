@@ -292,7 +292,7 @@ export function buildExtensions(
       ? options.characterLimit
       : ccOpts?.limit ?? null;
 
-  if (isFeatureEnabled(config.characterCount) || (effectiveCharLimit && effectiveCharLimit > 0)) {
+  if (config.characterCount !== false || (effectiveCharLimit && effectiveCharLimit > 0)) {
     extensions.push(CharacterCount.configure({ limit: effectiveCharLimit }));
   }
 

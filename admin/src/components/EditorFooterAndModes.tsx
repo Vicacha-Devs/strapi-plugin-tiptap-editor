@@ -3,20 +3,36 @@ import { Editor, useEditorState } from '@tiptap/react';
 import { Box, Button, Flex, Typography } from '@strapi/design-system';
 import { Collapse, Expand, Eye } from '@strapi/icons';
 import { useIntl } from 'react-intl';
-import { ToolbarButton } from './ToolbarButton';
 import { getPluginId } from '../utils/getTranslation';
 import { jsonToMarkdown, sanitizeHtmlString } from '../../../shared/contentSerializer';
+import { ToolbarButton } from './ToolbarButton';
 
 export interface EditorModesOptions {
   disabled?: boolean;
   characterLimit?: number | null;
+  wordsPerMinute?: number;
   showCharacterCount?: boolean;
   showFullscreen?: boolean;
 }
 
 /**
+ * Calculates estimated reading time in minutes for a given word count.
+ * Defaults to 200 words per minute and rounds up to at least 1 minute when content is non-empty.
+ */
+export const calculateReadingTimeMinutes = (
+  wordCount: number,
+  wordsPerMinute: number = 200
+): number => {
+  if (!Number.isFinite(wordCount) || wordCount <= 0) {
+    return 0;
+  }
+  const safeWpm = Number.isFinite(wordsPerMinute) && wordsPerMinute > 0 ? wordsPerMinute : 200;
+  return Math.max(1, Math.ceil(wordCount / safeWpm));
+};
+
+/**
  * Provides Fullscreen mode, Read-only Preview mode, Source/JSON/HTML/Markdown Inspector,
- * and Character/Word Count status bar.
+ * and Character/Word Count + Reading Time status bar at the bottom of the field.
  */
 export const useEditorModes = (editor: Editor | null, options?: EditorModesOptions) => {
   const { formatMessage } = useIntl();
@@ -126,13 +142,17 @@ export const useEditorModes = (editor: Editor | null, options?: EditorModesOptio
   const limit = options?.characterLimit && options.characterLimit > 0 ? options.characterLimit : null;
   const charCount = stats?.characters ?? 0;
   const wordCount = stats?.words ?? 0;
+  const readingTimeMinutes = calculateReadingTimeMinutes(wordCount, options?.wordsPerMinute);
   const ratio = limit ? Math.min((charCount / limit) * 100, 100) : 0;
   const isOverLimit = limit ? charCount > limit : false;
   const isNearLimit = limit ? charCount >= limit * 0.9 : false;
+  const showFooter = options?.showCharacterCount ?? true;
 
-  const characterCountFooter = options?.showCharacterCount ? (
+  const characterCountFooter = showFooter ? (
     <Box
+      className="editor-footer"
       paddingTop={2}
+      paddingBottom={2}
       paddingLeft={2}
       paddingRight={2}
       style={{
@@ -140,11 +160,12 @@ export const useEditorModes = (editor: Editor | null, options?: EditorModesOptio
         justifyContent: 'space-between',
         alignItems: 'center',
         fontSize: '12px',
+        borderTop: '1px solid rgba(128, 128, 128, 0.2)',
         color: isOverLimit ? '#d02b20' : isNearLimit ? '#d9822f' : '#666687',
       }}
       aria-live="polite"
     >
-      <Flex gap={3} alignItems="center">
+      <Flex gap={3} alignItems="center" wrap="wrap">
         <span>
           {formatMessage(
             {
@@ -154,6 +175,7 @@ export const useEditorModes = (editor: Editor | null, options?: EditorModesOptio
             { count: wordCount }
           )}
         </span>
+        <span aria-hidden="true">·</span>
         <span>
           {limit
             ? formatMessage(
@@ -170,6 +192,16 @@ export const useEditorModes = (editor: Editor | null, options?: EditorModesOptio
                 },
                 { count: charCount }
               )}
+        </span>
+        <span aria-hidden="true">·</span>
+        <span>
+          {formatMessage(
+            {
+              id: `${getPluginId()}.footer.readingTime`,
+              defaultMessage: '~{minutes} min read',
+            },
+            { minutes: readingTimeMinutes }
+          )}
         </span>
         {isPreviewMode && (
           <span

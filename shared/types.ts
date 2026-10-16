@@ -42,6 +42,7 @@ export type LineHeightConfig = {
 
 export type CharacterCountConfig = {
   limit?: number | null;
+  wordsPerMinute?: number;
 };
 
 export type IframeConfig = {

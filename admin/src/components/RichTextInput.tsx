@@ -114,11 +114,16 @@ const InnerEditor = forwardRef<HTMLDivElement, InnerEditorProps>(
     const emoji = useEmojiPicker(editor, { disabled: props.disabled });
     const speech = useSpeechTools(editor, { disabled: props.disabled });
 
-    const charCountOpts = getFeatureOptions(config.characterCount, { limit: characterLimit });
+    const charCountOpts = getFeatureOptions(config.characterCount, {
+      limit: characterLimit,
+      wordsPerMinute: 200,
+    });
     const editorModes = useEditorModes(editor, {
       disabled: props.disabled,
       characterLimit: charCountOpts?.limit ?? characterLimit,
-      showCharacterCount: Boolean(config?.characterCount || (characterLimit && characterLimit > 0)),
+      wordsPerMinute: charCountOpts?.wordsPerMinute,
+      showCharacterCount:
+        config?.characterCount !== false || Boolean(characterLimit && characterLimit > 0),
     });
 
     const toolbarItemCandidates: Array<ToolbarItem | false | undefined> = [

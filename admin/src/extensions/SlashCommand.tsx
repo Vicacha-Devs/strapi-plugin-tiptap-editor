@@ -10,6 +10,7 @@ export interface SlashCommandItem {
   label: string;
   description: string;
   keywords: string[];
+  isAvailable?: (editor: Editor) => boolean;
   action: (editor: Editor) => void;
 }
 
@@ -19,6 +20,7 @@ export const SLASH_COMMAND_ITEMS: SlashCommandItem[] = [
     label: 'Heading 1',
     description: 'Large section heading',
     keywords: ['h1', 'heading', 'title'],
+    isAvailable: (ed) => typeof (ed.commands as Record<string, unknown>)?.setHeading === 'function',
     action: (ed) => ed.chain().focus().setHeading({ level: 1 }).run(),
   },
   {
@@ -26,6 +28,7 @@ export const SLASH_COMMAND_ITEMS: SlashCommandItem[] = [
     label: 'Heading 2',
     description: 'Medium section heading',
     keywords: ['h2', 'heading', 'subtitle'],
+    isAvailable: (ed) => typeof (ed.commands as Record<string, unknown>)?.setHeading === 'function',
     action: (ed) => ed.chain().focus().setHeading({ level: 2 }).run(),
   },
   {
@@ -33,6 +36,7 @@ export const SLASH_COMMAND_ITEMS: SlashCommandItem[] = [
     label: 'Heading 3',
     description: 'Small section heading',
     keywords: ['h3', 'heading'],
+    isAvailable: (ed) => typeof (ed.commands as Record<string, unknown>)?.setHeading === 'function',
     action: (ed) => ed.chain().focus().setHeading({ level: 3 }).run(),
   },
   {
@@ -153,6 +157,8 @@ export const SLASH_COMMAND_ITEMS: SlashCommandItem[] = [
     label: 'Code Block',
     description: 'Preformatted code block',
     keywords: ['code', 'snippet', 'pre'],
+    isAvailable: (ed) =>
+      typeof (ed.commands as Record<string, unknown>)?.toggleCodeBlock === 'function',
     action: (ed) => ed.chain().focus().toggleCodeBlock().run(),
   },
   {
@@ -160,6 +166,8 @@ export const SLASH_COMMAND_ITEMS: SlashCommandItem[] = [
     label: 'Blockquote',
     description: 'Quoted text passage',
     keywords: ['quote', 'blockquote'],
+    isAvailable: (ed) =>
+      typeof (ed.commands as Record<string, unknown>)?.toggleBlockquote === 'function',
     action: (ed) => ed.chain().focus().toggleBlockquote().run(),
   },
   {
@@ -167,6 +175,8 @@ export const SLASH_COMMAND_ITEMS: SlashCommandItem[] = [
     label: 'Table (3×3)',
     description: 'Insert a 3×3 table with header row',
     keywords: ['table', 'grid'],
+    isAvailable: (ed) =>
+      typeof (ed.commands as Record<string, unknown>)?.insertTable === 'function',
     action: (ed) => ed.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run(),
   },
   {
@@ -190,6 +200,8 @@ export const SLASH_COMMAND_ITEMS: SlashCommandItem[] = [
     label: 'Horizontal Rule',
     description: 'Visual horizontal divider line',
     keywords: ['hr', 'line', 'divider'],
+    isAvailable: (ed) =>
+      typeof (ed.commands as Record<string, unknown>)?.setHorizontalRule === 'function',
     action: (ed) => ed.chain().focus().setHorizontalRule().run(),
   },
 ];
@@ -218,6 +230,7 @@ export function useSlashCommand(
   }));
 
   const filteredItems = localizedItems.filter((item) => {
+    if (editor && item.isAvailable && !item.isAvailable(editor)) return false;
     if (!filter.trim()) return true;
     const q = filter.toLowerCase();
     return (
@@ -229,6 +242,7 @@ export function useSlashCommand(
 
   const handleSelect = (item: SlashCommandItem) => {
     if (!editor) return;
+    if (item.isAvailable && !item.isAvailable(editor)) return;
     item.action(editor);
     setOpen(false);
     setFilter('');

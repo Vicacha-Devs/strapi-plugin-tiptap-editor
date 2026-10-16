@@ -333,7 +333,7 @@ export function useAudio(
   const handleInsertUrlOrRecording = async () => {
     if (!editor) return;
 
-    // Upload recorded Blob to Strapi Media Library (/upload) when available
+      // Upload recorded Blob to Strapi Media Library (/upload) when available
     if (recordedBlobRef.current && typeof FormData !== 'undefined') {
       try {
         setIsUploading(true);
@@ -343,45 +343,59 @@ export function useAudio(
         formData.append('files', recordedBlobRef.current, filename);
         const uploadedFile = await uploadFileToStrapi(formData);
 
-        if (uploadedFile?.url) {
-          editor
-            .chain()
-            .focus()
-            .insertContent({
-              type: 'audio',
-              attrs: {
-                src: uploadedFile.url,
-                title:
-                  audioCaption.trim() ||
-                  formatMessage({
-                    id: 'tiptap-editor.audio.defaultTitle',
-                    defaultMessage: 'Voice Recording',
-                  }),
-                caption: audioCaption.trim() || null,
-                mime: uploadedFile.mime || recordedBlobRef.current.type || 'audio/webm',
-                'data-asset-id': typeof uploadedFile.id === 'number' ? uploadedFile.id : null,
-                'data-document-id':
-                  typeof uploadedFile.documentId === 'string' ? uploadedFile.documentId : null,
-              },
+        if (!uploadedFile?.url) {
+          setRecordingError(
+            formatMessage({
+              id: 'tiptap-editor.audio.uploadError',
+              defaultMessage: 'Failed to upload recording. Please try again.',
             })
-            .createParagraphNear()
-            .run();
-
-          setAudioUrl('');
-          setAudioCaption('');
-          setRecordedDataUrl(null);
-          recordedBlobRef.current = null;
-          setShowAudioDialog(false);
+          );
           return;
         }
+
+        editor
+          .chain()
+          .focus()
+          .insertContent({
+            type: 'audio',
+            attrs: {
+              src: uploadedFile.url,
+              title:
+                audioCaption.trim() ||
+                formatMessage({
+                  id: 'tiptap-editor.audio.defaultTitle',
+                  defaultMessage: 'Voice Recording',
+                }),
+              caption: audioCaption.trim() || null,
+              mime: uploadedFile.mime || recordedBlobRef.current.type || 'audio/webm',
+              'data-asset-id': typeof uploadedFile.id === 'number' ? uploadedFile.id : null,
+              'data-document-id':
+                typeof uploadedFile.documentId === 'string' ? uploadedFile.documentId : null,
+            },
+          })
+          .createParagraphNear()
+          .run();
+
+        setAudioUrl('');
+        setAudioCaption('');
+        setRecordedDataUrl(null);
+        recordedBlobRef.current = null;
+        setShowAudioDialog(false);
+        return;
       } catch {
-        // Fall back to recordedDataUrl if /upload fails in offline/test environments
+        setRecordingError(
+          formatMessage({
+            id: 'tiptap-editor.audio.uploadError',
+            defaultMessage: 'Failed to upload recording. Please try again.',
+          })
+        );
+        return;
       } finally {
         setIsUploading(false);
       }
     }
 
-    const finalSrc = recordedDataUrl || audioUrl.trim();
+    const finalSrc = audioUrl.trim();
     if (!finalSrc || !isSafeUrl(finalSrc)) return;
 
     editor

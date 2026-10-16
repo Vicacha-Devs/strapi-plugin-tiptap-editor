@@ -13,7 +13,6 @@ import {
   IconButton,
 } from '@strapi/design-system';
 import { Link as LinkIcon, Trash } from '@strapi/icons';
-import { useFetchClient } from '@strapi/strapi/admin';
 import { useIntl } from 'react-intl';
 import { ToolbarButton } from '../components/ToolbarButton';
 import { PLUGIN_ID } from '../../../shared/pluginId';
@@ -84,7 +83,6 @@ export function LinkerNodeViewReadOnly({ node }: NodeViewProps) {
 export function LinkerNodeView(props: NodeViewProps) {
   const { node, deleteNode } = props;
   const { formatMessage } = useIntl();
-  const { get } = useFetchClient();
   const collectionName = String(node.attrs.collectionName || '');
   const documentId = String(node.attrs.documentId || '');
   const currentLabel = String(node.attrs.label || '');
@@ -93,10 +91,14 @@ export function LinkerNodeView(props: NodeViewProps) {
   useEffect(() => {
     if (!collectionName || !documentId) return;
     let cancelled = false;
-    get(
-      `/${PLUGIN_ID}/get/${encodeURIComponent(collectionName)}/${encodeURIComponent(documentId)}`
-    )
-      .then((res: { data?: SearchHit }) => {
+    import('@strapi/strapi/admin')
+      .then(({ getFetchClient }) => {
+        if (typeof getFetchClient !== 'function') return undefined;
+        return getFetchClient().get(
+          `/${PLUGIN_ID}/get/${encodeURIComponent(collectionName)}/${encodeURIComponent(documentId)}`
+        );
+      })
+      .then((res: { data?: SearchHit } | undefined) => {
         if (!cancelled && res?.data?.label) {
           setResolvedLabel(res.data.label);
         }
@@ -107,7 +109,7 @@ export function LinkerNodeView(props: NodeViewProps) {
     return () => {
       cancelled = true;
     };
-  }, [collectionName, documentId, get]);
+  }, [collectionName, documentId]);
 
   const displayNode = {
     ...node,
@@ -217,7 +219,6 @@ export function useLinker(
   props: { disabled?: boolean } = { disabled: false }
 ) {
   const { formatMessage } = useIntl();
-  const { get } = useFetchClient();
   const [showDialog, setShowDialog] = useState(false);
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<Record<string, SearchHit[]>>({});
@@ -241,8 +242,12 @@ export function useLinker(
     let cancelled = false;
     const timer = setTimeout(() => {
       setIsSearching(true);
-      get(`/${PLUGIN_ID}/search?q=${encodeURIComponent(trimmed)}`)
-        .then((res: { data?: { results?: Record<string, SearchHit[]> } }) => {
+      import('@strapi/strapi/admin')
+        .then(({ getFetchClient }) => {
+          if (typeof getFetchClient !== 'function') return undefined;
+          return getFetchClient().get(`/${PLUGIN_ID}/search?q=${encodeURIComponent(trimmed)}`);
+        })
+        .then((res: { data?: { results?: Record<string, SearchHit[]> } } | undefined) => {
           if (!cancelled) {
             setResults(res?.data?.results || {});
           }
@@ -259,7 +264,7 @@ export function useLinker(
       cancelled = true;
       clearTimeout(timer);
     };
-  }, [query, showDialog, get]);
+  }, [query, showDialog]);
 
   const handleSelectHit = (hit: SearchHit) => {
     if (!editor) return;

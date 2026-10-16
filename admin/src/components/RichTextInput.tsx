@@ -38,6 +38,7 @@ import {
   MINIMAL_PRESET_CONFIG,
   DEFAULT_RUNTIME_SETTINGS,
   getFeatureOptions,
+  isFeatureEnabled,
   type TiptapOutputFormat,
 } from '../../../shared/types';
 
@@ -311,7 +312,7 @@ const InnerEditor = forwardRef<HTMLDivElement, InnerEditorProps>(
         ),
       },
       Boolean(config?.emoji) && { id: 'emoji', content: emoji.emojiButton },
-      Boolean(config?.slashCommands) && {
+      isFeatureEnabled(config?.slashCommands) && {
         id: 'slashCommands',
         content: slashCommand.slashCommandButton,
       },
@@ -395,7 +396,7 @@ const InnerEditor = forwardRef<HTMLDivElement, InnerEditorProps>(
           config?.columns ||
           config?.mathematics ||
           config?.emoji ||
-          config?.slashCommands ||
+          isFeatureEnabled(config?.slashCommands) ||
           config?.pageBreak ||
           config?.tableOfContents ||
           config?.link ||

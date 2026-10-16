@@ -419,6 +419,7 @@ describe('RichTextInput', () => {
       orderedList: true,
       code: true,
       blockquote: true,
+      slashCommands: true,
       link: true,
       mediaLibrary: true,
       table: true,
@@ -443,6 +444,7 @@ describe('RichTextInput', () => {
     expect(itemIds).toContain('ordered');
     expect(itemIds).toContain('code');
     expect(itemIds).toContain('blockquote');
+    expect(itemIds).toContain('slashCommands');
     expect(itemIds).toContain('link');
     expect(itemIds).toContain('mediaLibrary');
     expect(itemIds).toContain('table');
@@ -475,7 +477,12 @@ describe('RichTextInput', () => {
   });
 
   it('filters out feature toolbar items when feature config is falsy', () => {
-    const config = { ...MINIMAL_PRESET_CONFIG, textColor: false, highlightColor: false };
+    const config = {
+      ...MINIMAL_PRESET_CONFIG,
+      textColor: false,
+      highlightColor: false,
+      slashCommands: false,
+    };
     mockUsePresetConfig.mockReturnValue({ config, isLoading: false });
     const props = { name: 'content', attribute: { options: { preset: 'blog' } } };
     const result = RichTextInput(props as any, null) as any;
@@ -484,5 +491,6 @@ describe('RichTextInput', () => {
     const itemIds = responsiveToolbars[0].props.items.map((i: any) => i.id);
     expect(itemIds).not.toContain('textColor');
     expect(itemIds).not.toContain('highlightColor');
+    expect(itemIds).not.toContain('slashCommands');
   });
 });

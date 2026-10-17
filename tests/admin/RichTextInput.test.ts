@@ -189,11 +189,14 @@ vi.mock('../../admin/src/extensions/Mathematics', () => ({
 }));
 
 vi.mock('../../admin/src/extensions/EmojiPicker', () => ({
-  useEmojiPicker: () => ({ emojiButton: null }),
+  useEmojiPicker: () => ({ emojiTrigger: 'EmojiTrigger', emojiButton: 'EmojiButton' }),
 }));
 
 vi.mock('../../admin/src/extensions/SlashCommand', () => ({
-  useSlashCommand: () => ({ slashCommandButton: null }),
+  useSlashCommand: () => ({
+    slashCommandTrigger: 'SlashCommandTrigger',
+    slashCommandButton: 'SlashCommandButton',
+  }),
 }));
 
 vi.mock('../../admin/src/extensions/SpeechTools', () => ({
@@ -508,14 +511,33 @@ describe('RichTextInput', () => {
         attributes: {
           content: { type: 'customField' },
           contentMedia: { type: 'media' },
-          contentLinks: { type: 'json' },
+          contentLinks: {
+            type: 'component',
+            component: 'shared.links',
+            repeatable: true,
+          },
         },
       },
-    });
+      components: {
+        'shared.links': {
+          attributes: {
+            articles: { type: 'relation', target: 'api::article.article' },
+            pages: { type: 'relation', targetModel: 'api::page.page' },
+          },
+        },
+      },
+    } as any);
     shallowRender(RichTextInput({ name: 'content' } as any, null));
     expect(mockUseRelationalSync).toHaveBeenCalledWith(
       'content',
-      expect.objectContaining({ availableFields: ['content', 'contentMedia', 'contentLinks'] })
+      expect.objectContaining({
+        availableFields: ['content', 'contentMedia', 'contentLinks'],
+        targetUidToAttribute: {
+          'api::article.article': 'articles',
+          'api::page.page': 'pages',
+        },
+        linksFieldIsRepeatable: true,
+      })
     );
   });
 });

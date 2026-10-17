@@ -237,4 +237,56 @@ describe('admin/extensions & utilities', () => {
       expect(htmlParsed).toBe('{"hello":"world"}');
     });
   });
+
+  describe('StrapiVideo embed host allowlist & locale catalog alignment', () => {
+    it('enforces YouTube/Vimeo embed host allowlist when embedType is embed in renderHTML', async () => {
+      const { StrapiVideo } = await import('../../admin/src/extensions/Video');
+      const renderHTML = (StrapiVideo as any).config.renderHTML.bind(StrapiVideo);
+
+      const safeYouTube = renderHTML({
+        HTMLAttributes: {
+          src: 'https://www.youtube-nocookie.com/embed/dQw4w9WgXcQ',
+          embedType: 'embed',
+          title: 'Video',
+        },
+      });
+      expect(safeYouTube[0]).toBe('iframe');
+      expect(safeYouTube[1].src).toBe('https://www.youtube-nocookie.com/embed/dQw4w9WgXcQ');
+
+      const unsafeEmbedHost = renderHTML({
+        HTMLAttributes: {
+          src: 'https://evil.example.com/embed/123',
+          embedType: 'embed',
+          title: 'Untrusted',
+        },
+      });
+      expect(unsafeEmbedHost[0]).toBe('iframe');
+      expect(unsafeEmbedHost[1].src).toBe('');
+    });
+
+    it('aligns ar.json and cs.json message IDs with component formatMessage lookups', async () => {
+      const ar = (await import('../../admin/src/translations/ar.json')).default as Record<
+        string,
+        string
+      >;
+      const cs = (await import('../../admin/src/translations/cs.json')).default as Record<
+        string,
+        string
+      >;
+      const requiredKeys = [
+        'tiptap-editor.video.dialogTitle',
+        'tiptap-editor.video.embeddedTitle',
+        'tiptap-editor.iframe.embeddedTitle',
+        'tiptap-editor.linker.dialogTitle',
+        'tiptap-editor.infoPane.variant.info',
+        'tiptap-editor.footer.previewBadge',
+        'tiptap-editor.image.cropEditLabel',
+        'tiptap-editor.inspector.title',
+      ];
+      for (const key of requiredKeys) {
+        expect(ar[key]).toBeTruthy();
+        expect(cs[key]).toBeTruthy();
+      }
+    });
+  });
 });

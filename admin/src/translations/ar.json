@@ -283,5 +283,6 @@
   "tiptap-editor.settings.outputFormatMarkdown": "سلسلة نصية Markdown",
   "tiptap-editor.settings.allowedIframeDomainsLabel": "نطاقات Iframe المسموح بها (مفصولة بفواصل)",
   "tiptap-editor.settings.enableRelationalSyncLabel": "مزامنة الوسائط المضمنة (<FieldName>Media) والروابط الداخلية (<FieldName>Links) تلقائياً",
-  "tiptap-editor.settings.presetMatrixTitle": "مصفوفة ميزات الإعدادات المسبقة"
+  "tiptap-editor.settings.presetMatrixTitle": "مصفوفة ميزات الإعدادات المسبقة",
+  "tiptap-editor.settings.loadError": "فشل تحميل الإعدادات. تم تعطيل الحفظ لمنع الكتابة فوق الإعدادات الحالية."
 }

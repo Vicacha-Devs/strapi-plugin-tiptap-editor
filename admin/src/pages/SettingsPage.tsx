@@ -33,6 +33,7 @@ export function SettingsPage() {
     DEFAULT_RUNTIME_SETTINGS.allowedIframeDomains.join(', ')
   );
   const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [saveMessage, setSaveMessage] = useState<string | null>(null);
 
@@ -50,7 +51,7 @@ export function SettingsPage() {
         setIframeDomainsInput((loaded.allowedIframeDomains || []).join(', '));
       })
       .catch(() => {
-        // Keep defaults on error
+        if (mounted) setLoadError(true);
       })
       .finally(() => {
         if (mounted) setIsLoading(false);
@@ -79,6 +80,7 @@ export function SettingsPage() {
   };
 
   const handleSave = async () => {
+    if (loadError) return;
     setIsSaving(true);
     setSaveMessage(null);
     try {
@@ -151,13 +153,30 @@ export function SettingsPage() {
             })}
           </Typography>
         </Box>
-        <Button onClick={handleSave} loading={isSaving}>
+        <Button onClick={handleSave} loading={isSaving} disabled={loadError}>
           {formatMessage({
             id: 'tiptap-editor.settings.saveButton',
             defaultMessage: 'Save Settings',
           })}
         </Button>
       </Flex>
+
+      {loadError && (
+        <Box
+          padding={3}
+          marginBottom={4}
+          background="danger100"
+          borderColor="danger200"
+          hasRadius
+        >
+          <Typography textColor="danger700">
+            {formatMessage({
+              id: 'tiptap-editor.settings.loadError',
+              defaultMessage: 'Failed to load settings. Saving is disabled to prevent overwriting existing configuration.',
+            })}
+          </Typography>
+        </Box>
+      )}
 
       {saveMessage && (
         <Box

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Editor, useEditorState } from '@tiptap/react';
 import { Box, Button, Flex, Typography } from '@strapi/design-system';
 import { Collapse, Expand, Eye } from '@strapi/icons';
@@ -252,8 +252,13 @@ export const useEditorModes = (editor: Editor | null, options?: EditorModesOptio
     </Box>
   ) : null;
 
-  const getInspectorOutput = () => {
-    if (!editor) return '';
+  const inspectorDoc = useEditorState({
+    editor,
+    selector: (ctx) => (showInspector ? ctx.editor?.state.doc : null),
+  });
+
+  const inspectorOutput = useMemo(() => {
+    if (!editor || !inspectorDoc) return '';
     if (inspectorTab === 'json') {
       return JSON.stringify(editor.getJSON(), null, 2);
     }
@@ -261,7 +266,7 @@ export const useEditorModes = (editor: Editor | null, options?: EditorModesOptio
       return sanitizeHtmlString(editor.getHTML());
     }
     return jsonToMarkdown(editor.getJSON() as any);
-  };
+  }, [editor, inspectorDoc, inspectorTab]);
 
   const inspectorDrawer = showInspector && editor ? (
     <Box
@@ -326,7 +331,7 @@ export const useEditorModes = (editor: Editor | null, options?: EditorModesOptio
           wordBreak: 'break-word',
         }}
       >
-        {getInspectorOutput()}
+        {inspectorOutput}
       </pre>
     </Box>
   ) : null;

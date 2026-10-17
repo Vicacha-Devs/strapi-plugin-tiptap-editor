@@ -80,8 +80,8 @@ const BaseTiptapInput = forwardRef<HTMLDivElement, TiptapInputProps>(
                 id: 'tiptap-editor.toolbar.ariaLabel',
                 defaultMessage: 'Rich text formatting toolbar',
               })}
-              ref={toolbarRef as any}
-              onKeyDown={onToolbarKeyDown as any}
+              ref={toolbarRef}
+              onKeyDown={onToolbarKeyDown}
               paddingLeft={1}
               paddingRight={1}
               paddingBottom={2}

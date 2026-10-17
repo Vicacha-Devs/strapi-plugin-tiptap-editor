@@ -54,8 +54,10 @@ vi.mock('@strapi/strapi/admin', () => ({
 import { FULL_PRESET_CONFIG, MINIMAL_PRESET_CONFIG, BUILT_IN_PRESETS } from '../../shared/types';
 import { buildExtensions } from '../../admin/src/utils/buildExtensions';
 import { calculateReadingTimeMinutes } from '../../admin/src/components/EditorFooterAndModes';
+import { slugifyHeadingText } from '../../admin/src/extensions/Heading';
 import { normalizeVideoEmbedUrl } from '../../admin/src/extensions/Video';
 import { parseJSONContent } from '../../admin/src/utils/tiptapUtils';
+import { jsonToMarkdown } from '../../shared/contentSerializer';
 
 describe('admin/extensions & utilities', () => {
   describe('buildExtensions with all 48 features & Zero-Data-Loss fallback', () => {
@@ -163,6 +165,14 @@ describe('admin/extensions & utilities', () => {
     });
   });
 
+  describe('slugifyHeadingText', () => {
+    it('preserves Unicode letters and numbers while stripping diacritics and punctuation', () => {
+      expect(slugifyHeadingText('Café & Résumé!')).toBe('cafe-resume');
+      expect(slugifyHeadingText('日本語の見出し 2026')).toBe('日本語の見出し-2026');
+      expect(slugifyHeadingText('Заголовок раздела')).toBe('заголовок-раздела');
+    });
+  });
+
   describe('parseJSONContent multi-format parser', () => {
     it('parses JSON strings, HTML strings, and Markdown strings cleanly', () => {
       const jsonDoc = JSON.stringify({
@@ -181,6 +191,38 @@ describe('admin/extensions & utilities', () => {
       const parsedMd = parseJSONContent(mdInput, '', 'markdown') as { type: string; content: any[] };
       expect(parsedMd.type).toBe('doc');
       expect(parsedMd.content[0].type).toBe('heading');
+    });
+
+    it('parses Markdown documents starting with <details> and ending with a metadata comment as a doc object', () => {
+      const docStartingWithDetailsAndEndingWithAlignedParagraph = {
+        type: 'doc',
+        content: [
+          {
+            type: 'details',
+            attrs: { open: true },
+            content: [
+              { type: 'detailsSummary', content: [{ type: 'text', text: 'FAQ' }] },
+              {
+                type: 'detailsContent',
+                content: [{ type: 'paragraph', content: [{ type: 'text', text: 'Answer' }] }],
+              },
+            ],
+          },
+          {
+            type: 'paragraph',
+            attrs: { textAlign: 'center' },
+            content: [{ type: 'text', text: 'Centered conclusion' }],
+          },
+        ],
+      };
+
+      const serializedMd = jsonToMarkdown(docStartingWithDetailsAndEndingWithAlignedParagraph);
+      expect(serializedMd.startsWith('<')).toBe(true);
+      expect(serializedMd.endsWith('>')).toBe(true);
+
+      const parsed = parseJSONContent(serializedMd, '', 'markdown');
+      expect(typeof parsed).toBe('object');
+      expect(parsed).toEqual(docStartingWithDetailsAndEndingWithAlignedParagraph);
     });
   });
 });

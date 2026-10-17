@@ -278,7 +278,7 @@ export function useSlashCommand(
               })}
             />
             <div
-              role="listbox"
+              role="group"
               aria-label={formatMessage({
                 id: 'tiptap-editor.slash.listAria',
                 defaultMessage: 'Quick insert blocks',
@@ -296,8 +296,6 @@ export function useSlashCommand(
                 <button
                   key={item.id}
                   type="button"
-                  role="option"
-                  aria-selected={false}
                   onClick={() => handleSelect(item)}
                   style={{
                     textAlign: 'left',

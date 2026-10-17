@@ -145,7 +145,9 @@ export function serializeBlockToMarkdown(node: ProseMirrorJSONNode): string {
     case 'codeBlock': {
       const lang = String(node.attrs?.language || '');
       const codeText = (node.content || []).map((c) => c.text || '').join('');
-      return `\`\`\`${lang}\n${codeText}\n\`\`\``;
+      const longestRun = Math.max(2, ...(codeText.match(/`+/g) ?? []).map((r) => r.length));
+      const fence = '`'.repeat(longestRun + 1);
+      return `${fence}${lang}\n${codeText}\n${fence}`;
     }
     case 'bulletList': {
       const items = (node.content || []).map((item) => `- ${jsonToMarkdownPure(item).trim()}`);

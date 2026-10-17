@@ -222,10 +222,17 @@ vi.mock('../../admin/src/hooks/useKeyboardNavigation', () => ({
   }),
 }));
 
+const mockUseContentManagerContext = vi.fn(() => ({ contentType: undefined as any }));
+vi.mock('@strapi/strapi/admin', () => ({
+  unstable_useContentManagerContext: () => mockUseContentManagerContext(),
+  getFetchClient: vi.fn(() => ({ get: vi.fn(() => Promise.resolve({ data: {} })) })),
+}));
+
+const mockUseRelationalSync = vi.fn(() => ({
+  syncRelationsFromDoc: vi.fn(),
+}));
 vi.mock('../../admin/src/hooks/useRelationalSync', () => ({
-  useRelationalSync: () => ({
-    syncRelationsFromDoc: vi.fn(),
-  }),
+  useRelationalSync: (...args: any[]) => mockUseRelationalSync(...args),
 }));
 
 // ─── Mock components ──────────────────────────────────────────────────────────
@@ -492,5 +499,29 @@ describe('RichTextInput', () => {
     expect(itemIds).not.toContain('textColor');
     expect(itemIds).not.toContain('highlightColor');
     expect(itemIds).not.toContain('slashCommands');
+  });
+
+  it('resolves availableFields from unstable_useContentManagerContext and preserves undefined when unavailable', () => {
+    mockUseContentManagerContext.mockReturnValueOnce({ contentType: undefined });
+    shallowRender(RichTextInput({ name: 'content' } as any, null));
+    expect(mockUseRelationalSync).toHaveBeenCalledWith(
+      'content',
+      expect.objectContaining({ availableFields: undefined })
+    );
+
+    mockUseContentManagerContext.mockReturnValueOnce({
+      contentType: {
+        attributes: {
+          content: { type: 'customField' },
+          contentMedia: { type: 'media' },
+          contentLinks: { type: 'json' },
+        },
+      },
+    });
+    shallowRender(RichTextInput({ name: 'content' } as any, null));
+    expect(mockUseRelationalSync).toHaveBeenCalledWith(
+      'content',
+      expect.objectContaining({ availableFields: ['content', 'contentMedia', 'contentLinks'] })
+    );
   });
 });

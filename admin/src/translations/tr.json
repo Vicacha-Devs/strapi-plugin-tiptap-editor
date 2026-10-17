@@ -283,5 +283,6 @@
   "tiptap-editor.settings.outputFormatMarkdown": "Markdown Dizisi",
   "tiptap-editor.settings.allowedIframeDomainsLabel": "İzin Verilen Iframe Alan Adları (virgülle ayrılmış)",
   "tiptap-editor.settings.enableRelationalSyncLabel": "Yerleştirilmiş Medyayı (<FieldName>Media) ve Dahili Bağlantıları (<FieldName>Links) otomatik olarak senkronize et",
-  "tiptap-editor.settings.presetMatrixTitle": "Ön Ayar Özellik Matrisi"
+  "tiptap-editor.settings.presetMatrixTitle": "Ön Ayar Özellik Matrisi",
+  "tiptap-editor.settings.loadError": "Ayarlar yüklenemedi. Mevcut yapılandırmanın üzerine yazılmasını önlemek için kaydetme devre dışı bırakıldı."
 }

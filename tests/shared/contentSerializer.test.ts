@@ -229,6 +229,36 @@ describe('shared/contentSerializer', () => {
       expect(parsed.content?.[0]?.type).toBe('paragraph');
       expect(parsed.content?.[0]?.attrs).toBeUndefined();
     });
+
+    it('round-trips codeBlock containing nested triple-backtick fences and blank lines without splitting', () => {
+      const doc = {
+        type: 'doc',
+        content: [
+          {
+            type: 'codeBlock',
+            attrs: { language: 'markdown' },
+            content: [
+              {
+                type: 'text',
+                text: 'Example:\n\n```ts\nconst x = 1;\n```\n\nDone.',
+              },
+            ],
+          },
+        ],
+      };
+
+      const md = jsonToMarkdown(doc);
+      expect(md.startsWith('````markdown\n')).toBe(true);
+      expect(markdownToJson(md)).toEqual(doc);
+    });
+
+    it('preserves iframe sandbox attribute during sanitizeHtmlString', () => {
+      const html =
+        '<iframe src="https://www.youtube.com/embed/abc" sandbox="allow-scripts allow-same-origin" loading="lazy"></iframe>';
+      const sanitized = sanitizeHtmlString(html);
+      expect(sanitized).toContain('sandbox="allow-scripts allow-same-origin"');
+      expect(sanitized).toContain('loading="lazy"');
+    });
   });
 
   describe('serializeEditorContent', () => {

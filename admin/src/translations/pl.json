@@ -283,5 +283,6 @@
   "tiptap-editor.settings.outputFormatMarkdown": "Ciąg Markdown",
   "tiptap-editor.settings.allowedIframeDomainsLabel": "Dozwolone domeny Iframe (oddzielone przecinkami)",
   "tiptap-editor.settings.enableRelationalSyncLabel": "Automatycznie synchronizuj osadzone multimedia (<FieldName>Media) i odnośniki wewnętrzne (<FieldName>Links)",
-  "tiptap-editor.settings.presetMatrixTitle": "Macierz funkcji presetów"
+  "tiptap-editor.settings.presetMatrixTitle": "Macierz funkcji presetów",
+  "tiptap-editor.settings.loadError": "Nie udało się załadować ustawień. Zapisywanie jest wyłączone, aby zapobiec nadpisaniu istniejącej konfiguracji."
 }

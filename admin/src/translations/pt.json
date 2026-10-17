@@ -283,5 +283,6 @@
   "tiptap-editor.settings.outputFormatMarkdown": "String Markdown",
   "tiptap-editor.settings.allowedIframeDomainsLabel": "Domínios de Iframe Permitidos (separados por vírgula)",
   "tiptap-editor.settings.enableRelationalSyncLabel": "Sincronizar automaticamente mídias incorporadas (<FieldName>Media) e links internos (<FieldName>Links)",
-  "tiptap-editor.settings.presetMatrixTitle": "Matriz de Recursos de Predefinições"
+  "tiptap-editor.settings.presetMatrixTitle": "Matriz de Recursos de Predefinições",
+  "tiptap-editor.settings.loadError": "Falha ao carregar as configurações. O salvamento está desativado para evitar sobrescrever a configuração existente."
 }

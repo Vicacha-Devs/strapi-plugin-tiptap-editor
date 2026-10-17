@@ -11,7 +11,7 @@ export interface ProseMirrorJSONNode {
 const SAFE_URL_PROTOCOLS = new Set(['https:', 'http:', 'mailto:', 'tel:', 'strapi:']);
 
 const DOMPURIFY_ALLOWED_URI_REGEXP =
-  /^(?:https?:|mailto:|tel:|strapi:\/\/|data:image\/(?:png|jpe?g|gif|webp|avif);|data:audio\/|\/(?!\/|\\)|#|\.\.?\/)/i;
+  /^(?:(?:https?|mailto|tel):|strapi:\/\/|data:image\/(?:png|jpe?g|gif|webp|avif);|data:audio\/|(?!\/\/|\/\\)[^a-z]|[a-z0-9+.\-]+(?:[^a-z0-9+.\-:]|$))/i;
 
 const DOMPURIFY_ADD_TAGS = ['iframe', 'details', 'summary', 'abbr', 'mark'];
 
@@ -31,6 +31,7 @@ const DOMPURIFY_FORBID_TAGS = [
 
 const DOMPURIFY_ADD_ATTR = [
   'allowfullscreen',
+  'sandbox',
   'data-asset-id',
   'data-document-id',
   'data-type',

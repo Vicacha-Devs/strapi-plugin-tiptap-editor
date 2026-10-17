@@ -283,5 +283,6 @@
   "tiptap-editor.settings.outputFormatMarkdown": "Markdown-tekenreeks",
   "tiptap-editor.settings.allowedIframeDomainsLabel": "Toegestane Iframe-domeinen (kommagescheiden)",
   "tiptap-editor.settings.enableRelationalSyncLabel": "Ingesloten media (<FieldName>Media) en interne links (<FieldName>Links) automatisch synchroniseren",
-  "tiptap-editor.settings.presetMatrixTitle": "Preset Functiematrix"
+  "tiptap-editor.settings.presetMatrixTitle": "Preset Functiematrix",
+  "tiptap-editor.settings.loadError": "Kan instellingen niet laden. Opslaan is uitgeschakeld om te voorkomen dat de bestaande configuratie wordt overschreven."
 }

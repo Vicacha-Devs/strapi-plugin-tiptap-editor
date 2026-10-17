@@ -283,5 +283,6 @@
   "tiptap-editor.settings.outputFormatMarkdown": "Markdown-String",
   "tiptap-editor.settings.allowedIframeDomainsLabel": "Zugelassene Iframe-Domains (kommagetrennt)",
   "tiptap-editor.settings.enableRelationalSyncLabel": "Eingebettete Medien (<FieldName>Media) und interne Links (<FieldName>Links) automatisch synchronisieren",
-  "tiptap-editor.settings.presetMatrixTitle": "Preset-Funktionsmatrix"
+  "tiptap-editor.settings.presetMatrixTitle": "Preset-Funktionsmatrix",
+  "tiptap-editor.settings.loadError": "Einstellungen konnten nicht geladen werden. Das Speichern ist deaktiviert, um das Überschreiben bestehender Konfigurationen zu verhindern."
 }

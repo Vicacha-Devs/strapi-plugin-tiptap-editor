@@ -70,13 +70,13 @@ export function parseJSONContent(
     }
   }
 
-  if (outputFormat === 'html' || (trimmed.startsWith('<') && trimmed.endsWith('>'))) {
-    return sanitizeHtmlString(trimmed);
-  }
-
   if (outputFormat === 'markdown') {
     const parsedDoc = markdownToJson(trimmed) as JSONContent;
     return parsedDoc?.type === 'doc' ? parsedDoc : tiptapContent(defaultValue);
+  }
+
+  if (outputFormat === 'html' || (trimmed.startsWith('<') && trimmed.endsWith('>'))) {
+    return sanitizeHtmlString(trimmed);
   }
 
   try {

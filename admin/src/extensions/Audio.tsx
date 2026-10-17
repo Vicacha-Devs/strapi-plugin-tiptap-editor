@@ -334,7 +334,7 @@ export function useAudio(
     if (!editor) return;
 
       // Upload recorded Blob to Strapi Media Library (/upload) when available
-    if (recordedBlobRef.current && typeof FormData !== 'undefined') {
+    if (!audioUrl.trim() && recordedBlobRef.current && typeof FormData !== 'undefined') {
       try {
         setIsUploading(true);
         const ext = recordedBlobRef.current.type.includes('ogg') ? 'ogg' : 'webm';

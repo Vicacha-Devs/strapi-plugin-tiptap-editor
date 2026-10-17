@@ -283,5 +283,6 @@
   "tiptap-editor.settings.outputFormatMarkdown": "Cadena Markdown",
   "tiptap-editor.settings.allowedIframeDomainsLabel": "Dominios de iframe permitidos (separados por comas)",
   "tiptap-editor.settings.enableRelationalSyncLabel": "Sincronizar automáticamente medios incrustados (<FieldName>Media) y enlaces internos (<FieldName>Links)",
-  "tiptap-editor.settings.presetMatrixTitle": "Matriz de funciones de ajustes preestablecidos"
+  "tiptap-editor.settings.presetMatrixTitle": "Matriz de funciones de ajustes preestablecidos",
+  "tiptap-editor.settings.loadError": "No se pudo cargar la configuración. El guardado está deshabilitado para evitar sobrescribir la configuración existente."
 }

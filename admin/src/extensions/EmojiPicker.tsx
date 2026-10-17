@@ -93,7 +93,7 @@ export function useEmojiPicker(
               })}
             />
             <div
-              role="listbox"
+              role="group"
               aria-label={formatMessage({
                 id: 'tiptap-editor.emoji.listAria',
                 defaultMessage: 'Emoji list',

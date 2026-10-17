@@ -283,5 +283,6 @@
   "tiptap-editor.settings.outputFormatMarkdown": "Řetězec Markdown",
   "tiptap-editor.settings.allowedIframeDomainsLabel": "Povolené domény Iframe (oddělené čárkou)",
   "tiptap-editor.settings.enableRelationalSyncLabel": "Automaticky synchronizovat vložená média (<FieldName>Media) a interní odkazy (<FieldName>Links)",
-  "tiptap-editor.settings.presetMatrixTitle": "Matice funkcí předvoleb"
+  "tiptap-editor.settings.presetMatrixTitle": "Matice funkcí předvoleb",
+  "tiptap-editor.settings.loadError": "Nepodařilo se načíst nastavení. Ukládání je zakázáno, aby nedošlo k přepsání stávající konfigurace."
 }

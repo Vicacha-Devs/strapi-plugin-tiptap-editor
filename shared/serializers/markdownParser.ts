@@ -17,7 +17,7 @@ export function splitMarkdownBlocks(normalized: string): string[] {
   const lines = normalized.split('\n');
   const blocks: string[] = [];
   let current: string[] = [];
-  let inFence = false;
+  let fence: string | null = null;
   let inMath = false;
   let detailsDepth = 0;
   let layoutDivDepth = 0;
@@ -25,11 +25,21 @@ export function splitMarkdownBlocks(normalized: string): string[] {
   for (const line of lines) {
     const trimmedLine = line.trim();
 
-    if (trimmedLine.startsWith('```')) {
-      inFence = !inFence;
-    } else if (!inFence && trimmedLine === '$$') {
+    const fenceMatch = /^(`{3,}|~{3,})(.*)$/.exec(trimmedLine);
+    if (fence) {
+      if (
+        fenceMatch &&
+        fenceMatch[1][0] === fence[0] &&
+        fenceMatch[1].length >= fence.length &&
+        fenceMatch[2].trim() === ''
+      ) {
+        fence = null;
+      }
+    } else if (fenceMatch) {
+      fence = fenceMatch[1];
+    } else if (trimmedLine === '$$') {
       inMath = !inMath;
-    } else if (!inFence && !inMath) {
+    } else if (!inMath) {
       const detailsOpens = (line.match(/<details\b[^>]*>/gi) || []).length;
       const detailsCloses = (line.match(/<\/details\s*>/gi) || []).length;
       detailsDepth = Math.max(0, detailsDepth + detailsOpens - detailsCloses);
@@ -41,7 +51,7 @@ export function splitMarkdownBlocks(normalized: string): string[] {
       }
     }
 
-    const insideContainer = inFence || inMath || detailsDepth > 0 || layoutDivDepth > 0;
+    const insideContainer = fence !== null || inMath || detailsDepth > 0 || layoutDivDepth > 0;
     if (!insideContainer && trimmedLine === '') {
       if (current.length > 0) {
         blocks.push(current.join('\n'));
@@ -67,11 +77,14 @@ export function parseSingleMarkdownBlock(rawBlock: string): ProseMirrorJSONNode 
   if (!trimmed) return null;
 
   // Fenced code block
-  if (trimmed.startsWith('```') && trimmed.endsWith('```')) {
-    const firstNewline = trimmed.indexOf('\n');
-    const language = firstNewline > 3 ? trimmed.slice(3, firstNewline).trim() : null;
-    const rawCode = firstNewline > -1 ? trimmed.slice(firstNewline + 1, -3) : '';
-    const code = rawCode.replace(/\n$/, '');
+  const fenceBlock = /^(`{3,}|~{3,})([^\n]*)\n([\s\S]*?)\n?(`{3,}|~{3,})$/.exec(trimmed);
+  if (
+    fenceBlock &&
+    fenceBlock[4][0] === fenceBlock[1][0] &&
+    fenceBlock[4].length >= fenceBlock[1].length
+  ) {
+    const language = fenceBlock[2].trim() || null;
+    const code = fenceBlock[3].replace(/\n$/, '');
     return {
       type: 'codeBlock',
       attrs: { language },

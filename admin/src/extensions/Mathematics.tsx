@@ -73,7 +73,7 @@ export function MathematicsNodeViewReadOnly({ node }: NodeViewProps) {
 
   return (
     <NodeViewWrapper
-      as={displayMode === 'block' ? 'div' : 'span'}
+      as="span"
       data-type="mathematics"
       style={{
         display: displayMode === 'block' ? 'block' : 'inline-block',
@@ -121,7 +121,7 @@ export function MathematicsNodeView(props: NodeViewProps) {
 
   return (
     <NodeViewWrapper
-      as={displayMode === 'block' ? 'div' : 'span'}
+      as="span"
       data-type="mathematics"
       style={{
         display: displayMode === 'block' ? 'block' : 'inline-block',
@@ -165,6 +165,10 @@ export function MathematicsNodeView(props: NodeViewProps) {
           />
           <button
             type="button"
+            aria-label={formatMessage({
+              id: 'tiptap-editor.common.save',
+              defaultMessage: 'Save',
+            })}
             onClick={() => {
               if (draftLatex.trim()) {
                 updateAttributes({ latex: draftLatex.trim() });
@@ -185,6 +189,10 @@ export function MathematicsNodeView(props: NodeViewProps) {
           </button>
           <button
             type="button"
+            aria-label={formatMessage({
+              id: 'tiptap-editor.common.remove',
+              defaultMessage: 'Remove',
+            })}
             onClick={() => deleteNode()}
             style={{
               border: 'none',
@@ -257,11 +265,12 @@ export const MathematicsNode = Node.create<MathematicsOptions>({
     const latex = String(HTMLAttributes['data-latex'] ?? '');
     const isBlock = HTMLAttributes['data-display'] === 'block';
     return [
-      isBlock ? 'div' : 'span',
+      'span',
       mergeAttributes(this.options.HTMLAttributes, HTMLAttributes, {
         'data-type': 'mathematics',
         role: 'math',
         'aria-label': latex,
+        ...(isBlock ? { style: 'display: block; text-align: center; margin: 0.5em 0;' } : {}),
       }),
       latex,
     ];

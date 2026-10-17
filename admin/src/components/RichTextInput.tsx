@@ -1,5 +1,6 @@
 import { forwardRef, useEffect, useMemo, useRef, useState } from 'react';
 import { useIntl } from 'react-intl';
+import { unstable_useContentManagerContext } from '@strapi/strapi/admin';
 import { Box } from '@strapi/design-system';
 import BaseTiptapInput from './BaseTiptapInput';
 import { EditorErrorBoundary } from './EditorErrorBoundary';
@@ -62,37 +63,18 @@ type InnerEditorProps = TiptapInputProps & {
 const isToolbarItem = (item: ToolbarItem | false | undefined): item is ToolbarItem => Boolean(item);
 
 /**
- * Extracts current content-type field names from input props so relational sync
- * only writes to companion fields (`<field>Media`, `<field>Links`) that exist on the schema.
- */
-function extractAvailableFieldNames(props: unknown): string[] {
-  const candidate = props as {
-    availableFields?: string[];
-    contentType?: { attributes?: Record<string, unknown> };
-    layout?: { attributes?: Record<string, unknown> };
-    attributes?: Record<string, unknown>;
-    values?: Record<string, unknown>;
-  } | null;
-
-  if (Array.isArray(candidate?.availableFields)) {
-    return candidate.availableFields;
-  }
-  const attrSource =
-    candidate?.contentType?.attributes ??
-    candidate?.layout?.attributes ??
-    candidate?.attributes ??
-    candidate?.values;
-  if (attrSource && typeof attrSource === 'object') {
-    return Object.keys(attrSource);
-  }
-  return [];
-}
-
-/**
  * Inner TipTap editor component rendered once the preset configuration is loaded.
  */
 const InnerEditor = forwardRef<HTMLDivElement, InnerEditorProps>(
   ({ config, presetName, outputFormat, characterLimit, placeholder, ...props }, forwardedRef) => {
+    const { contentType } = unstable_useContentManagerContext();
+    const schemaAttributes = contentType?.attributes;
+
+    const availableFields = useMemo(
+      () => (schemaAttributes ? Object.keys(schemaAttributes) : undefined),
+      [schemaAttributes]
+    );
+
     // Memoize on primitive options (presetName, characterLimit, placeholder) — stable across parent re-renders
     const extensions = useMemo(() => {
       if (characterLimit !== undefined || placeholder !== undefined) {
@@ -128,8 +110,6 @@ const InnerEditor = forwardRef<HTMLDivElement, InnerEditorProps>(
     const onFormChangeRef = useRef<((fieldName: string, value: unknown) => void) | undefined>(
       undefined
     );
-
-    const availableFields = extractAvailableFieldNames(props);
 
     const { syncRelationsFromDoc } = useRelationalSync(props.name, {
       enabled: relationalSyncEnabled,

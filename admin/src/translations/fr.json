@@ -283,5 +283,6 @@
   "tiptap-editor.settings.outputFormatMarkdown": "Chaîne Markdown",
   "tiptap-editor.settings.allowedIframeDomainsLabel": "Domaines d'iframe autorisés (séparés par des virgules)",
   "tiptap-editor.settings.enableRelationalSyncLabel": "Synchroniser automatiquement les médias intégrés (<FieldName>Media) et les liens internes (<FieldName>Links)",
-  "tiptap-editor.settings.presetMatrixTitle": "Matrice des fonctionnalités des préréglages"
+  "tiptap-editor.settings.presetMatrixTitle": "Matrice des fonctionnalités des préréglages",
+  "tiptap-editor.settings.loadError": "Échec du chargement des paramètres. L'enregistrement est désactivé pour éviter d'écraser la configuration existante."
 }

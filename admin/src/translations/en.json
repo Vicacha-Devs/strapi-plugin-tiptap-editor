@@ -283,5 +283,6 @@
   "tiptap-editor.settings.outputFormatMarkdown": "Markdown String",
   "tiptap-editor.settings.allowedIframeDomainsLabel": "Allowed Iframe Domains (comma-separated)",
   "tiptap-editor.settings.enableRelationalSyncLabel": "Automatically sync embedded Media (<FieldName>Media) and Internal Links (<FieldName>Links)",
-  "tiptap-editor.settings.presetMatrixTitle": "Preset Feature Matrix"
+  "tiptap-editor.settings.presetMatrixTitle": "Preset Feature Matrix",
+  "tiptap-editor.settings.loadError": "Failed to load settings. Saving is disabled to prevent overwriting existing configuration."
 }

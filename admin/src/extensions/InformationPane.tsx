@@ -240,11 +240,10 @@ export const InformationPane = Node.create<InformationPaneOptions>({
         }),
       },
       title: {
-        default: 'Info',
-        parseHTML: (el: HTMLElement) => el.getAttribute('data-title') || 'Info',
-        renderHTML: (attrs: Record<string, unknown>) => ({
-          'data-title': String(attrs.title || 'Info'),
-        }),
+        default: null,
+        parseHTML: (el: HTMLElement) => el.getAttribute('data-title') || null,
+        renderHTML: (attrs: Record<string, unknown>) =>
+          attrs.title ? { 'data-title': String(attrs.title) } : {},
       },
     };
   },

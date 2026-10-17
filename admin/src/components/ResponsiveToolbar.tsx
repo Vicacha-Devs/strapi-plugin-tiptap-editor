@@ -25,6 +25,10 @@ const MeasureContainer = styled.div`
 export interface ToolbarItem {
   id: string;
   content: React.ReactNode;
+  /** Lightweight measurement node rendered in MeasureContainer instead of content */
+  measureContent?: React.ReactNode;
+  /** Portaled dialogs/popovers rendered once, outside measurement and overflow */
+  overlay?: React.ReactNode;
 }
 
 /**
@@ -92,13 +96,18 @@ export const ResponsiveToolbar = ({ items }: { items: ToolbarItem[] }) => {
   return (
     <div style={{ position: 'relative', width: '100%' }}>
       {/* Hidden container to measure all item widths */}
-      <MeasureContainer ref={measureRef} aria-hidden="true">
+      <MeasureContainer ref={measureRef} aria-hidden="true" data-measure="true" {...({ inert: '' } as Record<string, string>)}>
         {items.map((item) => (
           <div key={item.id} style={{ display: 'inline-flex', alignItems: 'center' }}>
-            {item.content}
+            {item.measureContent ?? item.content}
           </div>
         ))}
       </MeasureContainer>
+      {items.map((item) =>
+        item.overlay ? (
+          <React.Fragment key={`${item.id}-overlay`}>{item.overlay}</React.Fragment>
+        ) : null
+      )}
 
       {/* Visible toolbar */}
       <Flex ref={toolbarRef} gap={1} alignItems="center" width="100%">

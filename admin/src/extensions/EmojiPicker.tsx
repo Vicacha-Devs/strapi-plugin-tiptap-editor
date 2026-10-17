@@ -63,21 +63,26 @@ export function useEmojiPicker(
     setOpen(false);
   };
 
+  const tooltipLabel = formatMessage({
+    id: 'tiptap-editor.toolbar.emoji',
+    defaultMessage: 'Insert emoji',
+  });
+
+  const triggerButton = (
+    <ToolbarButton
+      onClick={() => setOpen((o) => !o)}
+      icon={<EmotionHappy />}
+      active={open}
+      disabled={!editor || props.disabled}
+      tooltip={tooltipLabel}
+    />
+  );
+
   return {
+    emojiTrigger: triggerButton,
     emojiButton: (
       <Popover.Root open={open} onOpenChange={setOpen}>
-        <Popover.Anchor>
-          <ToolbarButton
-            onClick={() => setOpen((o) => !o)}
-            icon={<EmotionHappy />}
-            active={open}
-            disabled={!editor || props.disabled}
-            tooltip={formatMessage({
-              id: 'tiptap-editor.toolbar.emoji',
-              defaultMessage: 'Insert emoji',
-            })}
-          />
-        </Popover.Anchor>
+        <Popover.Anchor>{triggerButton}</Popover.Anchor>
         <Popover.Content side="bottom">
           <div style={{ padding: '10px', width: '240px' }}>
             <TextInput

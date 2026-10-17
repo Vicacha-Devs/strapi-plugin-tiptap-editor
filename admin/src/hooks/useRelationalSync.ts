@@ -13,6 +13,15 @@ export interface RelationalSyncCallbacks {
    */
   availableFields?: string[];
   /**
+   * Maps target collection UIDs (e.g. "api::article.article") to relation attribute names
+   * on the companion `links.links` component (e.g. "articles").
+   */
+  targetUidToAttribute?: Record<string, string>;
+  /**
+   * Whether the companion `<FieldName>Links` component field is repeatable.
+   */
+  linksFieldIsRepeatable?: boolean;
+  /**
    * Initial document value used to seed the relation signature so the first unchanged
    * update after mount does not mark the form as dirty.
    */
@@ -50,16 +59,27 @@ export function useRelationalSync(
   fieldName: string,
   options: RelationalSyncCallbacks = {}
 ) {
-  const { onSyncField, availableFields, initialDocument, enabled = true } = options;
+  const {
+    onSyncField,
+    availableFields,
+    targetUidToAttribute = {},
+    linksFieldIsRepeatable = false,
+    initialDocument,
+    enabled = true,
+  } = options;
   const lastSignatureRef = useRef<string>(buildRelationSignature(initialDocument));
   const hasSyncedUpdateRef = useRef<boolean>(false);
   const onSyncFieldRef = useRef(onSyncField);
   const availableFieldsRef = useRef(availableFields);
+  const targetUidToAttributeRef = useRef(targetUidToAttribute);
+  const linksFieldIsRepeatableRef = useRef(linksFieldIsRepeatable);
 
   useEffect(() => {
     onSyncFieldRef.current = onSyncField;
     availableFieldsRef.current = availableFields;
-  }, [onSyncField, availableFields]);
+    targetUidToAttributeRef.current = targetUidToAttribute;
+    linksFieldIsRepeatableRef.current = linksFieldIsRepeatable;
+  }, [onSyncField, availableFields, targetUidToAttribute, linksFieldIsRepeatable]);
 
   useEffect(() => {
     if (!hasSyncedUpdateRef.current) {
@@ -110,13 +130,17 @@ export function useRelationalSync(
       }
 
       if (canSyncLinks) {
-        const linksPayload: Record<string, { set: Array<{ documentId: string }> }> = {};
-        for (const [collectionUid, items] of Object.entries(extracted.linksByCollection)) {
-          linksPayload[collectionUid] = {
-            set: items.map((item) => ({ documentId: item.documentId })),
-          };
-        }
-        syncHandler(linksFieldName, linksPayload);
+        const uidMap = targetUidToAttributeRef.current;
+        const isRepeatable = linksFieldIsRepeatableRef.current;
+        const componentValue = Object.fromEntries(
+          Object.entries(extracted.linksByCollection).flatMap(([targetUid, items]) => {
+            const attributeName = uidMap[targetUid];
+            return attributeName
+              ? [[attributeName, items.map(({ documentId }) => ({ documentId }))]]
+              : [];
+          })
+        );
+        syncHandler(linksFieldName, isRepeatable ? [componentValue] : componentValue);
       }
 
       return extracted;

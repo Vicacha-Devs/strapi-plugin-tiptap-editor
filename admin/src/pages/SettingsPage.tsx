@@ -32,6 +32,10 @@ export function SettingsPage() {
   const [iframeDomainsInput, setIframeDomainsInput] = useState<string>(
     DEFAULT_RUNTIME_SETTINGS.allowedIframeDomains.join(', ')
   );
+  const [availablePresets, setAvailablePresets] = useState<string[]>(Object.keys(BUILT_IN_PRESETS));
+  const [basePreset, setBasePreset] = useState<Record<string, unknown>>(
+    (BUILT_IN_PRESETS.default ?? {}) as Record<string, unknown>
+  );
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -61,8 +65,43 @@ export function SettingsPage() {
     };
   }, [get]);
 
+  useEffect(() => {
+    let mounted = true;
+    get('/tiptap-editor/presets?includeBuiltIn=true')
+      .then((res: { data?: { presets?: string[] } }) => {
+        if (mounted && Array.isArray(res?.data?.presets)) {
+          setAvailablePresets(res.data.presets);
+        }
+      })
+      .catch(() => undefined);
+    return () => {
+      mounted = false;
+    };
+  }, [get]);
+
+  useEffect(() => {
+    let mounted = true;
+    get(`/tiptap-editor/presets/${encodeURIComponent(selectedPreset)}`)
+      .then((res: { data?: Record<string, unknown> }) => {
+        if (mounted) {
+          setBasePreset(
+            res?.data ?? ((BUILT_IN_PRESETS[selectedPreset] ?? {}) as Record<string, unknown>)
+          );
+        }
+      })
+      .catch(() => {
+        if (mounted) {
+          setBasePreset((BUILT_IN_PRESETS[selectedPreset] ?? {}) as Record<string, unknown>);
+        }
+      });
+    return () => {
+      mounted = false;
+    };
+  }, [get, selectedPreset]);
+
   const currentPresetConfig = {
     ...(BUILT_IN_PRESETS[selectedPreset] ?? {}),
+    ...basePreset,
     ...(settings.presetOverrides?.[selectedPreset] ?? {}),
   };
 
@@ -132,7 +171,7 @@ export function SettingsPage() {
   }
 
   const presetNames = Array.from(
-    new Set([...Object.keys(BUILT_IN_PRESETS), ...Object.keys(settings.presetOverrides || {})])
+    new Set([...availablePresets, ...Object.keys(settings.presetOverrides || {})])
   );
 
   return (

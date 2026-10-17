@@ -248,21 +248,26 @@ export function useSlashCommand(
     setFilter('');
   };
 
+  const tooltipLabel = formatMessage({
+    id: 'tiptap-editor.toolbar.slashCommands',
+    defaultMessage: 'Quick Insert Block (/ Slash Menu)',
+  });
+
+  const triggerButton = (
+    <ToolbarButton
+      onClick={() => setOpen((o) => !o)}
+      icon={<Plus />}
+      active={open}
+      disabled={!editor || props.disabled}
+      tooltip={tooltipLabel}
+    />
+  );
+
   return {
+    slashCommandTrigger: triggerButton,
     slashCommandButton: (
       <Popover.Root open={open} onOpenChange={setOpen}>
-        <Popover.Anchor>
-          <ToolbarButton
-            onClick={() => setOpen((o) => !o)}
-            icon={<Plus />}
-            active={open}
-            disabled={!editor || props.disabled}
-            tooltip={formatMessage({
-              id: 'tiptap-editor.toolbar.slashCommands',
-              defaultMessage: 'Quick Insert Block (/ Slash Menu)',
-            })}
-          />
-        </Popover.Anchor>
+        <Popover.Anchor>{triggerButton}</Popover.Anchor>
         <Popover.Content side="bottom">
           <div style={{ padding: '10px', width: '280px' }}>
             <TextInput

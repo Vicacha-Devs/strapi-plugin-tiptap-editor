@@ -67,13 +67,31 @@ const isToolbarItem = (item: ToolbarItem | false | undefined): item is ToolbarIt
  */
 const InnerEditor = forwardRef<HTMLDivElement, InnerEditorProps>(
   ({ config, presetName, outputFormat, characterLimit, placeholder, ...props }, forwardedRef) => {
-    const { contentType } = unstable_useContentManagerContext();
+    const { contentType, components } = unstable_useContentManagerContext() as {
+      contentType?: { attributes?: Record<string, Record<string, unknown>> };
+      components?: Record<string, { attributes?: Record<string, Record<string, unknown>> }>;
+    };
     const schemaAttributes = contentType?.attributes;
+    const linksFieldSchema = schemaAttributes?.[`${props.name}Links`];
+    const linksFieldIsRepeatable = Boolean(linksFieldSchema?.repeatable);
 
-    const availableFields = useMemo(
-      () => (schemaAttributes ? Object.keys(schemaAttributes) : undefined),
-      [schemaAttributes]
-    );
+    const { availableFields, targetUidToAttribute } = useMemo(() => {
+      const fields = schemaAttributes ? Object.keys(schemaAttributes) : undefined;
+      const componentUid =
+        (typeof linksFieldSchema?.component === 'string' && linksFieldSchema.component) ||
+        'links.links';
+      const compAttrs = components?.[componentUid]?.attributes;
+      const uidMap: Record<string, string> = {};
+      if (compAttrs) {
+        for (const [attrName, attrDef] of Object.entries(compAttrs)) {
+          const targetUid = attrDef?.target ?? attrDef?.targetModel;
+          if (attrDef?.type === 'relation' && typeof targetUid === 'string') {
+            uidMap[targetUid] = attrName;
+          }
+        }
+      }
+      return { availableFields: fields, targetUidToAttribute: uidMap };
+    }, [schemaAttributes, components, linksFieldSchema?.component]);
 
     // Memoize on [config, characterLimit, placeholder] with a fixed-length dependency array
     const extensions = useMemo(() => {
@@ -114,6 +132,8 @@ const InnerEditor = forwardRef<HTMLDivElement, InnerEditorProps>(
     const { syncRelationsFromDoc } = useRelationalSync(props.name, {
       enabled: relationalSyncEnabled,
       availableFields,
+      targetUidToAttribute,
+      linksFieldIsRepeatable,
       initialDocument: (props as { value?: unknown }).value,
       onSyncField: (fieldName, value) => onFormChangeRef.current?.(fieldName, value),
     });
@@ -220,21 +240,13 @@ const InnerEditor = forwardRef<HTMLDivElement, InnerEditorProps>(
       },
       Boolean(config?.abbr) && {
         id: 'abbr',
-        content: (
-          <>
-            {semanticMarks.abbrButton}
-            {semanticMarks.abbrDialog}
-          </>
-        ),
+        content: semanticMarks.abbrButton,
+        overlay: semanticMarks.abbrDialog,
       },
       Boolean(config?.language) && {
         id: 'language',
-        content: (
-          <>
-            {semanticMarks.languageButton}
-            {semanticMarks.languageDialog}
-          </>
-        ),
+        content: semanticMarks.languageButton,
+        overlay: semanticMarks.languageDialog,
       },
       Boolean(
         config?.strike ||
@@ -284,17 +296,18 @@ const InnerEditor = forwardRef<HTMLDivElement, InnerEditorProps>(
       Boolean(config?.columns) && { id: 'columns', content: structuredBlocks.columnsButton },
       Boolean(config?.mathematics) && {
         id: 'mathematics',
-        content: (
-          <>
-            {mathematics.mathematicsButton}
-            {mathematics.mathematicsDialog}
-          </>
-        ),
+        content: mathematics.mathematicsButton,
+        overlay: mathematics.mathematicsDialog,
       },
-      Boolean(config?.emoji) && { id: 'emoji', content: emoji.emojiButton },
+      Boolean(config?.emoji) && {
+        id: 'emoji',
+        content: emoji.emojiButton,
+        measureContent: emoji.emojiTrigger,
+      },
       isFeatureEnabled(config?.slashCommands) && {
         id: 'slashCommands',
         content: slashCommand.slashCommandButton,
+        measureContent: slashCommand.slashCommandTrigger,
       },
       Boolean(config?.pageBreak) && {
         id: 'pageBreak',
@@ -306,66 +319,38 @@ const InnerEditor = forwardRef<HTMLDivElement, InnerEditorProps>(
       },
       Boolean(config?.link) && {
         id: 'link',
-        content: (
-          <>
-            {link.linkButton}
-            {link.linkDialog}
-          </>
-        ),
+        content: link.linkButton,
+        overlay: link.linkDialog,
       },
       Boolean(config?.linker) && {
         id: 'linker',
-        content: (
-          <>
-            {linker.linkerButton}
-            {linker.linkerDialog}
-          </>
-        ),
+        content: linker.linkerButton,
+        overlay: linker.linkerDialog,
       },
       Boolean(config?.mediaLibrary) && {
         id: 'mediaLibrary',
-        content: (
-          <>
-            {image.imageButton}
-            {image.imageDialog}
-          </>
-        ),
+        content: image.imageButton,
+        overlay: image.imageDialog,
       },
       Boolean(config?.video) && {
         id: 'video',
-        content: (
-          <>
-            {video.videoButton}
-            {video.videoDialog}
-          </>
-        ),
+        content: video.videoButton,
+        overlay: video.videoDialog,
       },
       Boolean(config?.audio) && {
         id: 'audio',
-        content: (
-          <>
-            {audio.audioButton}
-            {audio.audioDialog}
-          </>
-        ),
+        content: audio.audioButton,
+        overlay: audio.audioDialog,
       },
       Boolean(config?.attachment) && {
         id: 'attachment',
-        content: (
-          <>
-            {attachment.attachmentButton}
-            {attachment.attachmentDialog}
-          </>
-        ),
+        content: attachment.attachmentButton,
+        overlay: attachment.attachmentDialog,
       },
       Boolean(config?.iframe) && {
         id: 'iframe',
-        content: (
-          <>
-            {iframe.iframeButton}
-            {iframe.iframeDialog}
-          </>
-        ),
+        content: iframe.iframeButton,
+        overlay: iframe.iframeDialog,
       },
       Boolean(
         config?.code ||
@@ -402,9 +387,9 @@ const InnerEditor = forwardRef<HTMLDivElement, InnerEditorProps>(
             {table.cellColorButton}
             {table.mergeCellsButton}
             {table.splitCellButton}
-            {table.tableDialog}
           </>
         ),
+        overlay: table.tableDialog,
       },
       Boolean(config?.table) && { id: 'tableSpacer', content: <Spacer margin={1} /> },
       Boolean(config?.speechToText) && {

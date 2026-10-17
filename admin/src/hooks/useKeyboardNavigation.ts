@@ -18,7 +18,7 @@ export function useKeyboardNavigation(editor: Editor | null) {
     const selector =
       'button:not([disabled]):not([style*="display: none"]), [role="combobox"]:not([aria-disabled="true"]), input:not([disabled])';
     return Array.from(container.querySelectorAll<HTMLElement>(selector)).filter(
-      (el) => el.offsetParent !== null
+      (el) => el.offsetParent !== null && el.closest?.('[data-measure]') === null
     );
   }, []);
 

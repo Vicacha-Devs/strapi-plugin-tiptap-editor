@@ -121,11 +121,13 @@
 
 ### Supported Versions
 
-This plugin is compatible with Strapi `v5.x.x` and tested on Strapi `v5.34.0+`.
+This plugin is compatible with Strapi `v5.x.x` (tested on Strapi `v5.34.0+`) and Node.js `>=18.17.0 <=22.x.x`.
 
-| Plugin version | Strapi Version | TipTap Version | Full Support |
-| -------------- | -------------- | -------------- | ------------ |
-| 1.2.x+         | 5.0.0 – 5.34+  | 3.20.1         | ✅           |
+| Plugin version | Strapi Version | Node.js Version      | TipTap Version | Full Support |
+| -------------- | -------------- | -------------------- | -------------- | ------------ |
+| 1.2.x+         | 5.0.0 – 5.39+  | `>=18.17.0 <=22.x.x` | 3.20.1         | ✅           |
+
+> **Node.js Dependency Compatibility Note:** Runtime dependencies `undici` (`6.29.0`) and `isomorphic-dompurify` (`3.19.0`) are intentionally pinned to their `6.x` and `3.x` release lines to preserve Node.js `18.17+` and `20.x` compatibility across the full Strapi v5 engine range (`undici` `7.x` requires Node `>=20.18.1` and `isomorphic-dompurify` `4.x` requires Node `>=22.22.2`).
 
 ---
 

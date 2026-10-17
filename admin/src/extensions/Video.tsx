@@ -18,7 +18,10 @@ import { TextAlignLeft } from '../icons/TextAlignLeft';
 import { TextAlignCenter } from '../icons/TextAlignCenter';
 import { TextAlignRight } from '../icons/TextAlignRight';
 import { MediaLibraryWrapper, type StrapiFile } from '../components/MediaLibraryWrapper';
-import { isSafeUrl } from '../../../shared/contentSerializer';
+import { isSafeIframeUrl, isSafeUrl } from '../../../shared/contentSerializer';
+
+const VIDEO_EMBED_HOSTS = ['youtube-nocookie.com', 'player.vimeo.com'];
+const isSafeVideoEmbedSrc = (src: string) => isSafeIframeUrl(src, VIDEO_EMBED_HOSTS);
 
 export interface StrapiVideoOptions {
   HTMLAttributes: Record<string, unknown>;
@@ -93,8 +96,9 @@ export function normalizeVideoEmbedUrl(
 export function VideoNodeViewReadOnly({ node }: NodeViewProps) {
   const { formatMessage } = useIntl();
   const src = String(node.attrs.src || '');
-  const safeSrc = isSafeUrl(src) ? src : '';
   const embedType = node.attrs.embedType === 'embed' ? 'embed' : 'file';
+  const safeSrc =
+    embedType === 'embed' ? (isSafeVideoEmbedSrc(src) ? src : '') : isSafeUrl(src) ? src : '';
   const width = node.attrs.width ? `${node.attrs.width}px` : '100%';
   const height = node.attrs.height ? `${node.attrs.height}px` : '360px';
 
@@ -302,12 +306,13 @@ export const StrapiVideo = Node.create<StrapiVideoOptions>({
 
   renderHTML({ HTMLAttributes }) {
     const rawSrc = typeof HTMLAttributes.src === 'string' ? HTMLAttributes.src : '';
+    const isEmbed = HTMLAttributes.embedType === 'embed';
     const safeAttrs = {
       ...HTMLAttributes,
-      src: isSafeUrl(rawSrc) ? rawSrc : '',
+      src: isEmbed ? (isSafeVideoEmbedSrc(rawSrc) ? rawSrc : '') : isSafeUrl(rawSrc) ? rawSrc : '',
     };
 
-    if (HTMLAttributes.embedType === 'embed') {
+    if (isEmbed) {
       return [
         'iframe',
         mergeAttributes(this.options.HTMLAttributes, safeAttrs, {

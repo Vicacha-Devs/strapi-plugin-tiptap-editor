@@ -60,9 +60,12 @@ export const useEditorModes = (editor: Editor | null, options?: EditorModesOptio
   // Toggle editor editable state when preview mode changes
   useEffect(() => {
     if (!editor || options?.disabled) return;
-    editor.setEditable(!isPreviewMode);
+    const nextEditable = !isPreviewMode;
+    if (editor.isEditable !== nextEditable) {
+      editor.setEditable(nextEditable, false);
+    }
     return () => {
-      if (isPreviewMode) editor.setEditable(true);
+      if (isPreviewMode && !editor.isDestroyed) editor.setEditable(true, false);
     };
   }, [editor, isPreviewMode, options?.disabled]);
 

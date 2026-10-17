@@ -44,7 +44,7 @@ export const TiptapInputStyles = styled.div`
   }
 
   .ProseMirror:focus-visible {
-    box-shadow: inset 0 0 0 2px #4945ff;
+    box-shadow: inset 0 0 0 2px ${({ theme }) => theme.colors.primary600};
     border-radius: 4px;
   }
 
@@ -139,8 +139,8 @@ export const TiptapInputStyles = styled.div`
   }
 
   .ProseMirror pre {
-    background: #212134;
-    color: #f6f6f9;
+    background: ${({ theme }) => theme.colors.neutral800};
+    color: ${({ theme }) => theme.colors.neutral100};
     padding: 12px 16px;
     border-radius: 6px;
     overflow-x: auto;
@@ -154,12 +154,12 @@ export const TiptapInputStyles = styled.div`
   }
 
   .ProseMirror a {
-    color: #0c75af;
+    color: ${({ theme }) => theme.colors.primary600};
     text-decoration: underline;
   }
 
   .ProseMirror abbr[title] {
-    text-decoration: underline dotted #4945ff;
+    text-decoration: underline dotted ${({ theme }) => theme.colors.primary600};
     cursor: help;
   }
 
@@ -186,11 +186,11 @@ export const TiptapInputStyles = styled.div`
 
   /* --- Accordion (<details> / <summary>) --- */
   .ProseMirror details.tiptap-details {
-    border: 1px solid #dcdce4;
+    border: 1px solid ${({ theme }) => theme.colors.neutral200};
     border-radius: 6px;
     padding: 8px 12px;
     margin: 0.75em 0;
-    background: #ffffff;
+    background: ${({ theme }) => theme.colors.neutral0};
   }
 
   .ProseMirror summary.tiptap-details-summary {
@@ -202,13 +202,13 @@ export const TiptapInputStyles = styled.div`
   .ProseMirror .tiptap-details-content {
     margin-top: 8px;
     padding-top: 8px;
-    border-top: 1px solid #f0f0ff;
+    border-top: 1px solid ${({ theme }) => theme.colors.neutral200};
   }
 
   /* --- Conversation History --- */
   .ProseMirror .tiptap-conversation-history {
-    border-left: 3px solid #7b79ff;
-    background: #f6f6f9;
+    border-left: 3px solid ${({ theme }) => theme.colors.primary600};
+    background: ${({ theme }) => theme.colors.neutral100};
     padding: 10px 14px;
     border-radius: 0 6px 6px 0;
     margin: 0.75em 0;
@@ -235,7 +235,7 @@ export const TiptapInputStyles = styled.div`
   }
 
   .ProseMirror .tiptap-layout-column {
-    border: 1px dashed #dcdce4;
+    border: 1px dashed ${({ theme }) => theme.colors.neutral200};
     border-radius: 6px;
     padding: 10px;
     min-width: 0;
@@ -246,9 +246,9 @@ export const TiptapInputStyles = styled.div`
     text-align: center;
     font-size: 1.1rem;
     font-weight: 600;
-    color: #666687;
-    border-top: 2px dashed #dcdce4;
-    border-bottom: 2px dashed #dcdce4;
+    color: ${({ theme }) => theme.colors.neutral600};
+    border-top: 2px dashed ${({ theme }) => theme.colors.neutral200};
+    border-bottom: 2px dashed ${({ theme }) => theme.colors.neutral200};
     padding: 4px 0;
     margin: 1em 0;
     user-select: none;
@@ -264,7 +264,7 @@ export const TiptapInputStyles = styled.div`
 
   /* Selection ring for selected image node */
   .ProseMirror .ProseMirror-selectednode img {
-    outline: 2px solid #4945ff;
+    outline: 2px solid ${({ theme }) => theme.colors.primary600};
     outline-offset: 2px;
   }
 
@@ -303,8 +303,8 @@ export const TiptapInputStyles = styled.div`
     bottom: -4px;
     width: 12px;
     height: 12px;
-    background: #4945ff;
-    border: 2px solid #fff;
+    background: ${({ theme }) => theme.colors.primary600};
+    border: 2px solid ${({ theme }) => theme.colors.neutral0};
     border-radius: 50%;
     cursor: nwse-resize;
     opacity: 0;
@@ -328,7 +328,7 @@ export const TiptapInputStyles = styled.div`
 
       td,
       th {
-        border: 1px solid #ddd;
+        border: 1px solid ${({ theme }) => theme.colors.neutral200};
         box-sizing: border-box;
         min-width: 1em;
         padding: 6px 8px;

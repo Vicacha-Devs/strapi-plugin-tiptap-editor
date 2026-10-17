@@ -386,7 +386,7 @@ export function ImageNodeView({
             <TextInput
               placeholder={formatMessage({
                 id: 'tiptap-editor.image.caption',
-                defaultMessage: 'Caption (<figcaption>)',
+                defaultMessage: "Caption ('<figcaption>')",
               })}
               value={captionText}
               onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
@@ -409,14 +409,19 @@ export function ImageNodeView({
         initialCaption={node.attrs.caption ?? ''}
         onClose={() => setIsEditorOpen(false)}
         onSave={(edited) => {
+          const srcChanged = edited.src !== node.attrs.src;
           updateAttributes({
             src: edited.src,
             alt: edited.alt,
             caption: edited.caption || null,
             ...(edited.width !== undefined ? { width: edited.width } : {}),
             ...(edited.height !== undefined ? { height: edited.height } : {}),
-            ...(edited.assetId !== undefined ? { 'data-asset-id': edited.assetId } : {}),
-            ...(edited.documentId !== undefined ? { 'data-document-id': edited.documentId } : {}),
+            ...(srcChanged
+              ? {
+                  'data-asset-id': edited.assetId ?? null,
+                  'data-document-id': edited.documentId ?? null,
+                }
+              : {}),
           });
         }}
       />

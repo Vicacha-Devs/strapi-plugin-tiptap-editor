@@ -53,6 +53,47 @@ describe('server/services/settings', () => {
     expect(updated.defaultOutputFormat).toBe('markdown');
     expect(updated.allowedIframeDomains).toEqual(['youtube.com', 'vimeo.com']);
     expect(updated.presetOverrides.edifice?.mathematics).toBe(true);
+    expect(storedValue).toEqual({
+      defaultPreset: 'edifice',
+      defaultOutputFormat: 'markdown',
+      allowedIframeDomains: ['youtube.com', 'vimeo.com'],
+      presetOverrides: {
+        edifice: { bold: true, mathematics: true },
+      },
+    });
+  });
+
+  it('preserves config/plugins.ts settings and only persists admin-changed overrides', async () => {
+    let storedValue: any = null;
+    const mockStore = {
+      get: vi.fn(async () => storedValue),
+      set: vi.fn(async ({ value }) => {
+        storedValue = value;
+      }),
+    };
+    const mockStrapi = {
+      config: {
+        get: vi.fn(() => ({
+          defaultPreset: 'blog',
+          enableRelationalSync: false,
+        })),
+      },
+      store: vi.fn(() => mockStore),
+    } as any;
+
+    const service = createSettingsService({ strapi: mockStrapi });
+    const initial = await service.getSettings();
+    expect(initial.defaultPreset).toBe('blog');
+    expect(initial.enableRelationalSync).toBe(false);
+
+    // Updating only defaultOutputFormat should not freeze defaultPreset or enableRelationalSync in store
+    const afterUpdate = await service.updateSettings({
+      defaultOutputFormat: 'html',
+    });
+    expect(afterUpdate.defaultPreset).toBe('blog');
+    expect(afterUpdate.enableRelationalSync).toBe(false);
+    expect(afterUpdate.defaultOutputFormat).toBe('html');
+    expect(storedValue).toEqual({ defaultOutputFormat: 'html' });
   });
 
   it('rejects invalid output formats or unknown feature keys', async () => {
@@ -327,10 +368,20 @@ describe('server/services/media (SSRF Protection & Metadata)', () => {
 });
 
 describe('server/bootstrap', () => {
-  it('initializes settings in core-store without mutating schema components at runtime', async () => {
+  it('registers RBAC permissions without seeding default settings in core-store or mutating schema components', async () => {
     const mockSet = vi.fn();
+    const mockRegisterMany = vi.fn();
     const mockCreateComponent = vi.fn();
     const mockStrapi = {
+      admin: {
+        services: {
+          permission: {
+            actionProvider: {
+              registerMany: mockRegisterMany,
+            },
+          },
+        },
+      },
       store: vi.fn(() => ({
         get: vi.fn(async () => null),
         set: mockSet,
@@ -345,7 +396,8 @@ describe('server/bootstrap', () => {
     } as any;
 
     await bootstrap({ strapi: mockStrapi });
-    expect(mockSet).toHaveBeenCalledTimes(1);
+    expect(mockRegisterMany).toHaveBeenCalledTimes(1);
+    expect(mockSet).not.toHaveBeenCalled();
     expect(mockCreateComponent).not.toHaveBeenCalled();
   });
 });

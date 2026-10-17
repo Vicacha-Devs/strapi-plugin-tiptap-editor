@@ -75,13 +75,13 @@ const InnerEditor = forwardRef<HTMLDivElement, InnerEditorProps>(
       [schemaAttributes]
     );
 
-    // Memoize on primitive options (presetName, characterLimit, placeholder) — stable across parent re-renders
+    // Memoize on [config, characterLimit, placeholder] with a fixed-length dependency array
     const extensions = useMemo(() => {
       if (characterLimit !== undefined || placeholder !== undefined) {
         return buildExtensions(config, { characterLimit, placeholder });
       }
       return buildExtensions(config);
-    }, characterLimit !== undefined || placeholder !== undefined ? [presetName, characterLimit, placeholder] : [presetName]); // eslint-disable-line react-hooks/exhaustive-deps
+    }, [config, characterLimit, placeholder]); // eslint-disable-line react-hooks/exhaustive-deps
 
     const [relationalSyncEnabled, setRelationalSyncEnabled] = useState<boolean>(
       DEFAULT_RUNTIME_SETTINGS.enableRelationalSync

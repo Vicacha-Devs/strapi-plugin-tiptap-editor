@@ -181,7 +181,14 @@ export function useSemanticMarks(
     leadParagraphButton: (
       <ToolbarButton
         onClick={toggleLeadParagraph}
-        icon={<span style={{ fontSize: '1.1rem', fontWeight: 700 }}>Lead</span>}
+        icon={
+          <span style={{ fontSize: '1.1rem', fontWeight: 700 }}>
+            {formatMessage({
+              id: 'tiptap-editor.toolbar.leadParagraph.short',
+              defaultMessage: 'Lead',
+            })}
+          </span>
+        }
         active={editorState?.isLead ?? false}
         toggle
         disabled={!editor || props.disabled}
@@ -194,13 +201,20 @@ export function useSemanticMarks(
     abbrButton: (
       <ToolbarButton
         onClick={openAbbrModal}
-        icon={<span style={{ fontSize: '1.1rem', fontWeight: 700 }}>Abbr</span>}
+        icon={
+          <span style={{ fontSize: '1.1rem', fontWeight: 700 }}>
+            {formatMessage({
+              id: 'tiptap-editor.toolbar.abbreviation.short',
+              defaultMessage: 'Abbr',
+            })}
+          </span>
+        }
         active={editorState?.isAbbr ?? false}
         toggle
         disabled={!editor || props.disabled}
         tooltip={formatMessage({
           id: 'tiptap-editor.toolbar.abbreviation',
-          defaultMessage: 'Abbreviation (<abbr>)',
+          defaultMessage: "Abbreviation ('<abbr>')",
         })}
       />
     ),
@@ -216,7 +230,7 @@ export function useSemanticMarks(
             <Dialog.Header>
               {formatMessage({
                 id: 'tiptap-editor.abbr.dialogHeader',
-                defaultMessage: 'Abbreviation Expansion (<abbr>)',
+                defaultMessage: "Abbreviation Expansion ('<abbr>')",
               })}
             </Dialog.Header>
             <Dialog.Body>
@@ -271,7 +285,14 @@ export function useSemanticMarks(
     languageButton: (
       <ToolbarButton
         onClick={openLangModal}
-        icon={<span style={{ fontSize: '1.1rem', fontWeight: 700 }}>🌐 Lang</span>}
+        icon={
+          <span style={{ fontSize: '1.1rem', fontWeight: 700 }}>
+            {formatMessage({
+              id: 'tiptap-editor.toolbar.languageMark.short',
+              defaultMessage: '🌐 Lang',
+            })}
+          </span>
+        }
         active={editorState?.isLang ?? false}
         toggle
         disabled={!editor || props.disabled}

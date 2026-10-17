@@ -4,7 +4,11 @@ import { Box, Button, Flex, Typography } from '@strapi/design-system';
 import { Collapse, Expand, Eye } from '@strapi/icons';
 import { useIntl } from 'react-intl';
 import { getPluginId } from '../utils/getTranslation';
-import { jsonToMarkdown, sanitizeHtmlString } from '../../../shared/contentSerializer';
+import {
+  jsonToMarkdown,
+  sanitizeHtmlString,
+  type ProseMirrorJSONNode,
+} from '../../../shared/contentSerializer';
 import { ToolbarButton } from './ToolbarButton';
 
 export interface EditorModesOptions {
@@ -235,6 +239,10 @@ export const useEditorModes = (editor: Editor | null, options?: EditorModesOptio
             overflow: 'hidden',
           }}
           role="progressbar"
+          aria-label={formatMessage({
+            id: `${getPluginId()}.footer.characterLimitProgress`,
+            defaultMessage: 'Character limit usage',
+          })}
           aria-valuenow={charCount}
           aria-valuemin={0}
           aria-valuemax={limit}
@@ -265,7 +273,7 @@ export const useEditorModes = (editor: Editor | null, options?: EditorModesOptio
     if (inspectorTab === 'html') {
       return sanitizeHtmlString(editor.getHTML());
     }
-    return jsonToMarkdown(editor.getJSON() as any);
+    return jsonToMarkdown(editor.getJSON() as ProseMirrorJSONNode);
   }, [editor, inspectorDoc, inspectorTab]);
 
   const inspectorDrawer = showInspector && editor ? (

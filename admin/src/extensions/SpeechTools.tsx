@@ -102,6 +102,8 @@ export function useSpeechTools(
       };
 
       recognition.onerror = () => {
+        if (recognitionRef.current !== recognition) return;
+        recognitionRef.current = null;
         setIsListening(false);
         setLiveStatus(
           formatMessage({
@@ -112,7 +114,15 @@ export function useSpeechTools(
       };
 
       recognition.onend = () => {
+        if (recognitionRef.current !== recognition) return;
+        recognitionRef.current = null;
         setIsListening(false);
+        setLiveStatus(
+          formatMessage({
+            id: 'tiptap-editor.speech.dictationStopped',
+            defaultMessage: 'Voice dictation stopped.',
+          })
+        );
       };
 
       recognitionRef.current = recognition;

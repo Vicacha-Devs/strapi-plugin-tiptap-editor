@@ -26,9 +26,9 @@ export function useScript(
       }
       return {
         isSuperscript: ctx.editor.isActive('superscript') ?? false,
-        canToggleSuperscript: ctx.editor.can().chain().toggleSuperscript?.().run() ?? false,
+        canToggleSuperscript: ctx.editor.can().toggleSuperscript?.() ?? false,
         isSubscript: ctx.editor.isActive('subscript') ?? false,
-        canToggleSubscript: ctx.editor.can().chain().toggleSubscript?.().run() ?? false,
+        canToggleSubscript: ctx.editor.can().toggleSubscript?.() ?? false,
       };
     },
   });

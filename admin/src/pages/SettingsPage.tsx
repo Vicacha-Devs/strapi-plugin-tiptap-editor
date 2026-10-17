@@ -296,7 +296,7 @@ export function SettingsPage() {
             {formatMessage({
               id: 'tiptap-editor.settings.enableRelationalSyncLabel',
               defaultMessage:
-                'Automatically sync embedded Media (<FieldName>Media) and Internal Links (<FieldName>Links)',
+                "Automatically sync embedded Media ('<FieldName>'Media) and Internal Links ('<FieldName>'Links)",
             })}
           </Checkbox>
         </Box>

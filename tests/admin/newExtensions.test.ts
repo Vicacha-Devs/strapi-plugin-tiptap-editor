@@ -224,5 +224,17 @@ describe('admin/extensions & utilities', () => {
       expect(typeof parsed).toBe('object');
       expect(parsed).toEqual(docStartingWithDetailsAndEndingWithAlignedParagraph);
     });
+
+    it('does not treat arbitrary JSON snippets as ProseMirror docs when outputFormat is markdown or html', () => {
+      const mdParsed = parseJSONContent('{"hello":"world"}', '<p></p>', 'markdown') as {
+        type: string;
+        content: any[];
+      };
+      expect(mdParsed.type).toBe('doc');
+      expect(mdParsed.content[0].type).toBe('paragraph');
+
+      const htmlParsed = parseJSONContent('{"hello":"world"}', '<p></p>', 'html');
+      expect(htmlParsed).toBe('{"hello":"world"}');
+    });
   });
 });

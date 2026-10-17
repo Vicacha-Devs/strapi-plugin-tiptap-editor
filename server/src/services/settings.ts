@@ -66,14 +66,38 @@ const createSettingsService = ({ strapi }: { strapi: Core.Strapi }) => ({
       throw new Error('Settings payload must be a plain object');
     }
 
-    const current = await this.getSettings();
-    const next: Required<TiptapRuntimeSettings> = { ...current };
+    const configSettings =
+      (strapi?.config?.get?.('plugin::tiptap-editor.settings', {}) as TiptapRuntimeSettings) || {};
+    const baseSettings: Required<TiptapRuntimeSettings> = {
+      ...DEFAULT_RUNTIME_SETTINGS,
+      ...configSettings,
+    };
+
+    const store = this.getStore();
+    let existingStored: TiptapRuntimeSettings | null = null;
+    if (store) {
+      try {
+        existingStored = (await store.get({
+          key: SETTINGS_STORE_KEY,
+        })) as TiptapRuntimeSettings | null;
+      } catch {
+        existingStored = null;
+      }
+    }
+
+    const storedOverrides: TiptapRuntimeSettings =
+      existingStored && isPlainObject(existingStored) ? { ...existingStored } : {};
 
     if (input.defaultPreset !== undefined) {
       if (typeof input.defaultPreset !== 'string' || !/^[\w-]+$/.test(input.defaultPreset.trim())) {
         throw new Error('Invalid defaultPreset value');
       }
-      next.defaultPreset = input.defaultPreset.trim();
+      const nextPreset = input.defaultPreset.trim();
+      if (nextPreset === baseSettings.defaultPreset) {
+        delete storedOverrides.defaultPreset;
+      } else {
+        storedOverrides.defaultPreset = nextPreset;
+      }
     }
 
     if (input.defaultOutputFormat !== undefined) {
@@ -83,14 +107,23 @@ const createSettingsService = ({ strapi }: { strapi: Core.Strapi }) => ({
       ) {
         throw new Error('Invalid defaultOutputFormat value. Must be json, html, or markdown');
       }
-      next.defaultOutputFormat = input.defaultOutputFormat as TiptapOutputFormat;
+      const nextFormat = input.defaultOutputFormat as TiptapOutputFormat;
+      if (nextFormat === baseSettings.defaultOutputFormat) {
+        delete storedOverrides.defaultOutputFormat;
+      } else {
+        storedOverrides.defaultOutputFormat = nextFormat;
+      }
     }
 
     if (input.enableRelationalSync !== undefined) {
       if (typeof input.enableRelationalSync !== 'boolean') {
         throw new Error('enableRelationalSync must be a boolean');
       }
-      next.enableRelationalSync = input.enableRelationalSync;
+      if (input.enableRelationalSync === baseSettings.enableRelationalSync) {
+        delete storedOverrides.enableRelationalSync;
+      } else {
+        storedOverrides.enableRelationalSync = input.enableRelationalSync;
+      }
     }
 
     if (input.allowedIframeDomains !== undefined) {
@@ -102,7 +135,12 @@ const createSettingsService = ({ strapi }: { strapi: Core.Strapi }) => ({
       ) {
         throw new Error('allowedIframeDomains must be an array of valid domain names');
       }
-      next.allowedIframeDomains = input.allowedIframeDomains.map((d) => d.trim().toLowerCase());
+      const nextDomains = input.allowedIframeDomains.map((d) => d.trim().toLowerCase());
+      if (JSON.stringify(nextDomains) === JSON.stringify(baseSettings.allowedIframeDomains)) {
+        delete storedOverrides.allowedIframeDomains;
+      } else {
+        storedOverrides.allowedIframeDomains = nextDomains;
+      }
     }
 
     if (input.presetOverrides !== undefined) {
@@ -126,18 +164,24 @@ const createSettingsService = ({ strapi }: { strapi: Core.Strapi }) => ({
         }
         sanitizedOverrides[presetName] = cleanPreset;
       }
-      next.presetOverrides = sanitizedOverrides;
+      if (JSON.stringify(sanitizedOverrides) === JSON.stringify(baseSettings.presetOverrides)) {
+        delete storedOverrides.presetOverrides;
+      } else {
+        storedOverrides.presetOverrides = sanitizedOverrides;
+      }
     }
 
-    const store = this.getStore();
     if (store) {
       await store.set({
         key: SETTINGS_STORE_KEY,
-        value: next,
+        value: storedOverrides,
       });
     }
 
-    return next;
+    return {
+      ...baseSettings,
+      ...storedOverrides,
+    };
   },
 });
 

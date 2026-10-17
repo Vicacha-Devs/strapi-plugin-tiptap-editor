@@ -61,10 +61,13 @@ export function parseJSONContent(
     return tiptapContent(defaultValue);
   }
 
-  // Always try JSON first if it looks like JSON
+  // Try JSON first if it looks like JSON and either outputFormat is json or it is a ProseMirror doc
   if (trimmed.startsWith('{') && trimmed.endsWith('}')) {
     try {
-      return JSON.parse(trimmed) as JSONContent;
+      const parsed = JSON.parse(trimmed) as JSONContent;
+      if (outputFormat === 'json' || parsed?.type === 'doc') {
+        return parsed;
+      }
     } catch {
       // fall through
     }

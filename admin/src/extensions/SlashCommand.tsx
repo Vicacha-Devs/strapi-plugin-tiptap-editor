@@ -221,7 +221,7 @@ export function useSlashCommand(
     ...item,
     label: formatMessage({
       id: `tiptap-editor.slash.${item.id}.label`,
-      defaultMessage: item.label,
+      defaultMessage: item.label.replace(/<([^>]+)>/g, "'<$1>'"),
     }),
     description: formatMessage({
       id: `tiptap-editor.slash.${item.id}.description`,

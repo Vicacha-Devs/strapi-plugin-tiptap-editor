@@ -443,7 +443,8 @@ export const TableOfContentsNode = Node.create({
 
           newState.doc.descendants((node, pos) => {
             if (node.type.name === 'heading') {
-              const text = node.textContent || 'Untitled heading';
+              const text = node.textContent;
+              if (!text.trim()) return;
               const id = (node.attrs.id as string) || slugifyHeadingText(text);
               currentHeadings.push({
                 level: Number(node.attrs.level) || 1,
@@ -647,7 +648,7 @@ export function useStructuredBlocks(
         disabled={isDisabled}
         tooltip={formatMessage({
           id: 'tiptap-editor.toolbar.accordion',
-          defaultMessage: 'Insert collapsible accordion (<details>)',
+          defaultMessage: "Insert collapsible accordion ('<details>')",
         })}
       />
     ),

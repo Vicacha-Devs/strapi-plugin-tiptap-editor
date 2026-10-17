@@ -364,25 +364,19 @@ describe('RichTextInput', () => {
     expect(baseTiptapInputs[0].props.noPresetConfigured).toBe(false);
   });
 
-  it('memoizes extensions on presetName string (not config object)', () => {
+  it('memoizes extensions on [config, characterLimit, placeholder] with fixed dependency length', () => {
     const props = { name: 'content', attribute: { options: { preset: 'blog' } } };
     // Render through InnerEditor so useMemo runs
     shallowRender(RichTextInput(props as any, null));
-    // The useMemo dependency array should contain the presetName string, not a config object
     expect(capturedUseMemoDeps).not.toBeNull();
-    expect(capturedUseMemoDeps).toContain('blog');
-    // The deps array should NOT contain an object (the config)
-    const hasObjectDep = capturedUseMemoDeps!.some(
-      (dep) => dep !== null && typeof dep === 'object'
-    );
-    expect(hasObjectDep).toBe(false);
+    expect(capturedUseMemoDeps).toEqual([MINIMAL_PRESET_CONFIG, undefined, undefined]);
   });
 
-  it('memoizes extensions on undefined when no presetName', () => {
+  it('memoizes extensions with fixed 3-element dependency array when no presetName is provided', () => {
     const props = { name: 'content' };
     // Render through InnerEditor so useMemo runs
     shallowRender(RichTextInput(props as any, null));
-    expect(capturedUseMemoDeps).toEqual([undefined]);
+    expect(capturedUseMemoDeps).toEqual([MINIMAL_PRESET_CONFIG, undefined, undefined]);
   });
 
   it('forwards attribute.options.placeholder to buildExtensions even when top-level placeholder is undefined', () => {
@@ -392,7 +386,7 @@ describe('RichTextInput', () => {
       attribute: { options: { preset: 'blog', placeholder: 'Write something...' } },
     };
     shallowRender(RichTextInput(props as any, null));
-    expect(capturedUseMemoDeps).toEqual(['blog', undefined, 'Write something...']);
+    expect(capturedUseMemoDeps).toEqual([MINIMAL_PRESET_CONFIG, undefined, 'Write something...']);
   });
 
   it('wraps output in EditorErrorBoundary (rendered through InnerEditor)', () => {

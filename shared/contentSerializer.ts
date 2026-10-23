@@ -10,7 +10,11 @@ import {
   encodeNodeMetaComment,
   serializeBlockToMarkdown,
 } from './serializers/markdownSerializer';
-import { markdownToJson, parseSingleMarkdownBlock } from './serializers/markdownParser';
+import {
+  markdownToJson,
+  parseSingleMarkdownBlock,
+  splitMarkdownBlocks,
+} from './serializers/markdownParser';
 
 export {
   type ProseMirrorJSONNode,
@@ -34,10 +38,9 @@ export function jsonToMarkdown(doc: ProseMirrorJSONNode | null | undefined): str
 
   for (const node of blocks) {
     const pureMd = serializeBlockToMarkdown(node);
+    // A block "opens a container" only if it leaves a fence/math/details/layout unclosed
     const opensContainer =
-      node.type !== 'codeBlock' &&
-      node.type !== 'mathematics' &&
-      (/^\s*(`{3,}|~{3,})/m.test(pureMd) || /^\s*\$\$\s*$/m.test(pureMd));
+      pureMd.length > 0 && splitMarkdownBlocks(`${pureMd}\n\n__sentinel__`).length !== 2;
     if (opensContainer) {
       lines.push(encodeNodeMetaComment(node));
       continue;

@@ -24,9 +24,16 @@ const headingIdPluginKey = new PluginKey('headingAutoId');
 
 // Base extension class (un-configured) — used by buildExtensions for dynamic levels
 export const BaseHeadingWithSEOTag = Heading.extend({
+  addOptions() {
+    return {
+      ...(typeof (this as any).parent === 'function' ? (this as any).parent() : {}),
+      autoSlugId: true,
+    };
+  },
+
   addAttributes() {
     return {
-      ...(this as any).parent?.(), // must cast to any to avoid TS error
+      ...(typeof (this as any).parent === 'function' ? (this as any).parent() : {}), // must cast to any to avoid TS error
       tag: { default: null },
       id: {
         default: null,
@@ -38,7 +45,11 @@ export const BaseHeadingWithSEOTag = Heading.extend({
   },
 
   addProseMirrorPlugins() {
-    const parentPlugins = (this as any).parent?.() ?? [];
+    const parentPlugins =
+      typeof (this as any).parent === 'function' ? ((this as any).parent() ?? []) : [];
+    if (!(this.options as { autoSlugId?: boolean }).autoSlugId) {
+      return parentPlugins;
+    }
     return [
       ...parentPlugins,
       new Plugin({

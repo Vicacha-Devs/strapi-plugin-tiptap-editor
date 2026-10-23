@@ -75,6 +75,16 @@ describe('buildExtensions', () => {
     const heading = extensions.find((ext: any) => ext.name === 'heading');
     expect(heading).toBeDefined();
     expect((heading as any).options.levels).toEqual([2, 3]);
+    expect((heading as any).options.autoSlugId).toBe(true);
+  });
+
+  it('passes autoSlugId: false to HeadingWithSEOTag and omits headingAutoId plugin when configured', () => {
+    const extensions = buildExtensions({ heading: { levels: [1, 2], autoSlugId: false } });
+    const heading = extensions.find((ext: any) => ext.name === 'heading') as any;
+    expect(heading).toBeDefined();
+    expect(heading.options.autoSlugId).toBe(false);
+    const plugins = heading.config.addProseMirrorPlugins.call(heading);
+    expect(plugins).toEqual([]);
   });
 
   it('does not include HeadingWithSEOTag when heading is false', () => {
@@ -348,5 +358,17 @@ describe('buildExtensions', () => {
     const names = extensions.map((ext: any) => ext.name);
 
     expect(names).not.toContain('characterCount');
+  });
+
+  it('registers the strapi protocol on StarterKit link when allowInternalLinks is true', () => {
+    const extensions = buildExtensions({
+      link: { openOnClick: false, allowInternalLinks: true },
+    });
+    const starterKit = extensions.find((ext: any) => ext.name === 'starterKit') as any;
+    expect(starterKit).toBeDefined();
+    expect(starterKit.options.link).toEqual({
+      openOnClick: false,
+      protocols: [{ scheme: 'strapi', optionalSlashes: false }],
+    });
   });
 });

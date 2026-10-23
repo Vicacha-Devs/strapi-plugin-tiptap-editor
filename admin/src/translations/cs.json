@@ -283,6 +283,7 @@
   "tiptap-editor.settings.globalSectionTitle": "Globální konfigurace",
   "tiptap-editor.settings.defaultPresetLabel": "Výchozí předvolba",
   "tiptap-editor.settings.defaultOutputFormatLabel": "Výchozí výstupní formát",
+  "tiptap-editor.settings.defaultOutputFormatWarning": "Upozornění: Změna tohoto výchozího nastavení změní formát ukládání u polí bez explicitního outputFormat.",
   "tiptap-editor.settings.outputFormatJson": "JSON (Dokument ProseMirror)",
   "tiptap-editor.settings.outputFormatHtml": "Řetězec HTML",
   "tiptap-editor.settings.outputFormatMarkdown": "Řetězec Markdown",

@@ -277,7 +277,14 @@ export function SettingsPage() {
           </Box>
 
           <Box style={{ minWidth: '220px' }}>
-            <Field.Root name="defaultOutputFormat">
+            <Field.Root
+              name="defaultOutputFormat"
+              hint={formatMessage({
+                id: 'tiptap-editor.settings.defaultOutputFormatWarning',
+                defaultMessage:
+                  'Warning: Changing this default changes the storage format of fields without an explicit outputFormat.',
+              })}
+            >
               <Field.Label>
                 {formatMessage({
                   id: 'tiptap-editor.settings.defaultOutputFormatLabel',
@@ -312,6 +319,7 @@ export function SettingsPage() {
                   })}
                 </SingleSelectOption>
               </SingleSelect>
+              <Field.Hint />
             </Field.Root>
           </Box>
 

@@ -62,6 +62,14 @@ export function normalizeVideoEmbedUrl(
         }
         return null;
       }
+      const pathMatch = /^\/(?:shorts|live)\/([\w-]{6,20})(?:\/|$)/.exec(parsed.pathname);
+      if (pathMatch?.[1]) {
+        return {
+          src: `https://www.youtube-nocookie.com/embed/${pathMatch[1]}`,
+          embedType: 'embed',
+        };
+      }
+      return null;
     }
     if (host === 'youtu.be') {
       const videoId = parsed.pathname.replace(/^\//, '').split('/')[0];
@@ -71,6 +79,7 @@ export function normalizeVideoEmbedUrl(
           embedType: 'embed',
         };
       }
+      return null;
     }
 
     // Vimeo
@@ -82,6 +91,7 @@ export function normalizeVideoEmbedUrl(
           embedType: 'embed',
         };
       }
+      return null;
     }
 
     return { src: trimmed, embedType: 'file' };

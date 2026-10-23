@@ -283,6 +283,7 @@
   "tiptap-editor.settings.globalSectionTitle": "Globale Configuratie",
   "tiptap-editor.settings.defaultPresetLabel": "Standaard Preset",
   "tiptap-editor.settings.defaultOutputFormatLabel": "Standaard Uitvoerformaat",
+  "tiptap-editor.settings.defaultOutputFormatWarning": "Waarschuwing: het wijzigen van deze standaardinstelling verandert het opslagformaat van velden zonder een expliciet outputFormat.",
   "tiptap-editor.settings.outputFormatJson": "JSON (ProseMirror-document)",
   "tiptap-editor.settings.outputFormatHtml": "HTML-tekenreeks",
   "tiptap-editor.settings.outputFormatMarkdown": "Markdown-tekenreeks",

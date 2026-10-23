@@ -192,12 +192,19 @@ export function useRelationalSync(
         !currentAvailableFields || currentAvailableFields.includes(linksFieldName);
 
       if (canSyncMedia) {
-        const mediaPayload = validMediaAssets.map((asset) => ({
-          id: asset.assetId,
-          documentId: asset.documentId,
-          url: asset.src,
-          type: asset.nodeType,
-        }));
+        const seen = new Set<number>();
+        const mediaPayload = validMediaAssets
+          .filter((asset) => {
+            if (seen.has(asset.assetId as number)) return false;
+            seen.add(asset.assetId as number);
+            return true;
+          })
+          .map((asset) => ({
+            id: asset.assetId,
+            documentId: asset.documentId,
+            url: asset.src,
+            type: asset.nodeType,
+          }));
         syncHandler(mediaFieldName, mediaPayload);
       }
 

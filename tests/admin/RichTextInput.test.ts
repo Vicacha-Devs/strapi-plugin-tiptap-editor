@@ -603,5 +603,63 @@ describe('RichTextInput', () => {
 
     syncOptions.onSyncField('contentMedia', [{ id: 5 }]);
     expect(mockField.onChange).toHaveBeenLastCalledWith('contentMedia', [{ id: 5 }]);
+
+    // Repeatable Links component: merge into first entry and preserve remaining entries
+    mockField.onChange.mockClear();
+    mockUseField.mockReturnValueOnce({
+      value: [
+        { id: 101, customNote: 'first-entry' },
+        { id: 102, customNote: 'second-entry' },
+      ],
+      onChange: vi.fn(),
+    });
+    mockUseContentManagerContext.mockReturnValueOnce({
+      contentType: {
+        attributes: {
+          content: { type: 'customField' },
+          contentLinks: {
+            type: 'component',
+            component: 'shared.links',
+            repeatable: true,
+          },
+        },
+      },
+    } as any);
+
+    shallowRender(RichTextInput({ name: 'content' } as any, null));
+    const repeatableSyncOptions = (mockUseRelationalSync.mock.lastCall as any)?.[1];
+    repeatableSyncOptions.onSyncField('contentLinks', [
+      { articles: { connect: [{ id: 9, documentId: 'doc-9' }], disconnect: [] } },
+    ]);
+    expect(mockField.onChange).toHaveBeenLastCalledWith('contentLinks', [
+      {
+        id: 101,
+        customNote: 'first-entry',
+        articles: { connect: [{ id: 9, documentId: 'doc-9' }], disconnect: [] },
+      },
+      { id: 102, customNote: 'second-entry' },
+    ]);
+  });
+
+  it('preserves json outputFormat for stored JSON entries when options.outputFormat is unset', () => {
+    const elWithJsonString = (RichTextInput as any)(
+      {
+        name: 'content',
+        value: '{"type":"doc","content":[{"type":"paragraph"}]}',
+        attribute: { options: {} },
+      },
+      null
+    );
+    expect(elWithJsonString.props.outputFormat).toBe('json');
+
+    const elWithJsonObject = (RichTextInput as any)(
+      {
+        name: 'content',
+        value: { type: 'doc', content: [] },
+        attribute: { options: {} },
+      },
+      null
+    );
+    expect(elWithJsonObject.props.outputFormat).toBe('json');
   });
 });

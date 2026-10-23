@@ -283,6 +283,7 @@
   "tiptap-editor.settings.globalSectionTitle": "Genel Yapılandırma",
   "tiptap-editor.settings.defaultPresetLabel": "Varsayılan Ön Ayar",
   "tiptap-editor.settings.defaultOutputFormatLabel": "Varsayılan Çıktı Biçimi",
+  "tiptap-editor.settings.defaultOutputFormatWarning": "Uyarı: Bu varsayılanı değiştirmek, açık bir outputFormat tanımlanmamış alanların depolama biçimini değiştirir.",
   "tiptap-editor.settings.outputFormatJson": "JSON (ProseMirror Belgesi)",
   "tiptap-editor.settings.outputFormatHtml": "HTML Dizisi",
   "tiptap-editor.settings.outputFormatMarkdown": "Markdown Dizisi",

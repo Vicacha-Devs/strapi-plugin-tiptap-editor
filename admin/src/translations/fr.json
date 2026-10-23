@@ -283,6 +283,7 @@
   "tiptap-editor.settings.globalSectionTitle": "Configuration globale",
   "tiptap-editor.settings.defaultPresetLabel": "Préréglage par défaut",
   "tiptap-editor.settings.defaultOutputFormatLabel": "Format de sortie par défaut",
+  "tiptap-editor.settings.defaultOutputFormatWarning": "Avertissement : modifier cette valeur par défaut change le format de stockage des champs sans outputFormat explicite.",
   "tiptap-editor.settings.outputFormatJson": "JSON (Document ProseMirror)",
   "tiptap-editor.settings.outputFormatHtml": "Chaîne HTML",
   "tiptap-editor.settings.outputFormatMarkdown": "Chaîne Markdown",

@@ -142,21 +142,30 @@ const InnerEditor = forwardRef<HTMLDivElement, InnerEditorProps>(
       initialDocument: (props as { value?: unknown }).value,
       onSyncField: (fieldName, value) => {
         const currentLinksValue = linksField?.value;
-        const nextValue =
-          fieldName === linksFieldName &&
-          !linksFieldIsRepeatable &&
-          value !== null &&
-          typeof value === 'object' &&
-          !Array.isArray(value)
-            ? {
-                ...(currentLinksValue &&
-                typeof currentLinksValue === 'object' &&
-                !Array.isArray(currentLinksValue)
-                  ? currentLinksValue
-                  : {}),
-                ...value,
-              }
-            : value;
+        let nextValue = value;
+        if (fieldName === linksFieldName && value !== null && typeof value === 'object') {
+          if (linksFieldIsRepeatable && Array.isArray(value)) {
+            const currentArr = Array.isArray(currentLinksValue) ? currentLinksValue : [];
+            const firstExisting =
+              currentArr[0] && typeof currentArr[0] === 'object' && !Array.isArray(currentArr[0])
+                ? currentArr[0]
+                : {};
+            const firstIncoming =
+              value[0] && typeof value[0] === 'object' && !Array.isArray(value[0])
+                ? (value[0] as Record<string, unknown>)
+                : {};
+            nextValue = [{ ...firstExisting, ...firstIncoming }, ...currentArr.slice(1)];
+          } else if (!linksFieldIsRepeatable && !Array.isArray(value)) {
+            nextValue = {
+              ...(currentLinksValue &&
+              typeof currentLinksValue === 'object' &&
+              !Array.isArray(currentLinksValue)
+                ? currentLinksValue
+                : {}),
+              ...value,
+            };
+          }
+        }
 
         onFormChangeRef.current?.(fieldName, nextValue);
       },
@@ -211,7 +220,7 @@ const InnerEditor = forwardRef<HTMLDivElement, InnerEditorProps>(
     const structuredBlocks = useStructuredBlocks(editor, { disabled: props.disabled });
     const mathematics = useMathematics(editor, { disabled: props.disabled });
     const emoji = useEmojiPicker(editor, { disabled: props.disabled });
-    const slashCommand = useSlashCommand(editor, { disabled: props.disabled });
+    const slashCommand = useSlashCommand(editor, { disabled: props.disabled, config });
     const speech = useSpeechTools(editor, { disabled: props.disabled });
 
     const charCountEnabled =
@@ -526,6 +535,7 @@ const InnerEditor = forwardRef<HTMLDivElement, InnerEditorProps>(
 // Handles async preset fetching; renders loading state until config is ready.
 
 type RichTextInputProps = TiptapInputProps & {
+  value?: unknown;
   attribute?: {
     options?: {
       preset?: string;
@@ -616,13 +626,19 @@ const RichTextInput = forwardRef<HTMLDivElement, RichTextInputProps>((props, for
     );
   }
 
+  const storedLooksJson =
+    (props.value !== null && typeof props.value === 'object') ||
+    (typeof props.value === 'string' && props.value.trim().startsWith('{"type":"doc"'));
+  const resolvedFormat =
+    outputFormat ?? (storedLooksJson ? 'json' : runtimeSettings.defaultOutputFormat);
+
   return (
     <InnerEditor
       {...props}
       ref={forwardedRef}
       config={config ?? MINIMAL_PRESET_CONFIG}
       presetName={effectivePresetName}
-      outputFormat={outputFormat ?? runtimeSettings.defaultOutputFormat}
+      outputFormat={resolvedFormat}
       relationalSyncEnabled={runtimeSettings.enableRelationalSync}
       characterLimit={characterLimit}
       placeholder={placeholder}

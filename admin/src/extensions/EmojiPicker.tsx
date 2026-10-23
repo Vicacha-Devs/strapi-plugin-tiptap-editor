@@ -70,7 +70,7 @@ export function useEmojiPicker(
 
   const triggerButton = (
     <ToolbarButton
-      onClick={() => setOpen((o) => !o)}
+      onClick={() => undefined}
       icon={<EmotionHappy />}
       active={open}
       disabled={!editor || props.disabled}
@@ -82,7 +82,7 @@ export function useEmojiPicker(
     emojiTrigger: triggerButton,
     emojiButton: (
       <Popover.Root open={open} onOpenChange={setOpen}>
-        <Popover.Anchor>{triggerButton}</Popover.Anchor>
+        <Popover.Trigger>{triggerButton}</Popover.Trigger>
         <Popover.Content side="bottom">
           <div style={{ padding: '10px', width: '240px' }}>
             <TextInput

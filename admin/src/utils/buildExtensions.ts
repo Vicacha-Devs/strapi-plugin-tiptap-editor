@@ -123,10 +123,20 @@ export function buildExtensions(
     history: starterKitFeatureValue(config.history),
     link: !isFeatureEnabled(config.link)
       ? false
-      : {
-          openOnClick: false,
-          ...getFeatureOptions(config.link, {}),
-        },
+      : (() => {
+          const { allowInternalLinks, ...rest } =
+            (getFeatureOptions(config.link, { allowInternalLinks: true }) as {
+              allowInternalLinks?: boolean;
+              [key: string]: unknown;
+            }) ?? {};
+          return {
+            openOnClick: false,
+            ...rest,
+            ...(allowInternalLinks
+              ? { protocols: [{ scheme: 'strapi', optionalSlashes: false }] }
+              : {}),
+          };
+        })(),
   };
 
   const extensions: Extensions = [StarterKit.configure(starterKitConfig)];
@@ -134,9 +144,15 @@ export function buildExtensions(
   if (isFeatureEnabled(config.heading)) {
     const headingConfig = getFeatureOptions(config.heading, {
       levels: [1, 2, 3, 4, 5, 6] as const,
+      autoSlugId: true,
     });
     const levels = headingConfig?.levels || [1, 2, 3, 4, 5, 6];
-    extensions.push(BaseHeadingWithSEOTag.configure({ levels }));
+    extensions.push(
+      BaseHeadingWithSEOTag.configure({
+        levels,
+        autoSlugId: (headingConfig as { autoSlugId?: boolean })?.autoSlugId ?? true,
+      } as any)
+    );
   }
 
   if (isFeatureEnabled(config.underline)) {

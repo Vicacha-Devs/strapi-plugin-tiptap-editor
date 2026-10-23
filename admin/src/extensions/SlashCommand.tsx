@@ -4,6 +4,7 @@ import { Popover, TextInput } from '@strapi/design-system';
 import { Plus } from '@strapi/icons';
 import { useIntl } from 'react-intl';
 import { ToolbarButton } from '../components/ToolbarButton';
+import { isFeatureEnabled, type TiptapPresetConfig } from '../../../shared/types';
 
 export type SlashCommandTranslator = (
   id: string,
@@ -13,6 +14,7 @@ export type SlashCommandTranslator = (
 
 export interface SlashCommandItem {
   id: string;
+  featureKey: keyof TiptapPresetConfig;
   label: string;
   description: string;
   keywords: string[];
@@ -23,6 +25,7 @@ export interface SlashCommandItem {
 export const SLASH_COMMAND_ITEMS: SlashCommandItem[] = [
   {
     id: 'h1',
+    featureKey: 'heading',
     label: 'Heading 1',
     description: 'Large section heading',
     keywords: ['h1', 'heading', 'title'],
@@ -31,6 +34,7 @@ export const SLASH_COMMAND_ITEMS: SlashCommandItem[] = [
   },
   {
     id: 'h2',
+    featureKey: 'heading',
     label: 'Heading 2',
     description: 'Medium section heading',
     keywords: ['h2', 'heading', 'subtitle'],
@@ -39,6 +43,7 @@ export const SLASH_COMMAND_ITEMS: SlashCommandItem[] = [
   },
   {
     id: 'h3',
+    featureKey: 'heading',
     label: 'Heading 3',
     description: 'Small section heading',
     keywords: ['h3', 'heading'],
@@ -47,6 +52,7 @@ export const SLASH_COMMAND_ITEMS: SlashCommandItem[] = [
   },
   {
     id: 'infoPane',
+    featureKey: 'informationPane',
     label: 'Information Pane / Callout',
     description: 'Highlighted callout box (Info, Warning, Success, Danger)',
     keywords: ['info', 'alert', 'callout', 'warning', 'pane'],
@@ -73,6 +79,7 @@ export const SLASH_COMMAND_ITEMS: SlashCommandItem[] = [
   },
   {
     id: 'taskList',
+    featureKey: 'taskList',
     label: 'Checklist / Task List',
     description: 'Interactive to-do list with checkboxes',
     keywords: ['task', 'todo', 'checklist', 'check'],
@@ -104,6 +111,7 @@ export const SLASH_COMMAND_ITEMS: SlashCommandItem[] = [
   },
   {
     id: 'accordion',
+    featureKey: 'accordion',
     label: 'Accordion (<details>)',
     description: 'Collapsible details and summary block',
     keywords: ['accordion', 'details', 'collapse', 'faq'],
@@ -147,6 +155,7 @@ export const SLASH_COMMAND_ITEMS: SlashCommandItem[] = [
   },
   {
     id: 'columns2',
+    featureKey: 'columns',
     label: '2-Column Layout',
     description: 'Side-by-side responsive 2-column grid',
     keywords: ['columns', 'grid', 'layout', '2'],
@@ -196,6 +205,7 @@ export const SLASH_COMMAND_ITEMS: SlashCommandItem[] = [
   },
   {
     id: 'columns3',
+    featureKey: 'columns',
     label: '3-Column Layout',
     description: 'Equal 3-column responsive grid',
     keywords: ['columns', 'grid', 'layout', '3'],
@@ -261,6 +271,7 @@ export const SLASH_COMMAND_ITEMS: SlashCommandItem[] = [
   },
   {
     id: 'codeBlock',
+    featureKey: 'codeBlock',
     label: 'Code Block',
     description: 'Preformatted code block',
     keywords: ['code', 'snippet', 'pre'],
@@ -270,6 +281,7 @@ export const SLASH_COMMAND_ITEMS: SlashCommandItem[] = [
   },
   {
     id: 'blockquote',
+    featureKey: 'blockquote',
     label: 'Blockquote',
     description: 'Quoted text passage',
     keywords: ['quote', 'blockquote'],
@@ -279,6 +291,7 @@ export const SLASH_COMMAND_ITEMS: SlashCommandItem[] = [
   },
   {
     id: 'table',
+    featureKey: 'table',
     label: 'Table (3×3)',
     description: 'Insert a 3×3 table with header row',
     keywords: ['table', 'grid'],
@@ -288,6 +301,7 @@ export const SLASH_COMMAND_ITEMS: SlashCommandItem[] = [
   },
   {
     id: 'toc',
+    featureKey: 'tableOfContents',
     label: 'Table of Contents',
     description: 'Auto-generated outline from document headings',
     keywords: ['toc', 'outline', 'contents'],
@@ -296,6 +310,7 @@ export const SLASH_COMMAND_ITEMS: SlashCommandItem[] = [
   },
   {
     id: 'pageBreak',
+    featureKey: 'pageBreak',
     label: 'Page Break',
     description: 'Print / pagination break marker',
     keywords: ['page', 'break', 'divider'],
@@ -304,6 +319,7 @@ export const SLASH_COMMAND_ITEMS: SlashCommandItem[] = [
   },
   {
     id: 'hr',
+    featureKey: 'horizontalRule',
     label: 'Horizontal Rule',
     description: 'Visual horizontal divider line',
     keywords: ['hr', 'line', 'divider'],
@@ -318,7 +334,7 @@ export const SLASH_COMMAND_ITEMS: SlashCommandItem[] = [
  */
 export function useSlashCommand(
   editor: Editor | null,
-  props: { disabled?: boolean } = { disabled: false }
+  props: { disabled?: boolean; config?: TiptapPresetConfig } = { disabled: false }
 ) {
   const { formatMessage } = useIntl();
   const [open, setOpen] = useState(false);
@@ -337,6 +353,7 @@ export function useSlashCommand(
   }));
 
   const filteredItems = localizedItems.filter((item) => {
+    if (props.config && !isFeatureEnabled(props.config[item.featureKey])) return false;
     if (editor && item.isAvailable && !item.isAvailable(editor)) return false;
     if (!filter.trim()) return true;
     const q = filter.toLowerCase();
@@ -349,6 +366,7 @@ export function useSlashCommand(
 
   const handleSelect = (item: SlashCommandItem) => {
     if (!editor) return;
+    if (props.config && !isFeatureEnabled(props.config[item.featureKey])) return;
     if (item.isAvailable && !item.isAvailable(editor)) return;
     item.action(editor, (id, defaultMessage, values) =>
       formatMessage({ id, defaultMessage }, values)
@@ -364,7 +382,7 @@ export function useSlashCommand(
 
   const triggerButton = (
     <ToolbarButton
-      onClick={() => setOpen((o) => !o)}
+      onClick={() => undefined}
       icon={<Plus />}
       active={open}
       disabled={!editor || props.disabled}
@@ -376,7 +394,7 @@ export function useSlashCommand(
     slashCommandTrigger: triggerButton,
     slashCommandButton: (
       <Popover.Root open={open} onOpenChange={setOpen}>
-        <Popover.Anchor>{triggerButton}</Popover.Anchor>
+        <Popover.Trigger>{triggerButton}</Popover.Trigger>
         <Popover.Content side="bottom">
           <div style={{ padding: '10px', width: '280px' }}>
             <TextInput

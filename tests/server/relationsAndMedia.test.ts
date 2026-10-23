@@ -276,6 +276,23 @@ describe('server/services/search', () => {
     const service = createSearchService({ strapi: strapiWithConfiguredLinks });
     expect(service.getLinkableCollections(abilityDenyingArticlesOnly)).toEqual([]);
   });
+
+  it('enforces field-level read permission on titleField in search and getDocument', async () => {
+    const service = createSearchService({ strapi: mockStrapi });
+    const denyTitleFieldAbility = {
+      cannot: (action: string, subject: string, field?: string) =>
+        action === 'plugin::content-manager.explorer.read' &&
+        subject === 'api::article.article' &&
+        field === 'title',
+    };
+
+    const results = await service.search('Tiptap', 'en', denyTitleFieldAbility);
+    expect(results['api::article.article']).toBeUndefined();
+
+    await expect(
+      service.getDocument('api::article.article', 'doc-101', undefined, denyTitleFieldAbility)
+    ).rejects.toThrow('Forbidden');
+  });
 });
 
 describe('server/services/media (SSRF Protection & Metadata)', () => {
@@ -368,6 +385,33 @@ describe('server/services/media (SSRF Protection & Metadata)', () => {
     const preview = await service.getLinkPreview('https://example.com/istanbul');
     expect(preview.title).toBe('İstanbul Rehberi');
     expect(preview.description).toBe('İstanbul — Boğaziçi');
+  });
+
+  it('blocks getLinkPreview 301 redirects to private or metadata endpoints before following the redirect', async () => {
+    vi.spyOn(dns.promises, 'lookup').mockResolvedValueOnce([
+      { address: '93.184.216.34', family: 4 },
+    ] as any);
+
+    const cancelSpy = vi.fn().mockResolvedValue(undefined);
+    const fetchMock = vi.mocked(undiciFetch);
+    fetchMock.mockClear();
+
+    vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce({
+      ok: false,
+      status: 301,
+      headers: new Headers({ location: 'http://169.254.169.254/latest/meta-data' }),
+      body: { cancel: cancelSpy },
+    } as unknown as Response);
+
+    const service = createMediaService({ strapi: {} as any });
+    await expect(service.getLinkPreview('https://example.com/redirect-ssrf')).rejects.toThrow(
+      'Remote preview URL redirects. Provide the final URL.'
+    );
+
+    expect(cancelSpy).toHaveBeenCalledTimes(1);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock.mock.calls[0]?.[0]).toBe('https://example.com/redirect-ssrf');
+    expect((fetchMock.mock.calls[0]?.[1] as { redirect?: string })?.redirect).toBe('manual');
   });
 
   it('fails closed on DNS lookup errors and blocks private resolved IPs', async () => {
@@ -707,6 +751,122 @@ describe('server/controllers/media & search authorization', () => {
     ).rejects.toThrow('Failed to process remote media URL');
     expect(warnMock).toHaveBeenCalledWith(
       expect.stringContaining('getaddrinfo ENOTFOUND internal.corp.local')
+    );
+  });
+
+  it('scopes search and getDocument queries with Content Manager permission-checker and sanitizes unexpected getDocument errors in search controller', async () => {
+    const findManyMock = vi.fn(async () => []);
+    const findOneMock = vi.fn(async () => ({
+      documentId: 'doc-101',
+      id: 1,
+      title: 'Restricted Doc',
+      publishedAt: null,
+      locale: 'en',
+    }));
+    const sanitizedReadMock = vi.fn(async (q: any) => ({
+      ...q,
+      filters: { $and: [q.filters, { createdBy: { id: 7 } }].filter(Boolean) },
+    }));
+    const cannotReadEntityMock = vi.fn(() => false);
+
+    const strapiWithChecker = {
+      contentTypes: {
+        'api::article.article': {
+          kind: 'collectionType',
+          info: { pluralName: 'articles' },
+          attributes: { title: { type: 'string' } },
+        },
+      },
+      components: {},
+      plugin: vi.fn((name: string) => {
+        if (name === 'content-manager') {
+          return {
+            service: vi.fn(() => ({
+              create: vi.fn(() => ({
+                sanitizedQuery: { read: sanitizedReadMock },
+                cannot: { read: cannotReadEntityMock },
+              })),
+            })),
+          };
+        }
+        return {};
+      }),
+      documents: vi.fn(() => ({
+        findMany: findManyMock,
+        findOne: findOneMock,
+      })),
+    } as any;
+
+    const searchService = createSearchService({ strapi: strapiWithChecker });
+    const ability = { can: () => true, cannot: () => false };
+
+    await searchService.search('Restricted', 'en', ability);
+    expect(sanitizedReadMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        locale: 'en',
+        limit: 10,
+      })
+    );
+    expect(findManyMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        filters: expect.objectContaining({
+          $and: expect.any(Array),
+        }),
+      })
+    );
+
+    const resolvedDoc = await searchService.getDocument(
+      'api::article.article',
+      'doc-101',
+      'en',
+      ability
+    );
+    expect(resolvedDoc?.documentId).toBe('doc-101');
+    expect(findOneMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        documentId: 'doc-101',
+        locale: 'en',
+        filters: expect.objectContaining({
+          $and: expect.any(Array),
+        }),
+      })
+    );
+
+    cannotReadEntityMock.mockReturnValueOnce(true);
+    await expect(
+      searchService.getDocument('api::article.article', 'doc-101', 'en', ability)
+    ).rejects.toThrow('Forbidden');
+
+    // Search controller getDocument logs unexpected DB errors and returns a fixed 400 message
+    const warnMock = vi.fn();
+    const controller = createSearchController({
+      strapi: {
+        log: { warn: warnMock },
+        plugin: () => ({
+          service: () => ({
+            getDocument: async () => {
+              throw new Error('SQLITE_ERROR: no such table: internal_secret_table');
+            },
+          }),
+        }),
+      } as any,
+    });
+    const throwMock = vi.fn((status: number, msg: string) => {
+      const err = new Error(msg) as Error & { status?: number };
+      err.status = status;
+      throw err;
+    });
+
+    await expect(
+      controller.getDocument({
+        params: { collectionName: 'api::article.article', documentId: 'doc-101' },
+        query: {},
+        state: { userAbility: ability },
+        throw: throwMock,
+      } as any)
+    ).rejects.toThrow('Invalid document lookup parameters');
+    expect(warnMock).toHaveBeenCalledWith(
+      expect.stringContaining('SQLITE_ERROR: no such table: internal_secret_table')
     );
   });
 });

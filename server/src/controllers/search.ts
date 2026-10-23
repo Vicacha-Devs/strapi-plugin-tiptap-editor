@@ -94,7 +94,12 @@ const createSearchController = ({ strapi }: { strapi: Core.Strapi }) => ({
         ctx.throw(status, error instanceof Error ? error.message : 'Access denied');
         return;
       }
-      ctx.throw(400, error instanceof Error ? error.message : 'Invalid document lookup parameters');
+      strapi?.log?.warn?.(
+        `[tiptap-editor] Document lookup failed: ${
+          error instanceof Error ? error.message : String(error)
+        }`
+      );
+      ctx.throw(400, 'Invalid document lookup parameters');
     }
   },
 

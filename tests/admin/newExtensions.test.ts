@@ -229,7 +229,7 @@ describe('admin/extensions & utilities', () => {
   });
 
   describe('normalizeVideoEmbedUrl', () => {
-    it('normalizes YouTube watch and short URLs to embed URLs', () => {
+    it('normalizes YouTube watch, short, shorts, and live URLs to embed URLs and rejects unrecognized YouTube URLs', () => {
       expect(normalizeVideoEmbedUrl('https://www.youtube.com/watch?v=dQw4w9WgXcQ')).toEqual({
         src: 'https://www.youtube-nocookie.com/embed/dQw4w9WgXcQ',
         embedType: 'embed',
@@ -238,13 +238,24 @@ describe('admin/extensions & utilities', () => {
         src: 'https://www.youtube-nocookie.com/embed/dQw4w9WgXcQ',
         embedType: 'embed',
       });
+      expect(normalizeVideoEmbedUrl('https://www.youtube.com/shorts/dQw4w9WgXcQ')).toEqual({
+        src: 'https://www.youtube-nocookie.com/embed/dQw4w9WgXcQ',
+        embedType: 'embed',
+      });
+      expect(normalizeVideoEmbedUrl('https://www.youtube.com/live/dQw4w9WgXcQ')).toEqual({
+        src: 'https://www.youtube-nocookie.com/embed/dQw4w9WgXcQ',
+        embedType: 'embed',
+      });
+      expect(normalizeVideoEmbedUrl('https://www.youtube.com/channel/UC12345')).toBeNull();
+      expect(normalizeVideoEmbedUrl('https://youtu.be/')).toBeNull();
     });
 
-    it('normalizes Vimeo URLs to player.vimeo.com', () => {
+    it('normalizes Vimeo URLs to player.vimeo.com and rejects Vimeo URLs without a numeric video ID', () => {
       expect(normalizeVideoEmbedUrl('https://vimeo.com/123456789')).toEqual({
         src: 'https://player.vimeo.com/video/123456789',
         embedType: 'embed',
       });
+      expect(normalizeVideoEmbedUrl('https://vimeo.com/channels/staffpicks')).toBeNull();
     });
 
     it('preserves direct video URLs and rejects unsafe schemes', () => {
@@ -453,17 +464,18 @@ describe('admin/extensions & utilities', () => {
       // Step 1: Add doc-2 while keeping doc-1 -> only doc-2 should be in connect, disconnect should be empty
       syncRelationsFromDoc(docWithOneAndTwo);
 
-      await new Promise((r) => setTimeout(r, 10));
-      expect(onSyncField).toHaveBeenLastCalledWith('contentLinks', {
-        articles: {
-          connect: [expect.objectContaining({ id: 22, documentId: 'doc-2' })],
-          disconnect: [],
-        },
-        pages: {
-          connect: [],
-          disconnect: [],
-        },
-      });
+      await vi.waitFor(() =>
+        expect(onSyncField).toHaveBeenLastCalledWith('contentLinks', {
+          articles: {
+            connect: [expect.objectContaining({ id: 22, documentId: 'doc-2' })],
+            disconnect: [],
+          },
+          pages: {
+            connect: [],
+            disconnect: [],
+          },
+        })
+      );
 
       // Step 2: Remove all links before saving -> only persisted doc-1 (id: 11) is in disconnect (unsaved doc-2 is excluded)
       syncRelationsFromDoc({
@@ -471,17 +483,18 @@ describe('admin/extensions & utilities', () => {
         content: [{ type: 'paragraph', content: [{ type: 'text', text: 'No links left' }] }],
       });
 
-      await new Promise((r) => setTimeout(r, 10));
-      expect(onSyncField).toHaveBeenLastCalledWith('contentLinks', {
-        articles: {
-          connect: [],
-          disconnect: [{ id: 11 }],
-        },
-        pages: {
-          connect: [],
-          disconnect: [],
-        },
-      });
+      await vi.waitFor(() =>
+        expect(onSyncField).toHaveBeenLastCalledWith('contentLinks', {
+          articles: {
+            connect: [],
+            disconnect: [{ id: 11 }],
+          },
+          pages: {
+            connect: [],
+            disconnect: [],
+          },
+        })
+      );
 
       // Step 3: Re-seed after saving docWithOneAndTwo, then remove all links -> both persisted doc-1 and doc-2 disconnect
       seedSignature(docWithOneAndTwo);
@@ -490,17 +503,59 @@ describe('admin/extensions & utilities', () => {
         content: [{ type: 'paragraph', content: [{ type: 'text', text: 'No links left' }] }],
       });
 
-      await new Promise((r) => setTimeout(r, 10));
-      expect(onSyncField).toHaveBeenLastCalledWith('contentLinks', {
-        articles: {
-          connect: [],
-          disconnect: [{ id: 11 }, { id: 22 }],
-        },
-        pages: {
-          connect: [],
-          disconnect: [],
-        },
+      await vi.waitFor(() =>
+        expect(onSyncField).toHaveBeenLastCalledWith('contentLinks', {
+          articles: {
+            connect: [],
+            disconnect: [{ id: 11 }, { id: 22 }],
+          },
+          pages: {
+            connect: [],
+            disconnect: [],
+          },
+        })
+      );
+    });
+
+    it('deduplicates mediaPayload by asset ID while preserving first entry order', () => {
+      const onSyncField = vi.fn();
+      const { syncRelationsFromDoc } = useRelationalSync('content', {
+        onSyncField,
+        availableFields: ['content', 'contentMedia'],
       });
+
+      syncRelationsFromDoc({
+        type: 'doc',
+        content: [
+          {
+            type: 'image',
+            attrs: { src: 'https://example.com/one.jpg', 'data-asset-id': 42, 'data-document-id': 'media-42' },
+          },
+          {
+            type: 'image',
+            attrs: { src: 'https://example.com/one-copy.jpg', 'data-asset-id': 42, 'data-document-id': 'media-42' },
+          },
+          {
+            type: 'image',
+            attrs: { src: 'https://example.com/two.jpg', 'data-asset-id': 99, 'data-document-id': 'media-99' },
+          },
+        ],
+      });
+
+      expect(onSyncField).toHaveBeenCalledWith('contentMedia', [
+        {
+          id: 42,
+          documentId: 'media-42',
+          url: 'https://example.com/one.jpg',
+          type: 'image',
+        },
+        {
+          id: 99,
+          documentId: 'media-99',
+          url: 'https://example.com/two.jpg',
+          type: 'image',
+        },
+      ]);
     });
   });
 });

@@ -349,6 +349,38 @@ describe('shared/contentSerializer', () => {
       expect(md).toContain('\\u003cdetails\\u003e');
       expect(markdownToJson(md)).toEqual(doc);
     });
+
+    it('preserves visible fenced code block Markdown inside a details container and round-trips cleanly', () => {
+      const doc = {
+        type: 'doc',
+        content: [
+          {
+            type: 'details',
+            attrs: { open: true },
+            content: [
+              {
+                type: 'detailsSummary',
+                content: [{ type: 'text', text: 'Code Example' }],
+              },
+              {
+                type: 'detailsContent',
+                content: [
+                  {
+                    type: 'codeBlock',
+                    attrs: { language: 'ts' },
+                    content: [{ type: 'text', text: 'const answer = 42;' }],
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+      };
+
+      const md = jsonToMarkdown(doc);
+      expect(md).toContain('```ts\nconst answer = 42;\n```');
+      expect(markdownToJson(md)).toEqual(doc);
+    });
   });
 
   describe('serializeEditorContent', () => {

@@ -283,6 +283,7 @@
   "tiptap-editor.settings.globalSectionTitle": "التكوين العام",
   "tiptap-editor.settings.defaultPresetLabel": "الإعداد المسبق الافتراضي",
   "tiptap-editor.settings.defaultOutputFormatLabel": "تنسيق الإخراج الافتراضي",
+  "tiptap-editor.settings.defaultOutputFormatWarning": "تحذير: يؤدي تغيير هذا الإعداد الافتراضي إلى تغيير تنسيق التخزين للحقول التي لا تحتوي على outputFormat صريح.",
   "tiptap-editor.settings.outputFormatJson": "JSON (مستند ProseMirror)",
   "tiptap-editor.settings.outputFormatHtml": "سلسلة نصية HTML",
   "tiptap-editor.settings.outputFormatMarkdown": "سلسلة نصية Markdown",

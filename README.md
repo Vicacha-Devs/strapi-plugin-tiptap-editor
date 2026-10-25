@@ -102,7 +102,7 @@
 - **Relational Media & Internal Link Sync (Hashbite Lexical Pattern)**:
   - Automatically extracts all 4 embedded media types (`image`, `video`, `audio`, `attachment`) into a companion `<FieldName>Media` field and internal Strapi links (`strapi://collectionName/documentId` & `linker` nodes) into a companion `<FieldName>Links` component.
 - **Structured Blocks & Editorial Tools**:
-  - **Information Pane / Callout (`informationPane`)** (`info`, `success`, `warning`, `danger`), **Collapsible Accordion (`accordion`)** (`<details>`/`<summary>`), **Multi-Column Layout (`columns`)** (2-col / 3-col), **Task Lists (`taskList`)**, **Conversation History (`conversationHistory`)**, **Dynamic Table of Contents (`tableOfContents`)**, **Page Break (`pageBreak`)**, **Mathematics / LaTeX (`mathematics`)**, **Emoji Picker (`emoji`)**, and **Slash Commands (`/`) (`slashCommands`)**.
+  - **Information Pane / Callout (`informationPane`)** (`info`, `success`, `warning`, `danger`), **Collapsible Accordion (`accordion`)** (`<details>`/`<summary>`), **Multi-Column Layout (`columns`)** (2-col / 3-col), **Task Lists (`taskList`)**, **Conversation History (`conversationHistory`)**, **Dynamic Table of Contents (`tableOfContents`)**, **Page Break (`pageBreak`)**, **Mathematics / LaTeX (`mathematics`)**, **Emoji Picker (`emoji`)**, and **Slash Commands (`slashCommands`)**.
 - **Typography & Semantic Accessibility Marks**:
   - **Font Family (`fontFamily`)**, **Font Size (`fontSize`)**, **Line Height (`lineHeight`)**, **Clear Formatting (`clearFormatting`)**, **Smart Typography (`typography`)**, **Lead Paragraph (`leadParagraph`)**, **Abbreviation `<abbr>` (`abbr`)**, and **Language `<span lang="..." dir="...">` (`language`)** for WCAG 2.1 SC 3.1.2 compliance.
 - **Speech & Productivity Modes**:
@@ -121,11 +121,11 @@
 
 ### Supported Versions
 
-This plugin is compatible with Strapi `v5.x.x` (tested on Strapi `v5.34.0+`) and Node.js `^20.19.0 || ^22.13.0 || >=24.0.0`.
+This plugin is compatible with Strapi `v5.39.0` and Node.js `^20.19.0 || ^22.13.0 || >=24.0.0`.
 
 | Plugin version | Strapi Version | Node.js Version                      | TipTap Version | Full Support |
 | -------------- | -------------- | ------------------------------------ | -------------- | ------------ |
-| 1.2.x+         | 5.0.0 – 5.39+  | `^20.19.0 \|\| ^22.13.0 \|\| >=24.0.0` | 3.20.1         | ✅           |
+| 1.2.x+         | 5.39.0         | `^20.19.0 \|\| ^22.13.0 \|\| >=24.0.0` | 3.20.1         | ✅           |
 
 > **Node.js Dependency Compatibility Note:** Runtime dependencies `undici` (`6.29.0`) and `isomorphic-dompurify` (`3.19.0`) are intentionally pinned to their `6.x` and `3.x` release lines to preserve Node.js `20.19+` and `22.13+` compatibility across the full Strapi v5 engine range (`isomorphic-dompurify` `4.x` requires Node `>=22.22.2`).
 
@@ -292,12 +292,12 @@ To use companion internal link fields, first define a `links.links` component in
 | Key                   | Description                                                      | Toolbar                      |
 | --------------------- | ---------------------------------------------------------------- | ---------------------------- |
 | `blockquote`          | Blockquote (`<blockquote>`)                                      | Quote button                 |
-| `codeBlock`           | Fenced code block (`<pre><code>`)                                | Via `/` command or markdown  |
+| `codeBlock`           | Fenced code block (`<pre><code>`)                                | `+` palette or markdown      |
 | `bulletList`          | Unordered bullet list (`<ul>`)                                   | Bullet list button           |
 | `orderedList`         | Ordered numbered list (`<ol>`)                                   | Numbered list button         |
 | `taskList`            | Interactive checklist (`<ul data-type="taskList">`)              | `☑` Task list button         |
 | `hardBreak`           | Line break (`<br>`)                                              | `Shift + Enter`              |
-| `horizontalRule`      | Horizontal divider (`<hr>`)                                      | Via `/` command or `---`     |
+| `horizontalRule`      | Horizontal divider (`<hr>`)                                      | `+` palette or `---`         |
 | `history`             | Undo / Redo history stack                                        | `Ctrl/Cmd + Z` / `Shift + Z` |
 | `informationPane`     | Edifice IO callout box (`info`, `success`, `warning`, `danger`)  | Info Pane button + variant   |
 | `accordion`           | Collapsible `<details>` / `<summary>` block                      | `▸` Accordion button         |

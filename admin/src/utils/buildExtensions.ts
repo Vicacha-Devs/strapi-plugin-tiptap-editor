@@ -203,24 +203,17 @@ export function buildExtensions(
     isFeatureEnabled(config.lineHeight);
 
   if (needsTextStyle) {
-    extensions.push(TextStyle);
     extensions.push(PasteStripper);
   }
-  if (isFeatureEnabled(config.textColor)) {
-    extensions.push(Color);
-  }
-  if (isFeatureEnabled(config.highlightColor)) {
-    extensions.push(Highlight.configure({ multicolor: true }));
-  }
-  if (isFeatureEnabled(config.fontFamily)) {
-    extensions.push(FontFamily);
-  }
-  if (isFeatureEnabled(config.fontSize)) {
-    extensions.push(FontSize);
-  }
-  if (isFeatureEnabled(config.lineHeight)) {
-    extensions.push(LineHeight);
-  }
+  // Schema-only: always registered so stored textStyle/highlight marks round-trip without data loss
+  extensions.push(
+    TextStyle,
+    Color,
+    Highlight.configure({ multicolor: true }),
+    FontFamily,
+    FontSize,
+    LineHeight
+  );
 
   // Zero-Data-Loss Media Library Image extension
   if (isFeatureEnabled(config.mediaLibrary)) {

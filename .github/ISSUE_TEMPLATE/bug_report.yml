@@ -1,0 +1,47 @@
+name: Bug Report
+description: Report a bug in @vicacha-devs/strapi-plugin-tiptap-editor
+title: "[Bug]: "
+labels: ["bug", "triage"]
+body:
+  - type: dropdown
+    id: area
+    attributes:
+      label: Component / Area
+      options:
+        - "Editor Core & Extensions (Tiptap v3)"
+        - "Toolbar / Bubble Menu / Floating Menu / Slash Commands"
+        - "Serialization (HTML / JSON / Markdown)"
+        - "Strapi Media Library Integration"
+        - "RTL / Text Direction / Internationalization"
+        - "Server Custom Field Registration / Presets"
+    validations:
+      required: true
+
+  - type: input
+    id: versions
+    attributes:
+      label: Environment & Versions
+      placeholder: "Strapi v5.39.0, plugin v0.1.0, Chrome 135, Node v22"
+    validations:
+      required: true
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Bug Description
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to Reproduce
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected Behavior
+    validations:
+      required: true

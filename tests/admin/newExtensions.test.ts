@@ -118,6 +118,8 @@ describe('admin/extensions & utilities', () => {
       expect(names).toContain('conversationHistory');
       expect(names).toContain('layoutContainer');
       expect(names).toContain('layoutColumn');
+      expect(names).toContain('textStyle');
+      expect(names).toContain('highlight');
       expect(names).toContain('taskList');
       expect(names).toContain('taskItem');
       expect(names).toContain('pageBreak');

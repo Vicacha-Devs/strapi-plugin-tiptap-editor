@@ -5,17 +5,20 @@ import { MINIMAL_PRESET_CONFIG } from '../../shared/types';
 let capturedUseMemoFactory: (() => any) | null = null;
 let capturedUseMemoDeps: any[] | null = null;
 let mockIsSettingsLoading = false;
+let mockSettingsLoadFailed = false;
 
 vi.mock('react', async () => {
   const actual = await vi.importActual<typeof import('react')>('react');
   return {
     ...actual,
     useState: (init: any) => [
-      typeof init === 'boolean'
+      init === true
         ? mockIsSettingsLoading
-        : typeof init === 'function'
-          ? init()
-          : init,
+        : init === false
+          ? mockSettingsLoadFailed
+          : typeof init === 'function'
+            ? init()
+            : init,
       vi.fn(),
     ],
     useEffect: (fn: () => void) => {
@@ -661,5 +664,31 @@ describe('RichTextInput', () => {
       null
     );
     expect(elWithJsonObject.props.outputFormat).toBe('json');
+
+    // When settings loading fails, infer markdown or html from non-JSON stored string
+    mockSettingsLoadFailed = true;
+    try {
+      const elWithMarkdown = (RichTextInput as any)(
+        {
+          name: 'content',
+          value: '# Heading in Markdown',
+          attribute: { options: {} },
+        },
+        null
+      );
+      expect(elWithMarkdown.props.outputFormat).toBe('markdown');
+
+      const elWithHtml = (RichTextInput as any)(
+        {
+          name: 'content',
+          value: '<p>Stored HTML paragraph</p>',
+          attribute: { options: {} },
+        },
+        null
+      );
+      expect(elWithHtml.props.outputFormat).toBe('html');
+    } finally {
+      mockSettingsLoadFailed = false;
+    }
   });
 });

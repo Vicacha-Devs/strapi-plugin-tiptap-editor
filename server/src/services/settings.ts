@@ -12,6 +12,16 @@ const VALID_OUTPUT_FORMATS = new Set<TiptapOutputFormat>(['json', 'html', 'markd
 const VALID_FEATURE_KEYS = new Set<string>(PRESET_FEATURE_KEYS);
 
 /**
+ * Error thrown when runtime settings payload validation fails.
+ */
+export class SettingsValidationError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'SettingsValidationError';
+  }
+}
+
+/**
  * Checks whether a value is a non-null plain object.
  */
 const isPlainObject = (value: unknown): value is Record<string, unknown> => {
@@ -63,7 +73,7 @@ const createSettingsService = ({ strapi }: { strapi: Core.Strapi }) => ({
    */
   async updateSettings(input: unknown): Promise<Required<TiptapRuntimeSettings>> {
     if (!isPlainObject(input)) {
-      throw new Error('Settings payload must be a plain object');
+      throw new SettingsValidationError('Settings payload must be a plain object');
     }
 
     const configSettings =
@@ -90,7 +100,7 @@ const createSettingsService = ({ strapi }: { strapi: Core.Strapi }) => ({
 
     if (input.defaultPreset !== undefined) {
       if (typeof input.defaultPreset !== 'string' || !/^[\w-]+$/.test(input.defaultPreset.trim())) {
-        throw new Error('Invalid defaultPreset value');
+        throw new SettingsValidationError('Invalid defaultPreset value');
       }
       const nextPreset = input.defaultPreset.trim();
       if (nextPreset === baseSettings.defaultPreset) {
@@ -105,7 +115,9 @@ const createSettingsService = ({ strapi }: { strapi: Core.Strapi }) => ({
         typeof input.defaultOutputFormat !== 'string' ||
         !VALID_OUTPUT_FORMATS.has(input.defaultOutputFormat as TiptapOutputFormat)
       ) {
-        throw new Error('Invalid defaultOutputFormat value. Must be json, html, or markdown');
+        throw new SettingsValidationError(
+          'Invalid defaultOutputFormat value. Must be json, html, or markdown'
+        );
       }
       const nextFormat = input.defaultOutputFormat as TiptapOutputFormat;
       if (nextFormat === baseSettings.defaultOutputFormat) {
@@ -117,7 +129,7 @@ const createSettingsService = ({ strapi }: { strapi: Core.Strapi }) => ({
 
     if (input.enableRelationalSync !== undefined) {
       if (typeof input.enableRelationalSync !== 'boolean') {
-        throw new Error('enableRelationalSync must be a boolean');
+        throw new SettingsValidationError('enableRelationalSync must be a boolean');
       }
       if (input.enableRelationalSync === baseSettings.enableRelationalSync) {
         delete storedOverrides.enableRelationalSync;
@@ -133,7 +145,9 @@ const createSettingsService = ({ strapi }: { strapi: Core.Strapi }) => ({
           (d) => typeof d === 'string' && /^[a-zA-Z0-9.-]+$/.test(d.trim())
         )
       ) {
-        throw new Error('allowedIframeDomains must be an array of valid domain names');
+        throw new SettingsValidationError(
+          'allowedIframeDomains must be an array of valid domain names'
+        );
       }
       const nextDomains = input.allowedIframeDomains.map((d) => d.trim().toLowerCase());
       if (JSON.stringify(nextDomains) === JSON.stringify(baseSettings.allowedIframeDomains)) {
@@ -145,20 +159,24 @@ const createSettingsService = ({ strapi }: { strapi: Core.Strapi }) => ({
 
     if (input.presetOverrides !== undefined) {
       if (!isPlainObject(input.presetOverrides)) {
-        throw new Error('presetOverrides must be a plain object');
+        throw new SettingsValidationError('presetOverrides must be a plain object');
       }
       const sanitizedOverrides: Record<string, Partial<TiptapPresetConfig>> = {};
       for (const [presetName, override] of Object.entries(input.presetOverrides)) {
         if (!/^[\w-]+$/.test(presetName) || !isPlainObject(override)) {
-          throw new Error(`Invalid preset override for "${presetName}"`);
+          throw new SettingsValidationError(`Invalid preset override for "${presetName}"`);
         }
         const cleanPreset: Partial<TiptapPresetConfig> = {};
         for (const [fKey, fVal] of Object.entries(override)) {
           if (!VALID_FEATURE_KEYS.has(fKey)) {
-            throw new Error(`Unknown feature key "${fKey}" in presetOverrides.${presetName}`);
+            throw new SettingsValidationError(
+              `Unknown feature key "${fKey}" in presetOverrides.${presetName}`
+            );
           }
           if (typeof fVal !== 'boolean' && !isPlainObject(fVal)) {
-            throw new Error(`Invalid value for "${fKey}" in presetOverrides.${presetName}`);
+            throw new SettingsValidationError(
+              `Invalid value for "${fKey}" in presetOverrides.${presetName}`
+            );
           }
           (cleanPreset as Record<string, unknown>)[fKey] = fVal;
         }

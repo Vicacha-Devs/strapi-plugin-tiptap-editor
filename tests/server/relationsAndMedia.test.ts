@@ -11,7 +11,9 @@ vi.mock('undici', async () => {
   };
 });
 
-import createSettingsService from '../../server/src/services/settings';
+import createSettingsService, {
+  SettingsValidationError,
+} from '../../server/src/services/settings';
 import createSearchService from '../../server/src/services/search';
 import createMediaService, {
   isPrivateIpAddress,
@@ -20,6 +22,7 @@ import createMediaService, {
 } from '../../server/src/services/media';
 import createMediaController from '../../server/src/controllers/media';
 import createSearchController from '../../server/src/controllers/search';
+import createSettingsController from '../../server/src/controllers/settings';
 import bootstrap from '../../server/src/bootstrap';
 
 describe('server/services/settings', () => {
@@ -97,7 +100,7 @@ describe('server/services/settings', () => {
     expect(storedValue).toEqual({ defaultOutputFormat: 'html' });
   });
 
-  it('rejects invalid output formats or unknown feature keys', async () => {
+  it('rejects invalid output formats or unknown feature keys and distinguishes validation (400) from persistence errors (500) in controller', async () => {
     const mockStrapi = {
       config: { get: vi.fn(() => ({})) },
       store: vi.fn(() => ({ get: vi.fn(), set: vi.fn() })),
@@ -106,7 +109,7 @@ describe('server/services/settings', () => {
 
     await expect(
       service.updateSettings({ defaultOutputFormat: 'xml' })
-    ).rejects.toThrow('Invalid defaultOutputFormat');
+    ).rejects.toThrow(SettingsValidationError);
 
     await expect(
       service.updateSettings({
@@ -119,6 +122,61 @@ describe('server/services/settings', () => {
         presetOverrides: { default: { bold: 'invalid-string' as any } },
       })
     ).rejects.toThrow('Invalid value for "bold"');
+
+    const errorLogMock = vi.fn();
+    const failingStoreService = createSettingsService({
+      strapi: {
+        config: { get: vi.fn(() => ({})) },
+        store: vi.fn(() => ({
+          get: vi.fn(async () => null),
+          set: vi.fn(async () => {
+            throw new Error('PG::ConnectionBad: core_store write failed');
+          }),
+        })),
+      } as any,
+    });
+
+    const controller = createSettingsController({
+      strapi: {
+        log: { error: errorLogMock },
+        plugin: () => ({
+          service: () => failingStoreService,
+        }),
+      } as any,
+    });
+
+    const throwMock = vi.fn((status: number, msg: string) => {
+      const err = new Error(msg) as Error & { status?: number };
+      err.status = status;
+      throw err;
+    });
+
+    // Validation error -> 400 with validation message
+    await expect(
+      controller.update({
+        state: { userAbility: { cannot: () => false } },
+        request: { body: { defaultOutputFormat: 'xml' } },
+        throw: throwMock,
+      } as any)
+    ).rejects.toMatchObject({
+      status: 400,
+      message: 'Invalid defaultOutputFormat value. Must be json, html, or markdown',
+    });
+
+    // Persistence failure -> 500 with generic message & logged server-side
+    await expect(
+      controller.update({
+        state: { userAbility: { cannot: () => false } },
+        request: { body: { defaultOutputFormat: 'markdown' } },
+        throw: throwMock,
+      } as any)
+    ).rejects.toMatchObject({
+      status: 500,
+      message: 'Failed to save settings',
+    });
+    expect(errorLogMock).toHaveBeenCalledWith(
+      expect.stringContaining('PG::ConnectionBad: core_store write failed')
+    );
   });
 });
 

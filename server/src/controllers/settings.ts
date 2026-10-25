@@ -2,6 +2,7 @@ import type { Core } from '@strapi/strapi';
 import type { Context } from 'koa';
 import type { TiptapRuntimeSettings } from '../../../shared/types';
 import { SETTINGS_UPDATE_PERMISSION } from '../bootstrap';
+import { SettingsValidationError } from '../services/settings';
 
 interface SettingsService {
   getSettings(): Promise<Required<TiptapRuntimeSettings>>;
@@ -40,7 +41,16 @@ const createSettingsController = ({ strapi }: { strapi: Core.Strapi }) => ({
     try {
       ctx.body = await settingsService.updateSettings(body);
     } catch (error) {
-      ctx.throw(400, error instanceof Error ? error.message : 'Invalid settings payload');
+      if (error instanceof SettingsValidationError) {
+        ctx.throw(400, error.message);
+        return;
+      }
+      strapi?.log?.error?.(
+        `[tiptap-editor] Failed to persist settings: ${
+          error instanceof Error ? error.message : String(error)
+        }`
+      );
+      ctx.throw(500, 'Failed to save settings');
     }
   },
 });

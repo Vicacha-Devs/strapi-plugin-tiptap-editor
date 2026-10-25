@@ -566,6 +566,7 @@ const RichTextInput = forwardRef<HTMLDivElement, RichTextInputProps>((props, for
     DEFAULT_RUNTIME_SETTINGS
   );
   const [isSettingsLoading, setIsSettingsLoading] = useState<boolean>(true);
+  const [settingsLoadFailed, setSettingsLoadFailed] = useState<boolean>(false);
   const effectivePresetName = normalizedPresetName ?? runtimeSettings.defaultPreset;
   const { config, isLoading } = usePresetConfig(effectivePresetName);
 
@@ -604,12 +605,14 @@ const RichTextInput = forwardRef<HTMLDivElement, RichTextInputProps>((props, for
               ? { defaultOutputFormat: res.data.defaultOutputFormat }
               : {}),
           });
+          setSettingsLoadFailed(false);
           setIsSettingsLoading(false);
         }
       )
       .catch(() => {
         if (mounted) {
           setRuntimeSettings(DEFAULT_RUNTIME_SETTINGS);
+          setSettingsLoadFailed(true);
           setIsSettingsLoading(false);
         }
       });
@@ -629,8 +632,16 @@ const RichTextInput = forwardRef<HTMLDivElement, RichTextInputProps>((props, for
   const storedLooksJson =
     (props.value !== null && typeof props.value === 'object') ||
     (typeof props.value === 'string' && props.value.trim().startsWith('{"type":"doc"'));
+  const storedString = typeof props.value === 'string' ? props.value.trim() : '';
+  const inferredFormat: TiptapOutputFormat | undefined =
+    !settingsLoadFailed || !storedString
+      ? undefined
+      : storedString.startsWith('<')
+        ? 'html'
+        : 'markdown';
   const resolvedFormat =
-    outputFormat ?? (storedLooksJson ? 'json' : runtimeSettings.defaultOutputFormat);
+    outputFormat ??
+    (storedLooksJson ? 'json' : (inferredFormat ?? runtimeSettings.defaultOutputFormat));
 
   return (
     <InnerEditor

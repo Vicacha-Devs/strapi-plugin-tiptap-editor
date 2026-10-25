@@ -247,7 +247,7 @@ describe('buildExtensions', () => {
     expect(names).toContain('pasteStripper');
   });
 
-  it('with all features false returns only StarterKit, Image, and Gapcursor', () => {
+  it('with all features false returns StarterKit, Image, Gapcursor, TableKit, and schema-preserving marks/nodes without PasteStripper', () => {
     const config: TiptapPresetConfig = {
       bold: false,
       italic: false,
@@ -276,13 +276,13 @@ describe('buildExtensions', () => {
     expect(names).toContain('starterKit');
     expect(names).toContain('gapCursor');
     expect(names).toContain('tableKit');
+    expect(names).toContain('textStyle');
+    expect(names).toContain('color');
+    expect(names).toContain('highlight');
     expect(names).not.toContain('heading');
     expect(names).not.toContain('superscript');
     expect(names).not.toContain('subscript');
     expect(names).not.toContain('textAlign');
-    expect(names).not.toContain('textStyle');
-    expect(names).not.toContain('color');
-    expect(names).not.toContain('highlight');
     expect(names).not.toContain('pasteStripper');
   });
 
@@ -317,13 +317,16 @@ describe('buildExtensions', () => {
     expect(pasteStripperCount).toBe(1);
   });
 
-  it('does not include TextStyle, Color, or Highlight when neither textColor nor highlightColor is enabled', () => {
+  it('always registers TextStyle, Color, Highlight, FontFamily, FontSize, and LineHeight for schema preservation while omitting PasteStripper when disabled', () => {
     const extensions = buildExtensions({});
     const names = extensions.map((ext: any) => ext.name);
 
-    expect(names).not.toContain('textStyle');
-    expect(names).not.toContain('color');
-    expect(names).not.toContain('highlight');
+    expect(names).toContain('textStyle');
+    expect(names).toContain('color');
+    expect(names).toContain('highlight');
+    expect(names).toContain('fontFamily');
+    expect(names).toContain('fontSize');
+    expect(names).toContain('lineHeight');
     expect(names).not.toContain('pasteStripper');
   });
 
@@ -335,20 +338,20 @@ describe('buildExtensions', () => {
     expect((highlight as any).options.multicolor).toBe(true);
   });
 
-  it('textColor only does not include Highlight', () => {
+  it('textColor only still registers Highlight schema for Zero-Data-Loss', () => {
     const extensions = buildExtensions({ textColor: true });
     const names = extensions.map((ext: any) => ext.name);
 
     expect(names).toContain('color');
-    expect(names).not.toContain('highlight');
+    expect(names).toContain('highlight');
   });
 
-  it('highlightColor only does not include Color', () => {
+  it('highlightColor only still registers Color schema for Zero-Data-Loss', () => {
     const extensions = buildExtensions({ highlightColor: true });
     const names = extensions.map((ext: any) => ext.name);
 
     expect(names).toContain('highlight');
-    expect(names).not.toContain('color');
+    expect(names).toContain('color');
   });
 
   it('does not include characterCount when characterCount is { enabled: false, limit: 500 } and no field characterLimit is set', () => {

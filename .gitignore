@@ -143,3 +143,6 @@ coverage
 ############################
 
 .codegraph/
+
+# Archify scratch directory
+.archify/

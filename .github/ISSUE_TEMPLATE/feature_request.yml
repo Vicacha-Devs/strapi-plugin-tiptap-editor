@@ -1,0 +1,20 @@
+name: Feature Request
+description: Suggest a new Tiptap extension, toolbar feature, or custom field option
+title: "[Feat]: "
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Use Case / Problem Statement
+      description: What editorial workflow or rich-text capability is needed?
+    validations:
+      required: true
+
+  - type: textarea
+    id: solution
+    attributes:
+      label: Proposed Solution
+      description: Describe the desired Tiptap extension, UI controls, and custom field options.
+    validations:
+      required: true

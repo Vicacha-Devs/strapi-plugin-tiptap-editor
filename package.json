@@ -29,13 +29,14 @@
   "files": [
     "dist"
   ],
+  "packageManager": "pnpm@12.15.0",
   "scripts": {
     "build": "strapi-plugin build",
     "watch": "strapi-plugin watch",
     "watch:link": "strapi-plugin watch:link",
     "verify": "strapi-plugin verify",
-    "test:ts:front": "run -T tsc -p admin/tsconfig.json",
-    "test:ts:back": "run -T tsc -p server/tsconfig.json",
+    "test:ts:front": "tsc --noEmit -p admin/tsconfig.json",
+    "test:ts:back": "tsc --noEmit -p server/tsconfig.json",
     "test": "vitest run",
     "test:watch": "vitest"
   },

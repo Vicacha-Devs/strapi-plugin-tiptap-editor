@@ -135,9 +135,12 @@ This plugin is compatible with Strapi `v5.39.0` and Node.js `^20.19.0 || ^22.13.
 
 ### Installation
 
-#### 1. Install the plugin via npm or yarn
+#### 1. Install the plugin via pnpm, npm or yarn
 
 ```bash
+# pnpm
+pnpm add @notum-cz/strapi-plugin-tiptap-editor
+
 # NPM
 npm i @notum-cz/strapi-plugin-tiptap-editor
 
@@ -148,8 +151,13 @@ yarn add @notum-cz/strapi-plugin-tiptap-editor
 #### 2. Rebuild Strapi and start the server
 
 ```bash
-yarn build
-yarn start
+# pnpm
+pnpm build
+pnpm start
+
+# NPM / Yarn
+npm run build && npm run start
+yarn build && yarn start
 ```
 
 ---
@@ -860,3 +868,17 @@ Built and maintained by [Notum Technologies](https://notum.tech/?utm_source=stra
 Contributions of all kinds are welcome: code, documentation, bug reports, and feature ideas.
 
 Browse the [open issues](https://github.com/notum-cz/strapi-plugin-tiptap-editor/issues) to find something to work on, or open a new one to start a discussion. Pull requests are always appreciated!
+
+#### Local development
+
+This repository uses [pnpm](https://pnpm.io/) (the version is pinned in the `packageManager` field of `package.json`; enable it with `corepack enable`).
+
+```bash
+pnpm install --frozen-lockfile   # install dependencies from pnpm-lock.yaml
+pnpm test                        # Vitest suites
+pnpm run test:ts:front           # typecheck the admin code
+pnpm run test:ts:back            # typecheck the server code
+pnpm build && pnpm verify        # build the plugin and verify its exports
+```
+
+`pnpm-workspace.yaml` sets `nodeLinker: hoisted` (required for the plugin build to generate its type declarations) and lists which dependencies may run install scripts (`allowBuilds`). Do not commit `yarn.lock` or `package-lock.json`.

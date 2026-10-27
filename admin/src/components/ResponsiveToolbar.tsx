@@ -1,11 +1,16 @@
 
 import { useIntl } from 'react-intl';
-import { useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { Fragment, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { Box, Flex, IconButton, Popover } from '@strapi/design-system';
 import { More } from '@strapi/icons';
 import styled from 'styled-components';
 
-export type ToolbarItem = { id: string; content: React.ReactNode };
+export type ToolbarItem = {
+  id: string;
+  content: React.ReactNode;
+  /** Portaled dialogs rendered once, outside measurement and overflow, so they stay mounted */
+  overlay?: React.ReactNode;
+};
 export type ResponsiveToolbarProps = { items: ToolbarItem[] };
 
 const MORE_BUTTON_WIDTH = 40;
@@ -79,6 +84,9 @@ export function ResponsiveToolbar({ items }: ResponsiveToolbarProps) {
 
   return (
     <Box ref={toolbarRef} width="100%">
+      {items.map((item) =>
+        item.overlay ? <Fragment key={`${item.id}-overlay`}>{item.overlay}</Fragment> : null
+      )}
       <Flex gap={1}>
         {visibleItems.map(({ id, content }, idx) => {
           if (id.toLowerCase().includes('spacer') && idx === visibleItems.length - 1) return null;

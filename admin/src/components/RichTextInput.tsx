@@ -11,6 +11,11 @@ import { useStarterKit } from '../extensions/StarterKit';
 import { useLink } from '../extensions/Link';
 import { useHeading } from '../extensions/Heading';
 import { useImage } from '../extensions/Image';
+import { useVideo } from '../extensions/Video';
+import { useAudio } from '../extensions/Audio';
+import { useAttachment } from '../extensions/Attachment';
+import { useIframe } from '../extensions/Iframe';
+import { useLinker } from '../extensions/Linker';
 import { useScript } from '../extensions/Script';
 import { useTable } from '../extensions/Table';
 import { useTextAlign } from '../extensions/TextAlign';
@@ -160,6 +165,15 @@ const InnerEditor = forwardRef<HTMLDivElement, InnerEditorProps>(
     const heading = useHeading(editor, { disabled: props.disabled, levels: headingOptions?.levels });
     const link = useLink(editor, { disabled: props.disabled });
     const image = useImage(editor, { disabled: props.disabled });
+    const video = useVideo(editor, { disabled: props.disabled });
+    const audio = useAudio(editor, { disabled: props.disabled });
+    const attachment = useAttachment(editor, { disabled: props.disabled });
+    const iframeOptions = getFeatureOptions(config.iframe, { allowedDomains: [] as string[] });
+    const iframe = useIframe(editor, {
+      disabled: props.disabled,
+      allowedDomains: iframeOptions?.allowedDomains,
+    });
+    const linker = useLinker(editor, { disabled: props.disabled });
     const script = useScript(editor, { disabled: props.disabled });
     const table = useTable(editor, { disabled: props.disabled });
     const textAlign = useTextAlign(editor, { disabled: props.disabled });
@@ -312,7 +326,60 @@ const InnerEditor = forwardRef<HTMLDivElement, InnerEditorProps>(
         content: image.imageButton,
         overlay: image.imageDialog,
       },
-      (config.code || config.blockquote || config.link || config.mediaLibrary) && {
+      config.linker && {
+        id: 'linker',
+        content: (
+          <>
+            {linker.linkerButton}
+            {linker.linkerDialog}
+          </>
+        ),
+      },
+      config.video && {
+        id: 'video',
+        content: (
+          <>
+            {video.videoButton}
+            {video.videoDialog}
+          </>
+        ),
+      },
+      config.audio && {
+        id: 'audio',
+        content: (
+          <>
+            {audio.audioButton}
+            {audio.audioDialog}
+          </>
+        ),
+      },
+      config.attachment && {
+        id: 'attachment',
+        content: (
+          <>
+            {attachment.attachmentButton}
+            {attachment.attachmentDialog}
+          </>
+        ),
+      },
+      config.iframe && {
+        id: 'iframe',
+        content: (
+          <>
+            {iframe.iframeButton}
+            {iframe.iframeDialog}
+          </>
+        ),
+      },
+      (config.code ||
+        config.blockquote ||
+        config.link ||
+        config.mediaLibrary ||
+        config.linker ||
+        config.video ||
+        config.audio ||
+        config.attachment ||
+        config.iframe) && {
         id: 'insertSpacer',
         content: <Spacer margin={1} />,
       },

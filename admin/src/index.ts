@@ -2,9 +2,35 @@ import type { StrapiApp } from '@strapi/strapi/admin';
 import { PLUGIN_ID } from '../../shared/pluginId';
 import { Initializer } from './components/Initializer';
 import { PresetSelect } from './components/PresetSelect';
+import { MediaLibraryWrapper, type StrapiFile } from './components/MediaLibraryWrapper';
+import { ToolbarButton } from './components/ToolbarButton';
 import { captureApp } from './utils/strapiApp';
+import {
+  registerTiptapExtension,
+  unregisterTiptapExtension,
+  getRegisteredTiptapExtensions,
+  clearRegisteredTiptapExtensions,
+  isCustomExtensionEnabledForPreset,
+  type TiptapCustomExtensionRegistration,
+  type CustomExtensionToolbarProps,
+  type CustomExtensionDialogProps,
+} from './utils/customExtensionRegistry';
 
 import { richTextField } from './fields/richTextField';
+
+export {
+  registerTiptapExtension,
+  unregisterTiptapExtension,
+  getRegisteredTiptapExtensions,
+  clearRegisteredTiptapExtensions,
+  isCustomExtensionEnabledForPreset,
+  MediaLibraryWrapper,
+  ToolbarButton,
+  type StrapiFile,
+  type TiptapCustomExtensionRegistration,
+  type CustomExtensionToolbarProps,
+  type CustomExtensionDialogProps,
+};
 
 export default {
   register(app: StrapiApp) {
@@ -15,6 +41,12 @@ export default {
       initializer: Initializer,
       isReady: false,
       name: PLUGIN_ID,
+      apis: {
+        registerExtension: registerTiptapExtension,
+        unregisterExtension: unregisterTiptapExtension,
+        getRegisteredExtensions: getRegisteredTiptapExtensions,
+        clearRegisteredExtensions: clearRegisteredTiptapExtensions,
+      },
     });
 
     app.customFields.register(

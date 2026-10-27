@@ -16,9 +16,15 @@ import { useTable } from '../extensions/Table';
 import { useTextAlign } from '../extensions/TextAlign';
 import { useTextColor } from '../extensions/TextColor';
 import { useHighlightColor } from '../extensions/HighlightColor';
+import { useKeyboardNavigation } from '../hooks/useKeyboardNavigation';
 import { usePresetConfig } from '../hooks/usePresetConfig';
 import { useRelationalSync } from '../hooks/useRelationalSync';
 import { buildExtensions } from '../utils/buildExtensions';
+import {
+  getRegisteredTiptapExtensions,
+  isCustomExtensionEnabledForPreset,
+} from '../utils/customExtensionRegistry';
+import { ToolbarButton } from './ToolbarButton';
 import {
   TiptapPresetConfig,
   MINIMAL_PRESET_CONFIG,
@@ -154,6 +160,64 @@ const InnerEditor = forwardRef<HTMLDivElement, InnerEditorProps>(
     const textAlign = useTextAlign(editor, { disabled: props.disabled });
     const textColor = useTextColor(editor, { disabled: props.disabled, config: config.textColor });
     const highlightColor = useHighlightColor(editor, { disabled: props.disabled, config: config.highlightColor });
+    const { toolbarRef, handleToolbarKeyDown } = useKeyboardNavigation(editor);
+
+    const [openCustomDialogId, setOpenCustomDialogId] = useState<string | null>(null);
+
+    const customExtensionToolbarItems: ToolbarItem[] = getRegisteredTiptapExtensions()
+      .filter(
+        (ext) =>
+          isCustomExtensionEnabledForPreset(ext, config) &&
+          Boolean(ext.ToolbarComponent || ext.toolbarButton || ext.DialogComponent)
+      )
+      .map((ext) => {
+        const isDialogOpen = openCustomDialogId === ext.id;
+        const handleOpenDialog = () => setOpenCustomDialogId(ext.id);
+        const handleCloseDialog = () => setOpenCustomDialogId(null);
+
+        let content: React.ReactNode = null;
+        if (ext.ToolbarComponent) {
+          const CustomToolbarComp = ext.ToolbarComponent;
+          content = (
+            <CustomToolbarComp
+              editor={editor}
+              disabled={props.disabled}
+              config={config}
+              isDialogOpen={isDialogOpen}
+              onOpenDialog={handleOpenDialog}
+              onCloseDialog={handleCloseDialog}
+            />
+          );
+        } else if (ext.toolbarButton) {
+          const button = ext.toolbarButton;
+          content = (
+            <ToolbarButton
+              onClick={() => {
+                if (button.onClick) {
+                  button.onClick(editor, { openDialog: handleOpenDialog });
+                } else {
+                  handleOpenDialog();
+                }
+              }}
+              icon={button.icon}
+              tooltip={button.tooltip || button.label}
+              active={button.isActive ? button.isActive(editor) : isDialogOpen}
+              disabled={!editor || props.disabled}
+            />
+          );
+        }
+
+        const overlay = ext.DialogComponent ? (
+          <ext.DialogComponent
+            editor={editor}
+            open={isDialogOpen}
+            onClose={handleCloseDialog}
+            config={config}
+          />
+        ) : undefined;
+
+        return { id: `custom-${ext.id}`, content, overlay };
+      });
 
     const toolbarItemCandidates: Array<ToolbarItem | false | undefined> = [
       config.heading && {
@@ -203,21 +267,13 @@ const InnerEditor = forwardRef<HTMLDivElement, InnerEditorProps>(
       config.blockquote && { id: 'blockquote', content: starterKit.blockquoteButton },
       config.link && {
         id: 'link',
-        content: (
-          <>
-            {link.linkButton}
-            {link.linkDialog}
-          </>
-        ),
+        content: link.linkButton,
+        overlay: link.linkDialog,
       },
       config.mediaLibrary && {
         id: 'mediaLibrary',
-        content: (
-          <>
-            {image.imageButton}
-            {image.imageDialog}
-          </>
-        ),
+        content: image.imageButton,
+        overlay: image.imageDialog,
       },
       (config.code || config.blockquote || config.link || config.mediaLibrary) && {
         id: 'insertSpacer',
@@ -232,10 +288,11 @@ const InnerEditor = forwardRef<HTMLDivElement, InnerEditorProps>(
             {table.removeColumnButton}
             {table.addRowButton}
             {table.removeRowButton}
-            {table.tableDialog}
           </>
         ),
+        overlay: table.tableDialog,
       },
+      ...customExtensionToolbarItems,
     ];
 
     const rawToolbarItems = toolbarItemCandidates.filter(isToolbarItem);
@@ -261,6 +318,8 @@ const InnerEditor = forwardRef<HTMLDivElement, InnerEditorProps>(
           {...props}
           ref={forwardedRef}
           noPresetConfigured={!presetName}
+          toolbarRef={toolbarRef}
+          onToolbarKeyDown={handleToolbarKeyDown}
         >
           <ResponsiveToolbar items={toolbarItems} />
         </BaseTiptapInput>

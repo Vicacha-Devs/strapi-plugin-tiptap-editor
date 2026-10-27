@@ -152,5 +152,6 @@
   "tiptap-editor.settings.feature.typography": "Smart Typography",
   "tiptap-editor.settings.feature.language": "Language & Text Direction (WCAG)",
   "tiptap-editor.settings.feature.abbr": "Abbreviation (<abbr>)",
-  "tiptap-editor.settings.feature.characterCount": "Word & Character Counter"
+  "tiptap-editor.settings.feature.characterCount": "Word & Character Counter",
+  "tiptap-editor.toolbar.ariaLabel": "Rich text formatting toolbar"
 }

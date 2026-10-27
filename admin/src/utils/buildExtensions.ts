@@ -10,6 +10,10 @@ import { TextStyle, Color } from '@tiptap/extension-text-style';
 import Highlight from '@tiptap/extension-highlight';
 import { BaseHeadingWithSEOTag } from '../extensions/Heading';
 import { PasteStripper } from '../extensions/PasteStripper';
+import {
+  getRegisteredTiptapExtensions,
+  isCustomExtensionEnabledForPreset,
+} from './customExtensionRegistry';
 import { StrapiImage } from '../extensions/Image';
 import { TiptapPresetConfig, isFeatureEnabled, getFeatureOptions } from '../../../shared/types';
 
@@ -112,6 +116,20 @@ export function buildExtensions(config: TiptapPresetConfig): Extensions {
   }
 
   extensions.push(Gapcursor);
+
+  // Registered custom extensions (e.g. scriptureEmbed, beforeAfterImage)
+  for (const registration of getRegisteredTiptapExtensions()) {
+    if (!isCustomExtensionEnabledForPreset(registration, config)) continue;
+    const resolved =
+      typeof registration.extensions === 'function'
+        ? registration.extensions({ config, enableContentCheck: true })
+        : registration.extensions;
+    if (Array.isArray(resolved)) {
+      extensions.push(...resolved);
+    } else if (resolved) {
+      extensions.push(resolved);
+    }
+  }
 
   return extensions;
 }

@@ -77,7 +77,34 @@ export interface TiptapPresetConfig {
   textColor?: boolean | TextColorConfig;
   highlightColor?: boolean | HighlightColorConfig;
   mediaLibrary?: boolean | Record<string, unknown>;
+  /** Per-extension overrides for registered custom extensions, keyed by feature key / id. */
+  customExtensions?: Record<string, boolean | Record<string, unknown>>;
+  /** Custom registered block / mark extensions (see `registerTiptapExtension`). */
+  [customFeatureKey: string]: boolean | Record<string, unknown> | undefined;
 }
+
+export type BuiltInPresetFeatureKey =
+  | 'bold'
+  | 'italic'
+  | 'strike'
+  | 'underline'
+  | 'code'
+  | 'codeBlock'
+  | 'blockquote'
+  | 'bulletList'
+  | 'orderedList'
+  | 'hardBreak'
+  | 'horizontalRule'
+  | 'history'
+  | 'heading'
+  | 'link'
+  | 'table'
+  | 'textAlign'
+  | 'superscript'
+  | 'subscript'
+  | 'textColor'
+  | 'highlightColor'
+  | 'mediaLibrary';
 
 export interface TiptapPluginConfig {
   presets: Record<string, TiptapPresetConfig>;
@@ -86,7 +113,7 @@ export interface TiptapPluginConfig {
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 
-export const PRESET_FEATURE_KEYS: Array<keyof TiptapPresetConfig> = [
+export const PRESET_FEATURE_KEYS: BuiltInPresetFeatureKey[] = [
   'bold',
   'italic',
   'strike',
@@ -130,7 +157,7 @@ const isPlainObject = (value: unknown): value is Record<string, unknown> => {
  * Returns true when a preset feature value is enabled.
  * undefined (absent key) returns false — a preset defines what's ON, everything else is OFF.
  */
-export const isFeatureEnabled = (value: TiptapPresetConfig[keyof TiptapPresetConfig]): boolean => {
+export const isFeatureEnabled = (value: unknown): boolean => {
   if (value === undefined) {
     return false; // absent key = disabled
   }

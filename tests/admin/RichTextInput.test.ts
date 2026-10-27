@@ -118,6 +118,24 @@ vi.mock('../../admin/src/extensions/TextAlign', () => ({
   useTextAlign: () => mockTextAlign,
 }));
 
+vi.mock('../../admin/src/extensions/TypographyControls', () => ({
+  useTypographyControls: () => ({
+    fontFamilySelect: null,
+    fontSizeSelect: null,
+    lineHeightSelect: null,
+    clearFormattingButton: null,
+  }),
+}));
+vi.mock('../../admin/src/extensions/SemanticMarks', () => ({
+  useSemanticMarks: () => ({
+    leadParagraphButton: null,
+    abbrButton: null,
+    abbrDialog: null,
+    languageButton: null,
+    languageDialog: null,
+  }),
+}));
+
 // ─── Mock color extension hooks ───────────────────────────────────────────────
 const mockUseTextColor = vi.fn(() => ({ textColorButton: null }));
 const mockUseHighlightColor = vi.fn(() => ({ highlightColorButton: null }));
@@ -269,6 +287,15 @@ vi.mock('../../admin/src/components/ResponsiveToolbar', () => ({
   ResponsiveToolbar: 'ResponsiveToolbar',
 }));
 
+const mockToolbarRef = { current: null };
+const mockHandleToolbarKeyDown = vi.fn();
+vi.mock('../../admin/src/hooks/useKeyboardNavigation', () => ({
+  useKeyboardNavigation: () => ({
+    toolbarRef: mockToolbarRef,
+    handleToolbarKeyDown: mockHandleToolbarKeyDown,
+  }),
+}));
+
 // ─── Mock @strapi/design-system ───────────────────────────────────────────────
 vi.mock('@strapi/design-system', () => ({
   Box: 'Box',
@@ -285,6 +312,10 @@ vi.mock('@tiptap/extension-text-align', () => ({ default: { configure: vi.fn(() 
 
 // ─── Import the module under test ─────────────────────────────────────────────
 import RichTextInput from '../../admin/src/components/RichTextInput';
+import {
+  registerTiptapExtension,
+  clearRegisteredTiptapExtensions,
+} from '../../admin/src/utils/customExtensionRegistry';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -476,6 +507,44 @@ describe('RichTextInput', () => {
     expect(itemIds).toContain('link');
     expect(itemIds).toContain('mediaLibrary');
     expect(itemIds).toContain('table');
+  });
+
+  it('wires toolbar keyboard navigation into BaseTiptapInput', () => {
+    mockUsePresetConfig.mockReturnValue({ config: MINIMAL_PRESET_CONFIG, isLoading: false });
+    const result = RichTextInput({ name: 'content' } as any, null) as any;
+    const base = findElements(result, 'BaseTiptapInput')[0];
+    expect(base.props.toolbarRef).toBe(mockToolbarRef);
+    expect(base.props.onToolbarKeyDown).toBe(mockHandleToolbarKeyDown);
+  });
+
+  it('exposes dialogs as toolbar overlays instead of toolbar content', () => {
+    mockLink.linkDialog = 'LinkDialog' as any;
+    mockImage.imageDialog = 'ImageDialog' as any;
+    const config = { ...MINIMAL_PRESET_CONFIG, link: true, mediaLibrary: true };
+    mockUsePresetConfig.mockReturnValue({ config, isLoading: false });
+    const result = RichTextInput({ name: 'content' } as any, null) as any;
+    const items = findElements(result, 'ResponsiveToolbar')[0].props.items;
+    expect(items.find((i: any) => i.id === 'link').overlay).toBe('LinkDialog');
+    expect(items.find((i: any) => i.id === 'mediaLibrary').overlay).toBe('ImageDialog');
+    mockLink.linkDialog = null;
+    mockImage.imageDialog = null;
+  });
+
+  it('adds toolbar items and dialog overlays for registered custom extensions', () => {
+    registerTiptapExtension({
+      id: 'scripture',
+      extensions: [],
+      toolbarButton: { label: 'Scripture', icon: null },
+      DialogComponent: () => null,
+    });
+    mockUsePresetConfig.mockReturnValue({ config: MINIMAL_PRESET_CONFIG, isLoading: false });
+    const result = RichTextInput({ name: 'content' } as any, null) as any;
+    const items = findElements(result, 'ResponsiveToolbar')[0].props.items;
+    const custom = items.find((i: any) => i.id === 'custom-scripture');
+    expect(custom).toBeDefined();
+    expect(custom.content).toBeTruthy();
+    expect(custom.overlay).toBeTruthy();
+    clearRegisteredTiptapExtensions();
   });
 
   it('sanitizes leading, trailing, and consecutive spacers', () => {
@@ -690,5 +759,47 @@ describe('RichTextInput', () => {
     } finally {
       mockSettingsLoadFailed = false;
     }
+  });
+
+  it('returns the loading Box while runtime settings are loading', () => {
+    mockIsSettingsLoading = true;
+    const result = RichTextInput({ name: 'content' } as any, null) as any;
+    expect(result.type).toBe('Box');
+  });
+
+  it('passes the field name and relational sync options to useRelationalSync', () => {
+    shallowRender(RichTextInput({ name: 'content' } as any, null));
+    expect(mockUseRelationalSync).toHaveBeenLastCalledWith(
+      'content',
+      expect.objectContaining({ enabled: true })
+    );
+    const editorOptions = (mockUseTiptapEditor.mock.lastCall as any)?.[3];
+    expect(typeof editorOptions?.onDocUpdate).toBe('function');
+  });
+
+  it('resolves availableFields and relation targets from the content manager schema', () => {
+    mockUseContentManagerContext.mockReturnValueOnce({
+      contentType: {
+        attributes: {
+          content: { type: 'customField' },
+          contentLinks: { type: 'component', component: 'shared.links', repeatable: true },
+        },
+      },
+      components: {
+        'shared.links': {
+          attributes: { articles: { type: 'relation', target: 'api::article.article' } },
+        },
+      },
+    } as any);
+    shallowRender(RichTextInput({ name: 'content' } as any, null));
+    expect(mockUseRelationalSync).toHaveBeenLastCalledWith(
+      'content',
+      expect.objectContaining({
+        availableFields: ['content', 'contentLinks'],
+        targetUidToAttribute: { 'api::article.article': 'articles' },
+        linksFieldIsRepeatable: true,
+        linksComponentUid: 'shared.links',
+      })
+    );
   });
 });

@@ -14,6 +14,7 @@ vi.mock('react', async () => {
       capturedUseMemoDeps = deps;
       return fn();
     },
+    useState: (init: any) => [typeof init === 'function' ? init() : init, vi.fn()],
     forwardRef: (fn: any) => fn,
     createElement: (type: any, props: any, ...children: any[]) => ({
       type,
@@ -160,6 +161,10 @@ vi.mock('@tiptap/extension-text-align', () => ({ default: { configure: vi.fn(() 
 
 // ─── Import the module under test ─────────────────────────────────────────────
 import RichTextInput from '../../admin/src/components/RichTextInput';
+import {
+  registerTiptapExtension,
+  clearRegisteredTiptapExtensions,
+} from '../../admin/src/utils/customExtensionRegistry';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -349,6 +354,23 @@ describe('RichTextInput', () => {
     expect(items.find((i: any) => i.id === 'mediaLibrary').overlay).toBe('ImageDialog');
     mockLink.linkDialog = null;
     mockImage.imageDialog = null;
+  });
+
+  it('adds toolbar items and dialog overlays for registered custom extensions', () => {
+    registerTiptapExtension({
+      id: 'scripture',
+      extensions: [],
+      toolbarButton: { label: 'Scripture', icon: null },
+      DialogComponent: () => null,
+    });
+    mockUsePresetConfig.mockReturnValue({ config: MINIMAL_PRESET_CONFIG, isLoading: false });
+    const result = RichTextInput({ name: 'content' } as any, null) as any;
+    const items = findElements(result, 'ResponsiveToolbar')[0].props.items;
+    const custom = items.find((i: any) => i.id === 'custom-scripture');
+    expect(custom).toBeDefined();
+    expect(custom.content).toBeTruthy();
+    expect(custom.overlay).toBeTruthy();
+    clearRegisteredTiptapExtensions();
   });
 
   it('sanitizes leading, trailing, and consecutive spacers', () => {

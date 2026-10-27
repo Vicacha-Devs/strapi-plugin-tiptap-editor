@@ -1,4 +1,4 @@
-import { forwardRef, useMemo } from 'react';
+import { forwardRef, useMemo, useState } from 'react';
 import { useIntl } from 'react-intl';
 import { Box } from '@strapi/design-system';
 import BaseTiptapInput from './BaseTiptapInput';
@@ -18,6 +18,11 @@ import { useHighlightColor } from '../extensions/HighlightColor';
 import { useKeyboardNavigation } from '../hooks/useKeyboardNavigation';
 import { usePresetConfig } from '../hooks/usePresetConfig';
 import { buildExtensions } from '../utils/buildExtensions';
+import {
+  getRegisteredTiptapExtensions,
+  isCustomExtensionEnabledForPreset,
+} from '../utils/customExtensionRegistry';
+import { ToolbarButton } from './ToolbarButton';
 import { TiptapPresetConfig, MINIMAL_PRESET_CONFIG, getFeatureOptions } from '../../../shared/types';
 import type { ToolbarItem } from './ResponsiveToolbar';
 
@@ -57,6 +62,63 @@ const InnerEditor = forwardRef<HTMLDivElement, InnerEditorProps>(
     const textColor = useTextColor(editor, { disabled: props.disabled, config: config.textColor });
     const highlightColor = useHighlightColor(editor, { disabled: props.disabled, config: config.highlightColor });
     const { toolbarRef, handleToolbarKeyDown } = useKeyboardNavigation(editor);
+
+    const [openCustomDialogId, setOpenCustomDialogId] = useState<string | null>(null);
+
+    const customExtensionToolbarItems: ToolbarItem[] = getRegisteredTiptapExtensions()
+      .filter(
+        (ext) =>
+          isCustomExtensionEnabledForPreset(ext, config) &&
+          Boolean(ext.ToolbarComponent || ext.toolbarButton || ext.DialogComponent)
+      )
+      .map((ext) => {
+        const isDialogOpen = openCustomDialogId === ext.id;
+        const handleOpenDialog = () => setOpenCustomDialogId(ext.id);
+        const handleCloseDialog = () => setOpenCustomDialogId(null);
+
+        let content: React.ReactNode = null;
+        if (ext.ToolbarComponent) {
+          const CustomToolbarComp = ext.ToolbarComponent;
+          content = (
+            <CustomToolbarComp
+              editor={editor}
+              disabled={props.disabled}
+              config={config}
+              isDialogOpen={isDialogOpen}
+              onOpenDialog={handleOpenDialog}
+              onCloseDialog={handleCloseDialog}
+            />
+          );
+        } else if (ext.toolbarButton) {
+          const button = ext.toolbarButton;
+          content = (
+            <ToolbarButton
+              onClick={() => {
+                if (button.onClick) {
+                  button.onClick(editor, { openDialog: handleOpenDialog });
+                } else {
+                  handleOpenDialog();
+                }
+              }}
+              icon={button.icon}
+              tooltip={button.tooltip || button.label}
+              active={button.isActive ? button.isActive(editor) : isDialogOpen}
+              disabled={!editor || props.disabled}
+            />
+          );
+        }
+
+        const overlay = ext.DialogComponent ? (
+          <ext.DialogComponent
+            editor={editor}
+            open={isDialogOpen}
+            onClose={handleCloseDialog}
+            config={config}
+          />
+        ) : undefined;
+
+        return { id: `custom-${ext.id}`, content, overlay };
+      });
 
     const toolbarItemCandidates: Array<ToolbarItem | false | undefined> = [
       config.heading && {
@@ -131,6 +193,7 @@ const InnerEditor = forwardRef<HTMLDivElement, InnerEditorProps>(
         ),
         overlay: table.tableDialog,
       },
+      ...customExtensionToolbarItems,
     ];
 
     const rawToolbarItems = toolbarItemCandidates.filter(isToolbarItem);

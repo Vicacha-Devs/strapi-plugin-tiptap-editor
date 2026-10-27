@@ -79,6 +79,16 @@ export interface TiptapPresetConfig {
   mediaLibrary?: boolean | Record<string, unknown>;
 }
 
+export type TiptapOutputFormat = 'json' | 'html' | 'markdown';
+
+export interface TiptapRuntimeSettings {
+  defaultPreset?: string;
+  defaultOutputFormat?: TiptapOutputFormat;
+  allowedIframeDomains?: string[];
+  enableRelationalSync?: boolean;
+  presetOverrides?: Record<string, Partial<TiptapPresetConfig>>;
+}
+
 export interface TiptapPluginConfig {
   presets: Record<string, TiptapPresetConfig>;
   theme?: TiptapThemeConfig;
@@ -86,7 +96,9 @@ export interface TiptapPluginConfig {
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 
-export const PRESET_FEATURE_KEYS: Array<keyof TiptapPresetConfig> = [
+export type PresetFeatureKey = string;
+
+export const PRESET_FEATURE_KEYS: PresetFeatureKey[] = [
   'bold',
   'italic',
   'strike',
@@ -116,6 +128,52 @@ export const MINIMAL_PRESET_CONFIG: TiptapPresetConfig = {
   italic: true,
 };
 
+export const DEFAULT_PRESET_CONFIG: TiptapPresetConfig = {
+  bold: true,
+  italic: true,
+  underline: true,
+  strike: true,
+  code: true,
+  codeBlock: true,
+  blockquote: true,
+  bulletList: true,
+  orderedList: true,
+  hardBreak: true,
+  horizontalRule: true,
+  history: true,
+  heading: { levels: [1, 2, 3, 4, 5, 6] },
+  link: true,
+  table: true,
+  textAlign: true,
+  superscript: true,
+  subscript: true,
+  textColor: true,
+  highlightColor: true,
+  mediaLibrary: true,
+};
+
+export const FULL_PRESET_CONFIG: TiptapPresetConfig = PRESET_FEATURE_KEYS.reduce(
+  (acc, key) => {
+    acc[key] = true;
+    return acc;
+  },
+  {} as Record<string, boolean>
+) as TiptapPresetConfig;
+
+export const BUILT_IN_PRESETS: Record<string, TiptapPresetConfig> = {
+  minimal: MINIMAL_PRESET_CONFIG,
+  default: DEFAULT_PRESET_CONFIG,
+  full: FULL_PRESET_CONFIG,
+};
+
+export const DEFAULT_RUNTIME_SETTINGS: Required<TiptapRuntimeSettings> = {
+  defaultPreset: 'default',
+  defaultOutputFormat: 'json',
+  allowedIframeDomains: [],
+  enableRelationalSync: true,
+  presetOverrides: {},
+};
+
 // ─── Internal helpers ────────────────────────────────────────────────────────
 
 const isPlainObject = (value: unknown): value is Record<string, unknown> => {
@@ -130,7 +188,7 @@ const isPlainObject = (value: unknown): value is Record<string, unknown> => {
  * Returns true when a preset feature value is enabled.
  * undefined (absent key) returns false — a preset defines what's ON, everything else is OFF.
  */
-export const isFeatureEnabled = (value: TiptapPresetConfig[keyof TiptapPresetConfig]): boolean => {
+export const isFeatureEnabled = (value: unknown): boolean => {
   if (value === undefined) {
     return false; // absent key = disabled
   }

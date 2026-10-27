@@ -101,18 +101,21 @@ export function useTextColor(editor: Editor | null, props: { disabled?: boolean;
   const activeColor = editorState?.activeColor;
   const underColor = activeColor ?? '#999999';
 
+  const triggerButton = (
+    <ToolbarButton
+      onClick={() => (showPicker ? handleInteractOutside() : openPicker())}
+      icon={<TextColorIcon underColor={underColor} />}
+      active={showPicker}
+      disabled={props.disabled || !editor}
+      tooltip="Text color"
+    />
+  );
+
   return {
+    textColorTrigger: triggerButton,
     textColorButton: (
       <Popover.Root open={showPicker} onOpenChange={handleOpenChange}>
-        <Popover.Anchor>
-          <ToolbarButton
-            onClick={() => (showPicker ? handleInteractOutside() : openPicker())}
-            icon={<TextColorIcon underColor={underColor} />}
-            active={showPicker}
-            disabled={props.disabled || !editor}
-            tooltip="Text color"
-          />
-        </Popover.Anchor>
+        <Popover.Anchor>{triggerButton}</Popover.Anchor>
         <Popover.Content
           side="bottom"
           align="start"

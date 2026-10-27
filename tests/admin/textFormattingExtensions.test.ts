@@ -61,11 +61,8 @@ describe('text formatting extensions', () => {
     }
   });
 
-  it('gates FontFamily, FontSize and LineHeight behind their preset keys', () => {
-    expect(names({})).not.toContain('fontFamily');
-    expect(names({})).not.toContain('fontSize');
-    expect(names({})).not.toContain('lineHeight');
-    expect(names({ fontFamily: true, fontSize: true, lineHeight: true })).toEqual(
+  it('always registers FontFamily, FontSize and LineHeight so stored styles round-trip', () => {
+    expect(names({})).toEqual(
       expect.arrayContaining(['textStyle', 'fontFamily', 'fontSize', 'lineHeight'])
     );
   });

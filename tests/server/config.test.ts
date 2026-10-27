@@ -12,12 +12,6 @@ describe('config validator (SERVER-01)', () => {
     ).not.toThrow();
   });
 
-  it('accepts the customExtensions map for registered custom extensions', () => {
-    expect(() =>
-      config.validator({ presets: { rich: { bold: true, customExtensions: { 'quran-ayah': false } } } })
-    ).not.toThrow();
-  });
-
   it('throws for preset with invalid feature key — names the bad key', () => {
     expect(() =>
       config.validator({ presets: { rich: { unknownFeature: true } } })

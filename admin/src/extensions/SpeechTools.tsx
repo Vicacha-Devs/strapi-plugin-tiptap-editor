@@ -190,6 +190,7 @@ export function useSpeechTools(
       onClick={toggleSpeechToText}
       icon={<Microphone />}
       active={isListening}
+      toggle
       disabled={props.disabled || !editor}
       tooltip={
         isListening
@@ -210,6 +211,7 @@ export function useSpeechTools(
       onClick={toggleTextToSpeech}
       icon={<VolumeUp />}
       active={isSpeaking}
+      toggle
       disabled={props.disabled || !editor}
       tooltip={
         isSpeaking

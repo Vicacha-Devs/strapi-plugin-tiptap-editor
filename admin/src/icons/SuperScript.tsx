@@ -1,5 +1,8 @@
 import { SVGProps } from 'react';
 
+/**
+ * Superscript toolbar icon component.
+ */
 export function SuperScript(props: SVGProps<SVGSVGElement>) {
   return (
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" width="16" height="16" {...props}>
@@ -7,3 +10,5 @@ export function SuperScript(props: SVGProps<SVGSVGElement>) {
     </svg>
   );
 }
+
+export default SuperScript;

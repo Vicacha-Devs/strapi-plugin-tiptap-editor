@@ -18,6 +18,31 @@ export interface CustomExtensionDialogProps {
   config: TiptapPresetConfig;
 }
 
+export interface CustomSlashCommandHelpers {
+  openDialog: (extensionId?: string) => void;
+}
+
+export interface CustomSlashCommandItem {
+  id: string;
+  labelId?: string;
+  defaultLabel: string;
+  descriptionId?: string;
+  defaultDescription: string;
+  badge: string;
+  keywords: string[];
+  isAvailable?: (editor: Editor) => boolean;
+  /**
+   * Optional ID of a registered custom extension whose `DialogComponent` should be opened
+   * when this slash command is selected (after deleting the `/query` trigger text).
+   */
+  openExtensionDialogId?: string;
+  action?: (
+    editor: Editor,
+    formatMessage: (descriptor: { id: string; defaultMessage: string }) => string,
+    helpers?: CustomSlashCommandHelpers
+  ) => void;
+}
+
 export interface TiptapCustomExtensionRegistration {
   /** Unique identifier for this custom extension (e.g. `'scriptureEmbed'`, `'beforeAfterImage'`). */
   id: string;
@@ -59,16 +84,25 @@ export interface TiptapCustomExtensionRegistration {
   };
   /**
    * Optional modal/dialog React component rendered in the top-level toolbar overlay
-   * (outside the overflow Popover so it stays mounted when the overflow menu closes).
+   * (outside any overflow Popover so it stays mounted when the overflow menu closes).
    */
   DialogComponent?: React.ComponentType<CustomExtensionDialogProps>;
+  /**
+   * Whether the toolbar item should be placed in the `"Plus ▾"` overflow menu.
+   * Defaults to `false` (shown on primary toolbar when space allows, overflowing to `"Plus ▾"`).
+   */
+  overflowOnly?: boolean;
+  /**
+   * Optional `/slash` command menu items contributed by this extension.
+   */
+  slashCommands?: CustomSlashCommandItem[];
 }
 
 const customExtensionsMap = new Map<string, TiptapCustomExtensionRegistration>();
 
 /**
  * Registers a custom Tiptap extension (Node, Mark, or Extension) along with optional
- * toolbar UI and modal dialog.
+ * toolbar UI, modal dialog, and `/slash` command items.
  * Calling `registerTiptapExtension` with an existing `id` replaces the previous registration.
  */
 export function registerTiptapExtension(

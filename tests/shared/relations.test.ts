@@ -4,6 +4,7 @@ import {
   formatStrapiLinkUri,
   extractRelationsFromJSON,
 } from '../../shared/relations';
+import allFeaturesPayload from '../../fixtures/all-features-payload.json';
 
 describe('shared/relations', () => {
   describe('parseStrapiLinkUri & formatStrapiLinkUri', () => {
@@ -101,6 +102,22 @@ describe('shared/relations', () => {
       expect(res.internalLinks).toHaveLength(2);
       expect(res.linksByCollection['api::article.article']).toHaveLength(1);
       expect(res.linksByCollection['api::page.page']).toHaveLength(1);
+    });
+
+    it('extracts relations from fixtures/all-features-payload.json without duplicates', () => {
+      const res = extractRelationsFromJSON(allFeaturesPayload);
+      expect(new Set(res.mediaIds).size).toBe(res.mediaIds.length);
+      expect(new Set(res.mediaDocumentIds).size).toBe(res.mediaDocumentIds.length);
+      expect(res.mediaIds).toContain(42);
+      expect(res.mediaIds).toContain(201);
+      expect(res.mediaIds).toContain(202);
+      expect(res.mediaIds).toContain(203);
+      expect(res.mediaDocumentIds).toContain('doc-video-201');
+      expect(res.mediaDocumentIds).toContain('doc-audio-202');
+      expect(res.mediaDocumentIds).toContain('doc-file-203');
+      expect(res.linksByCollection['api::article.article']?.[0]?.documentId).toBe(
+        'doc-article-99'
+      );
     });
 
     it('handles null or primitive inputs safely', () => {

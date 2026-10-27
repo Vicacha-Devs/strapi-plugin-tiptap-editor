@@ -207,6 +207,7 @@ export function useImage(
       onClick={() => setShowPicker(true)}
       icon={<ImageIcon />}
       active={false}
+      tint="green"
       disabled={props.disabled || !editor || (editorState?.isInCodeBlock ?? false)}
       tooltip={formatMessage({
         id: 'tiptap-editor.toolbar.insertImage',

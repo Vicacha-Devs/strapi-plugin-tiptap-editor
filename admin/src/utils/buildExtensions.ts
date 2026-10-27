@@ -5,8 +5,14 @@ import Subscript from '@tiptap/extension-subscript';
 import Underline from '@tiptap/extension-underline';
 import { TableKit, TableCell, TableHeader } from '@tiptap/extension-table';
 import TextAlign from '@tiptap/extension-text-align';
-import { CharacterCount, Gapcursor } from '@tiptap/extensions';
-import { TextStyle, Color, FontFamily, FontSize, LineHeight } from '@tiptap/extension-text-style';
+import { CharacterCount, Gapcursor, Placeholder } from '@tiptap/extensions';
+import {
+  TextStyle,
+  Color,
+  FontFamily,
+  FontSize,
+  LineHeight,
+} from '@tiptap/extension-text-style';
 import Highlight from '@tiptap/extension-highlight';
 import { BaseHeadingWithSEOTag } from '../extensions/Heading';
 import { PasteStripper } from '../extensions/PasteStripper';
@@ -15,6 +21,11 @@ import {
   isCustomExtensionEnabledForPreset,
 } from './customExtensionRegistry';
 import { StrapiImage } from '../extensions/Image';
+import { StrapiVideo } from '../extensions/Video';
+import { StrapiAudio } from '../extensions/Audio';
+import { StrapiAttachment } from '../extensions/Attachment';
+import { StrapiIframe } from '../extensions/Iframe';
+import { StrapiLinker } from '../extensions/Linker';
 import { InformationPane } from '../extensions/InformationPane';
 import {
   DetailsNode,
@@ -30,16 +41,11 @@ import {
 } from '../extensions/StructuredBlocks';
 import { MathematicsNode } from '../extensions/Mathematics';
 import { EmojiShortcodeExtension } from '../extensions/EmojiPicker';
-import { StrapiVideo } from '../extensions/Video';
-import { StrapiAudio } from '../extensions/Audio';
-import { StrapiAttachment } from '../extensions/Attachment';
-import { StrapiIframe } from '../extensions/Iframe';
-import { StrapiLinker } from '../extensions/Linker';
 import { SmartTypographyExtension } from '../extensions/TypographyControls';
 import { LeadParagraph, LanguageMark, AbbrMark } from '../extensions/SemanticMarks';
 import { TiptapPresetConfig, isFeatureEnabled, getFeatureOptions } from '../../../shared/types';
 
-// Custom TableCell & TableHeader with backgroundColor support
+// Custom TableCell & TableHeader with Edifice IO backgroundColor support
 const SAFE_CSS_COLOR =
   /^(#[0-9a-f]{3,8}|(?:rgb|hsl)a?\([\d\s.,%/-]+\)|var\(--[\w-]+\)|[a-z]+)$/i;
 
@@ -81,8 +87,10 @@ const CustomTableHeader = TableHeader.extend({
   },
 });
 
-// Helper: converts a preset feature value to StarterKit's expected format
-// false = disable the sub-extension, {} = enable with defaults
+/**
+ * Converts a preset feature value to StarterKit's expected configuration format
+ * (`false` to disable the sub-extension, or an options object to enable with defaults).
+ */
 const starterKitFeatureValue = (
   value: TiptapPresetConfig[keyof TiptapPresetConfig]
 ): false | Record<string, unknown> => {
@@ -94,11 +102,12 @@ const starterKitFeatureValue = (
 
 export interface BuildExtensionsOptions {
   characterLimit?: number;
+  placeholder?: string;
 }
 
 /**
  * Builds the array of TipTap extensions for a given preset configuration and field options.
- * Structured block schemas are always registered so stored content round-trips without data loss.
+ * Ensures Zero-Data-Loss schema preservation for custom blocks, media nodes, and semantic marks.
  */
 export function buildExtensions(
   config: TiptapPresetConfig,
@@ -106,6 +115,8 @@ export function buildExtensions(
 ): Extensions {
   const starterKitConfig: Record<string, unknown> = {
     heading: false as const, // ALWAYS false — heading handled separately via BaseHeadingWithSEOTag
+    underline: false as const, // Handled separately below via Underline extension
+    gapcursor: false as const, // Handled separately below via Gapcursor extension
     bold: starterKitFeatureValue(config.bold),
     italic: starterKitFeatureValue(config.italic),
     strike: starterKitFeatureValue(config.strike),
@@ -117,6 +128,7 @@ export function buildExtensions(
     hardBreak: starterKitFeatureValue(config.hardBreak),
     horizontalRule: starterKitFeatureValue(config.horizontalRule),
     history: starterKitFeatureValue(config.history),
+    undoRedo: starterKitFeatureValue(config.history),
     link: !isFeatureEnabled(config.link)
       ? false
       : (() => {
@@ -163,20 +175,20 @@ export function buildExtensions(
     extensions.push(Subscript);
   }
 
-  if (isFeatureEnabled(config.table)) {
-    extensions.push(
-      TableKit.configure({
-        table: {
-          resizable: true,
-          ...getFeatureOptions(config.table, {}),
-        },
-        tableCell: false,
-        tableHeader: false,
-      }),
-      CustomTableCell,
-      CustomTableHeader
-    );
-  }
+  // Zero-Data-Loss Table schema (always registered so existing tables and cell colors are preserved)
+  const tableOptions = isFeatureEnabled(config.table) ? getFeatureOptions(config.table, {}) : {};
+  extensions.push(
+    TableKit.configure({
+      table: {
+        resizable: isFeatureEnabled(config.table),
+        ...tableOptions,
+      },
+      tableCell: false,
+      tableHeader: false,
+    }),
+    CustomTableCell,
+    CustomTableHeader
+  );
 
   if (isFeatureEnabled(config.textAlign)) {
     const textAlignConfig = getFeatureOptions(config.textAlign, {
@@ -197,25 +209,21 @@ export function buildExtensions(
     isFeatureEnabled(config.fontFamily) ||
     isFeatureEnabled(config.fontSize) ||
     isFeatureEnabled(config.lineHeight);
+
   if (needsTextStyle) {
-    extensions.push(TextStyle);
     extensions.push(PasteStripper);
   }
-  if (isFeatureEnabled(config.textColor)) {
-    extensions.push(Color);
-  }
-  if (isFeatureEnabled(config.highlightColor)) {
-    extensions.push(Highlight.configure({ multicolor: true }));
-  }
-  if (isFeatureEnabled(config.fontFamily)) {
-    extensions.push(FontFamily);
-  }
-  if (isFeatureEnabled(config.fontSize)) {
-    extensions.push(FontSize);
-  }
-  if (isFeatureEnabled(config.lineHeight)) {
-    extensions.push(LineHeight);
-  }
+  // Schema-only: always registered so stored textStyle/highlight marks round-trip without data loss
+  extensions.push(
+    TextStyle,
+    Color,
+    Highlight.configure({ multicolor: true }),
+    FontFamily,
+    FontSize,
+    LineHeight
+  );
+
+  // Zero-Data-Loss Media Library Image extension
   if (isFeatureEnabled(config.mediaLibrary)) {
     const mediaOpts = getFeatureOptions(config.mediaLibrary, {});
     extensions.push(StrapiImage.configure(mediaOpts ?? {}));
@@ -223,17 +231,60 @@ export function buildExtensions(
     extensions.push(StrapiImage.configure({ enableContentCheck: true }));
   }
 
-  extensions.push(
-    isFeatureEnabled(config.informationPane)
-      ? InformationPane.configure({ enableContentCheck: false })
-      : InformationPane.configure({ enableContentCheck: true }),
-    isFeatureEnabled(config.mathematics)
-      ? MathematicsNode.configure({ enableContentCheck: false })
-      : MathematicsNode.configure({ enableContentCheck: true })
-  );
+  // Zero-Data-Loss Edifice IO Multimedia & Rich Nodes
+  if (isFeatureEnabled(config.video)) {
+    extensions.push(StrapiVideo.configure({ enableContentCheck: false }));
+  } else {
+    extensions.push(StrapiVideo.configure({ enableContentCheck: true }));
+  }
+
+  if (isFeatureEnabled(config.audio)) {
+    extensions.push(StrapiAudio.configure({ enableContentCheck: false }));
+  } else {
+    extensions.push(StrapiAudio.configure({ enableContentCheck: true }));
+  }
+
+  if (isFeatureEnabled(config.attachment)) {
+    extensions.push(StrapiAttachment.configure({ enableContentCheck: false }));
+  } else {
+    extensions.push(StrapiAttachment.configure({ enableContentCheck: true }));
+  }
+
+  if (isFeatureEnabled(config.iframe)) {
+    const iframeOpts = getFeatureOptions(config.iframe, { allowedDomains: [] });
+    extensions.push(
+      StrapiIframe.configure({
+        enableContentCheck: false,
+        allowedDomains: iframeOpts?.allowedDomains,
+      })
+    );
+  } else {
+    extensions.push(StrapiIframe.configure({ enableContentCheck: true }));
+  }
+
+  if (isFeatureEnabled(config.linker)) {
+    extensions.push(StrapiLinker.configure({ enableContentCheck: false }));
+  } else {
+    extensions.push(StrapiLinker.configure({ enableContentCheck: true }));
+  }
+
+  if (isFeatureEnabled(config.informationPane)) {
+    extensions.push(InformationPane.configure({ enableContentCheck: false }));
+  } else {
+    extensions.push(InformationPane.configure({ enableContentCheck: true }));
+  }
+
+  if (isFeatureEnabled(config.mathematics)) {
+    extensions.push(MathematicsNode.configure({ enableContentCheck: false }));
+  } else {
+    extensions.push(MathematicsNode.configure({ enableContentCheck: true }));
+  }
 
   // Schema-only: always registered so stored content round-trips without data loss
   extensions.push(
+    LeadParagraph,
+    LanguageMark,
+    AbbrMark,
     DetailsNode,
     DetailsSummaryNode,
     DetailsContentNode,
@@ -246,7 +297,10 @@ export function buildExtensions(
     TableOfContentsNode
   );
 
-  // Input-rule extension: gated by preset config
+  // Input-rule extensions: gated by preset config
+  if (isFeatureEnabled(config.typography)) {
+    extensions.push(SmartTypographyExtension);
+  }
   if (isFeatureEnabled(config.emoji)) {
     extensions.push(EmojiShortcodeExtension);
   }
@@ -263,33 +317,8 @@ export function buildExtensions(
     extensions.push(CharacterCount.configure({ limit: effectiveCharLimit }));
   }
 
-  // Zero-Data-Loss multimedia & embed nodes: always registered so stored content round-trips
-  // without data loss; content checks are only relaxed when the feature is enabled in the preset.
-  extensions.push(
-    StrapiVideo.configure({ enableContentCheck: !isFeatureEnabled(config.video) }),
-    StrapiAudio.configure({ enableContentCheck: !isFeatureEnabled(config.audio) }),
-    StrapiAttachment.configure({ enableContentCheck: !isFeatureEnabled(config.attachment) })
-  );
-
-  if (isFeatureEnabled(config.iframe)) {
-    const iframeOpts = getFeatureOptions(config.iframe, { allowedDomains: [] });
-    extensions.push(
-      StrapiIframe.configure({
-        enableContentCheck: false,
-        allowedDomains: iframeOpts?.allowedDomains,
-      })
-    );
-  } else {
-    extensions.push(StrapiIframe.configure({ enableContentCheck: true }));
-  }
-
-  extensions.push(StrapiLinker.configure({ enableContentCheck: !isFeatureEnabled(config.linker) }));
-
-  // Schema-only: always registered so stored semantic marks round-trip without data loss
-  extensions.push(LeadParagraph, LanguageMark, AbbrMark);
-
-  if (isFeatureEnabled(config.typography)) {
-    extensions.push(SmartTypographyExtension);
+  if (options?.placeholder && options.placeholder.trim()) {
+    extensions.push(Placeholder.configure({ placeholder: options.placeholder.trim() }));
   }
 
   extensions.push(Gapcursor);

@@ -14,9 +14,9 @@ type TiptapInputProps = InputProps & {
   children?: React.ReactNode;
   noPresetConfigured?: boolean;
   isFullscreen?: boolean;
-  footer?: React.ReactNode;
   toolbarRef?: React.RefObject<HTMLDivElement | null>;
   onToolbarKeyDown?: (event: React.KeyboardEvent<HTMLDivElement>) => void;
+  footer?: React.ReactNode;
 };
 
 /**
@@ -35,9 +35,9 @@ const BaseTiptapInput = forwardRef<HTMLDivElement, TiptapInputProps>(
       field,
       children,
       noPresetConfigured,
+      isFullscreen = false,
       toolbarRef,
       onToolbarKeyDown,
-      isFullscreen = false,
       footer,
     },
     forwardedRef

@@ -5,6 +5,10 @@ import { Plus } from '@strapi/icons';
 import { useIntl } from 'react-intl';
 import { ToolbarButton } from '../components/ToolbarButton';
 import { isFeatureEnabled, type TiptapPresetConfig } from '../../../shared/types';
+import {
+  getRegisteredTiptapExtensions,
+  isCustomExtensionEnabledForPreset,
+} from '../utils/customExtensionRegistry';
 
 export type SlashCommandTranslator = (
   id: string,
@@ -346,14 +350,24 @@ export function useSlashCommand(
   props: {
     disabled?: boolean;
     config?: TiptapPresetConfig;
+    onOpenCustomDialog?: (extensionId: string) => void;
   } = { disabled: false }
 ) {
   const { formatMessage } = useIntl();
   const [open, setOpen] = useState(false);
   const [filter, setFilter] = useState('');
 
-  const localizedItems = SLASH_COMMAND_ITEMS.map((item) => ({
+  const builtInItems = SLASH_COMMAND_ITEMS.map((item) => ({
     ...item,
+    isCustom: false,
+    openExtensionDialogId: undefined as string | undefined,
+    customAction: undefined as
+      | ((
+          ed: Editor,
+          fmt: (descriptor: { id: string; defaultMessage: string }) => string,
+          helpers?: { openDialog: (extId?: string) => void }
+        ) => void)
+      | undefined,
     label: formatMessage({
       id: `tiptap-editor.slash.${item.id}.label`,
       defaultMessage: item.label.replace(/<([^>]+)>/g, "'<$1>'"),
@@ -364,8 +378,34 @@ export function useSlashCommand(
     }),
   }));
 
+  const customItems = getRegisteredTiptapExtensions().flatMap((ext) => {
+    if (props.config && !isCustomExtensionEnabledForPreset(ext, props.config)) {
+      return [];
+    }
+    return (ext.slashCommands ?? []).map((cmd) => ({
+      id: cmd.id,
+      featureKey: (ext.featureKey || ext.id) as keyof TiptapPresetConfig,
+      isCustom: true,
+      openExtensionDialogId: cmd.openExtensionDialogId,
+      customAction: cmd.action,
+      label: formatMessage({
+        id: cmd.labelId || `tiptap-editor.slash.${cmd.id}.label`,
+        defaultMessage: cmd.defaultLabel,
+      }),
+      description: formatMessage({
+        id: cmd.descriptionId || `tiptap-editor.slash.${cmd.id}.description`,
+        defaultMessage: cmd.defaultDescription,
+      }),
+      keywords: cmd.keywords,
+      isAvailable: cmd.isAvailable,
+      action: () => undefined,
+    }));
+  });
+
+  const localizedItems = [...builtInItems, ...customItems];
+
   const filteredItems = localizedItems.filter((item) => {
-    if (props.config && !isFeatureEnabled(props.config[item.featureKey])) {
+    if (!item.isCustom && props.config && !isFeatureEnabled(props.config[item.featureKey])) {
       return false;
     }
     if (editor && item.isAvailable && !item.isAvailable(editor)) return false;
@@ -380,11 +420,28 @@ export function useSlashCommand(
 
   const handleSelect = (item: (typeof localizedItems)[number]) => {
     if (!editor) return;
-    if (props.config && !isFeatureEnabled(props.config[item.featureKey])) return;
+    if (!item.isCustom && props.config && !isFeatureEnabled(props.config[item.featureKey])) return;
     if (item.isAvailable && !item.isAvailable(editor)) return;
-    item.action(editor, (id, defaultMessage, values) =>
-      formatMessage({ id, defaultMessage }, values)
-    );
+    if (item.isCustom) {
+      if (item.customAction) {
+        item.customAction(
+          editor,
+          (descriptor) => formatMessage(descriptor),
+          {
+            openDialog: (extId?: string) => {
+              const targetId = extId || item.openExtensionDialogId;
+              if (targetId) props.onOpenCustomDialog?.(targetId);
+            },
+          }
+        );
+      } else if (item.openExtensionDialogId) {
+        props.onOpenCustomDialog?.(item.openExtensionDialogId);
+      }
+    } else {
+      item.action(editor, (id, defaultMessage, values) =>
+        formatMessage({ id, defaultMessage }, values)
+      );
+    }
     setOpen(false);
     setFilter('');
   };

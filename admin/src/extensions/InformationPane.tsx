@@ -355,6 +355,7 @@ export function useInformationPane(
       onClick={handleInsert}
       icon={<Information />}
       active={editorState?.isActive ?? false}
+      toggle
       disabled={props.disabled || !editor || (editorState?.isInCodeBlock ?? false)}
       tooltip={formatMessage({
         id: 'tiptap-editor.toolbar.informationPane',

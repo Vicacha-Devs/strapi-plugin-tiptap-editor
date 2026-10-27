@@ -65,6 +65,7 @@ export function useTextAlign(
       onClick={() => setTextAlign('left')}
       icon={<TextAlignLeft />}
       active={editorState?.isTextAlignLeft ?? false}
+      toggle
       disabled={isDisabled}
       tooltip={formatMessage({
         id: 'tiptap-editor.toolbar.textAlignLeft',
@@ -78,6 +79,7 @@ export function useTextAlign(
       onClick={() => setTextAlign('center')}
       icon={<TextAlignCenter />}
       active={editorState?.isTextAlignCenter ?? false}
+      toggle
       disabled={isDisabled}
       tooltip={formatMessage({
         id: 'tiptap-editor.toolbar.textAlignCenter',
@@ -91,6 +93,7 @@ export function useTextAlign(
       onClick={() => setTextAlign('right')}
       icon={<TextAlignRight />}
       active={editorState?.isTextAlignRight ?? false}
+      toggle
       disabled={isDisabled}
       tooltip={formatMessage({
         id: 'tiptap-editor.toolbar.textAlignRight',
@@ -104,6 +107,7 @@ export function useTextAlign(
       onClick={() => setTextAlign('justify')}
       icon={<TextAlignJustify />}
       active={editorState?.isTextAlignJustify ?? false}
+      toggle
       disabled={isDisabled}
       tooltip={formatMessage({
         id: 'tiptap-editor.toolbar.textAlignJustify',

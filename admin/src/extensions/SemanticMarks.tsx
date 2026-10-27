@@ -193,6 +193,7 @@ export function useSemanticMarks(
           </span>
         }
         active={editorState?.isLead ?? false}
+        toggle
         disabled={!editor || props.disabled}
         tooltip={formatMessage({
           id: 'tiptap-editor.toolbar.leadParagraph',
@@ -212,6 +213,7 @@ export function useSemanticMarks(
           </span>
         }
         active={editorState?.isAbbr ?? false}
+        toggle
         disabled={!editor || props.disabled}
         tooltip={formatMessage({
           id: 'tiptap-editor.toolbar.abbreviation',
@@ -295,6 +297,7 @@ export function useSemanticMarks(
           </span>
         }
         active={editorState?.isLang ?? false}
+        toggle
         disabled={!editor || props.disabled}
         tooltip={formatMessage({
           id: 'tiptap-editor.toolbar.languageMark',

@@ -1,9 +1,15 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Editor, useEditorState } from '@tiptap/react';
-import { Box, Flex } from '@strapi/design-system';
+import { Box, Button, Flex, Typography } from '@strapi/design-system';
 import { Collapse, Expand, Eye } from '@strapi/icons';
 import { useIntl } from 'react-intl';
 import { getPluginId } from '../utils/getTranslation';
+import {
+  buildExportedJsonDocument,
+  jsonToMarkdown,
+  sanitizeHtmlString,
+  type ProseMirrorJSONNode,
+} from '../../../shared/contentSerializer';
 import { ToolbarButton } from './ToolbarButton';
 
 export interface EditorModesOptions {
@@ -30,12 +36,15 @@ export const calculateReadingTimeMinutes = (
 };
 
 /**
- * Provides Fullscreen mode, Read-only Preview mode, and Character/Word Count + Reading Time status bar at the bottom of the field.
+ * Provides Fullscreen mode, Read-only Preview mode, Source/JSON/HTML/Markdown Inspector,
+ * and Character/Word Count + Reading Time status bar at the bottom of the field.
  */
 export const useEditorModes = (editor: Editor | null, options?: EditorModesOptions) => {
   const { formatMessage } = useIntl();
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [isPreviewMode, setIsPreviewMode] = useState(false);
+  const [showInspector, setShowInspector] = useState(false);
+  const [inspectorTab, setInspectorTab] = useState<'json' | 'html' | 'markdown'>('json');
 
   // Exit fullscreen on Escape key
   useEffect(() => {
@@ -99,9 +108,11 @@ export const useEditorModes = (editor: Editor | null, options?: EditorModesOptio
     <ToolbarButton
       icon={isFullscreen ? <Collapse /> : <Expand />}
       active={isFullscreen}
+      toggle
       onClick={() => setIsFullscreen((prev) => !prev)}
       disabled={!editor}
       tooltip={fullscreenTooltip}
+      ariaLabel={fullscreenTooltip}
     />
   );
 
@@ -114,9 +125,28 @@ export const useEditorModes = (editor: Editor | null, options?: EditorModesOptio
     <ToolbarButton
       icon={<Eye />}
       active={isPreviewMode}
+      toggle
       onClick={() => setIsPreviewMode((prev) => !prev)}
       disabled={!editor || options?.disabled}
       tooltip={previewTooltip}
+      ariaLabel={previewTooltip}
+    />
+  );
+
+  const sourceTooltip = formatMessage({
+    id: `${getPluginId()}.toolbar.sourceInspector`,
+    defaultMessage: 'Inspect JSON / HTML / Markdown',
+  });
+
+  const sourceButton = (
+    <ToolbarButton
+      icon={<span style={{ fontWeight: 700, fontSize: '10px', fontFamily: 'monospace' }}>{'{}'}</span>}
+      active={showInspector}
+      toggle
+      onClick={() => setShowInspector((prev) => !prev)}
+      disabled={!editor}
+      tooltip={sourceTooltip}
+      ariaLabel={sourceTooltip}
     />
   );
 
@@ -234,11 +264,101 @@ export const useEditorModes = (editor: Editor | null, options?: EditorModesOptio
     </Box>
   ) : null;
 
+  const inspectorDoc = useEditorState({
+    editor,
+    selector: (ctx) => (showInspector ? ctx.editor?.state.doc : null),
+  });
+
+  const inspectorOutput = useMemo(() => {
+    if (!editor || !inspectorDoc) return '';
+    if (inspectorTab === 'json') {
+      return JSON.stringify(
+        buildExportedJsonDocument(editor, { wordsPerMinute: options?.wordsPerMinute }),
+        null,
+        2
+      );
+    }
+    if (inspectorTab === 'html') {
+      return sanitizeHtmlString(editor.getHTML());
+    }
+    return jsonToMarkdown(editor.getJSON() as ProseMirrorJSONNode);
+  }, [editor, inspectorDoc, inspectorTab, options?.wordsPerMinute]);
+
+  const inspectorDrawer = showInspector && editor ? (
+    <Box
+      padding={3}
+      marginTop={2}
+      background="neutral150"
+      hasRadius
+      borderColor="neutral300"
+    >
+      <Flex justifyContent="space-between" alignItems="center" marginBottom={2}>
+        <Typography variant="sigma" textColor="neutral700">
+          {formatMessage({
+            id: `${getPluginId()}.inspector.title`,
+            defaultMessage: 'Content Output Inspector',
+          })}
+        </Typography>
+        <Flex gap={1}>
+          <Button
+            size="S"
+            variant={inspectorTab === 'json' ? 'secondary' : 'tertiary'}
+            onClick={() => setInspectorTab('json')}
+          >
+            {formatMessage({
+              id: `${getPluginId()}.inspector.tabJson`,
+              defaultMessage: 'JSON',
+            })}
+          </Button>
+          <Button
+            size="S"
+            variant={inspectorTab === 'html' ? 'secondary' : 'tertiary'}
+            onClick={() => setInspectorTab('html')}
+          >
+            {formatMessage({
+              id: `${getPluginId()}.inspector.tabHtml`,
+              defaultMessage: 'HTML',
+            })}
+          </Button>
+          <Button
+            size="S"
+            variant={inspectorTab === 'markdown' ? 'secondary' : 'tertiary'}
+            onClick={() => setInspectorTab('markdown')}
+          >
+            {formatMessage({
+              id: `${getPluginId()}.inspector.tabMarkdown`,
+              defaultMessage: 'Markdown',
+            })}
+          </Button>
+        </Flex>
+      </Flex>
+      <pre
+        style={{
+          margin: 0,
+          padding: '10px',
+          background: '#212134',
+          color: '#f6f6f9',
+          borderRadius: '4px',
+          fontSize: '12px',
+          maxHeight: '240px',
+          overflow: 'auto',
+          fontFamily: 'monospace',
+          whiteSpace: 'pre-wrap',
+          wordBreak: 'break-word',
+        }}
+      >
+        {inspectorOutput}
+      </pre>
+    </Box>
+  ) : null;
+
   return {
     isFullscreen,
     isPreviewMode,
     fullscreenButton,
     previewButton,
+    sourceButton,
     characterCountFooter,
+    inspectorDrawer,
   };
 };

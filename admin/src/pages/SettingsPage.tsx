@@ -178,12 +178,6 @@ const FEATURE_CATEGORIES: FeatureCategoryDefinition[] = [
   },
 ];
 
-// Only surface features the editor currently supports.
-const SUPPORTED_CATEGORIES = FEATURE_CATEGORIES.map((category) => ({
-  ...category,
-  features: category.features.filter((key) => PRESET_FEATURE_KEYS.includes(key)),
-})).filter((category) => category.features.length > 0);
-
 function formatFallbackPresetName(name: string): string {
   if (PRESET_DEFAULT_LABELS[name]) {
     return PRESET_DEFAULT_LABELS[name];
@@ -754,7 +748,7 @@ export function SettingsPage() {
             <Divider />
 
             <Box marginTop={4}>
-              <Tabs.Root defaultValue={SUPPORTED_CATEGORIES[0].id}>
+              <Tabs.Root defaultValue={FEATURE_CATEGORIES[0].id}>
                 <Tabs.List
                   aria-label={formatMessage({
                     id: 'tiptap-editor.settings.presetMatrixTitle',
@@ -762,11 +756,11 @@ export function SettingsPage() {
                   })}
                   style={{
                     display: 'grid',
-                    gridTemplateColumns: `repeat(${SUPPORTED_CATEGORIES.length}, minmax(0, 1fr))`,
+                    gridTemplateColumns: `repeat(${FEATURE_CATEGORIES.length}, minmax(0, 1fr))`,
                     alignItems: 'stretch',
                   }}
                 >
-                  {SUPPORTED_CATEGORIES.map((category) => {
+                  {FEATURE_CATEGORIES.map((category) => {
                     const categoryEnabledCount = category.features.filter((key) =>
                       isFeatureEnabled(currentPresetConfig[key])
                     ).length;
@@ -794,7 +788,7 @@ export function SettingsPage() {
                   })}
                 </Tabs.List>
 
-                {SUPPORTED_CATEGORIES.map((category) => {
+                {FEATURE_CATEGORIES.map((category) => {
                   const categoryEnabledCount = category.features.filter((key) =>
                     isFeatureEnabled(currentPresetConfig[key])
                   ).length;

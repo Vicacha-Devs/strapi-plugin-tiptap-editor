@@ -1,14 +1,17 @@
 import { useState, useEffect } from 'react';
 import { useFetchClient } from '@strapi/strapi/admin';
 import {
+  Badge,
   Box,
   Flex,
   Typography,
   Button,
+  Divider,
   Field,
   SingleSelect,
   SingleSelectOption,
   Checkbox,
+  Tabs,
   TextInput,
 } from '@strapi/design-system';
 import { useIntl } from 'react-intl';
@@ -17,9 +20,172 @@ import {
   DEFAULT_RUNTIME_SETTINGS,
   BUILT_IN_PRESETS,
   isFeatureEnabled,
+  type PresetFeatureKey,
   type TiptapRuntimeSettings,
   type TiptapOutputFormat,
 } from '../../../shared/types';
+
+interface FeatureCategoryDefinition {
+  id: string;
+  defaultTitle: string;
+  features: PresetFeatureKey[];
+}
+
+const FEATURE_DEFAULT_LABELS: Record<PresetFeatureKey, string> = {
+  bold: 'Bold',
+  italic: 'Italic',
+  strike: 'Strikethrough',
+  underline: 'Underline',
+  code: 'Inline Code',
+  codeBlock: 'Code Block',
+  blockquote: 'Blockquote',
+  bulletList: 'Bullet List',
+  orderedList: 'Numbered List',
+  hardBreak: 'Line Break (Hard Break)',
+  horizontalRule: 'Horizontal Rule',
+  history: 'Undo / Redo History',
+  heading: 'Headings (H1–H6)',
+  link: 'External / URL Link',
+  table: 'Tables',
+  textAlign: 'Text Alignment',
+  superscript: 'Superscript',
+  subscript: 'Subscript',
+  textColor: 'Text Color',
+  highlightColor: 'Highlight Color',
+  mediaLibrary: 'Strapi Media Library (Images)',
+  fontFamily: 'Font Family',
+  fontSize: 'Font Size',
+  lineHeight: 'Line Height',
+  clearFormatting: 'Clear Formatting',
+  typography: 'Smart Typography',
+  leadParagraph: 'Lead Paragraph',
+  language: 'Language & Text Direction (WCAG)',
+  abbr: 'Abbreviation (<abbr>)',
+  video: 'Video Embed',
+  audio: 'Audio & Voice Recorder',
+  attachment: 'File Attachment',
+  iframe: 'Sandboxed Iframe Embed',
+  linker: 'Strapi Internal Entry Linker',
+  informationPane: 'Information / Callout Pane',
+  accordion: 'Collapsible Accordion (<details>)',
+  conversationHistory: 'Conversation Thread Block',
+  columns: 'Multi-Column Layout',
+  taskList: 'Interactive Task Checklist',
+  mathematics: 'Mathematical Formulas (LaTeX)',
+  emoji: 'Emoji Picker',
+  slashCommands: 'Slash Commands (/ Menu)',
+  pageBreak: 'Page Break',
+  tableOfContents: 'Table of Contents',
+  speechToText: 'Voice Dictation (Speech-to-Text)',
+  textToSpeech: 'Read Aloud (Text-to-Speech)',
+  characterCount: 'Word & Character Counter',
+  fullscreen: 'Fullscreen Mode',
+};
+
+const PRESET_DEFAULT_LABELS: Record<string, string> = {
+  default: 'Default',
+  minimal: 'Minimal',
+  standard: 'Standard',
+  editorial: 'Editorial',
+  full: 'Full',
+  edifice: 'Edifice',
+};
+
+const FEATURE_CATEGORIES: FeatureCategoryDefinition[] = [
+  {
+    id: 'formatting',
+    defaultTitle: 'Text Formatting & Script',
+    features: [
+      'bold',
+      'italic',
+      'underline',
+      'strike',
+      'code',
+      'superscript',
+      'subscript',
+      'clearFormatting',
+    ],
+  },
+  {
+    id: 'structure',
+    defaultTitle: 'Headings, Paragraphs & Lists',
+    features: [
+      'heading',
+      'leadParagraph',
+      'blockquote',
+      'codeBlock',
+      'bulletList',
+      'orderedList',
+      'taskList',
+      'horizontalRule',
+      'hardBreak',
+      'pageBreak',
+    ],
+  },
+  {
+    id: 'typography',
+    defaultTitle: 'Typography, Colors & Accessibility',
+    features: [
+      'textAlign',
+      'textColor',
+      'highlightColor',
+      'fontFamily',
+      'fontSize',
+      'lineHeight',
+      'typography',
+      'language',
+      'abbr',
+    ],
+  },
+  {
+    id: 'media',
+    defaultTitle: 'Links & Rich Media',
+    features: [
+      'link',
+      'linker',
+      'mediaLibrary',
+      'video',
+      'audio',
+      'attachment',
+      'iframe',
+    ],
+  },
+  {
+    id: 'blocks',
+    defaultTitle: 'Structured & Interactive Blocks',
+    features: [
+      'table',
+      'columns',
+      'accordion',
+      'informationPane',
+      'tableOfContents',
+      'mathematics',
+      'conversationHistory',
+    ],
+  },
+  {
+    id: 'productivity',
+    defaultTitle: 'Editor Tools, Voice & Productivity',
+    features: [
+      'history',
+      'slashCommands',
+      'emoji',
+      'characterCount',
+      'speechToText',
+      'textToSpeech',
+      'fullscreen',
+    ],
+  },
+];
+
+function formatFallbackPresetName(name: string): string {
+  if (PRESET_DEFAULT_LABELS[name]) {
+    return PRESET_DEFAULT_LABELS[name];
+  }
+  return name
+    .replace(/[-_]+/g, ' ')
+    .replace(/\b\w/g, (char) => char.toUpperCase());
+}
 
 /**
  * Global Administration Settings page for the Tiptap Editor plugin.
@@ -43,6 +209,18 @@ export function SettingsPage() {
   const [isSaving, setIsSaving] = useState(false);
   const [saveMessage, setSaveMessage] = useState<string | null>(null);
 
+  const getPresetLabel = (presetName: string): string =>
+    formatMessage({
+      id: `tiptap-editor.settings.presetName.${presetName}`,
+      defaultMessage: formatFallbackPresetName(presetName),
+    });
+
+  const getFeatureLabel = (featureKey: PresetFeatureKey): string =>
+    formatMessage({
+      id: `tiptap-editor.settings.feature.${featureKey}`,
+      defaultMessage: FEATURE_DEFAULT_LABELS[featureKey] ?? featureKey,
+    });
+
   useEffect(() => {
     let mounted = true;
     get('/tiptap-editor/settings')
@@ -54,6 +232,9 @@ export function SettingsPage() {
           presetOverrides: res.data.presetOverrides || {},
         };
         setSettings(loaded);
+        if (loaded.defaultPreset) {
+          setSelectedPreset(loaded.defaultPreset);
+        }
         setIframeDomainsInput((loaded.allowedIframeDomains || []).join(', '));
       })
       .catch(() => {
@@ -101,14 +282,14 @@ export function SettingsPage() {
     };
   }, [get, selectedPreset]);
 
-  const currentPresetConfig = {
+  const currentPresetConfig: Record<string, unknown> = {
     ...(BUILT_IN_PRESETS[selectedPreset] ?? {}),
     ...basePreset,
     ...(settings.presetOverrides?.[selectedPreset] ?? {}),
   };
 
-  const handleToggleFeature = (featureKey: keyof typeof currentPresetConfig, enabled: boolean) => {
-    const baseValue = (basePreset as Record<string, unknown>)[featureKey as string];
+  const handleToggleFeature = (featureKey: PresetFeatureKey, enabled: boolean) => {
+    const baseValue = (basePreset as Record<string, unknown>)[featureKey];
     const nextValue =
       enabled && baseValue && typeof baseValue === 'object'
         ? { ...(baseValue as Record<string, unknown>), enabled: true }
@@ -123,6 +304,37 @@ export function SettingsPage() {
         },
       },
     }));
+  };
+
+  const handleBulkToggleFeatures = (featureKeys: PresetFeatureKey[], enabled: boolean) => {
+    setSettings((prev) => {
+      const updatedPreset = { ...(prev.presetOverrides?.[selectedPreset] ?? {}) };
+      for (const featureKey of featureKeys) {
+        const baseValue = (basePreset as Record<string, unknown>)[featureKey];
+        (updatedPreset as Record<string, unknown>)[featureKey] =
+          enabled && baseValue && typeof baseValue === 'object'
+            ? { ...(baseValue as Record<string, unknown>), enabled: true }
+            : enabled;
+      }
+      return {
+        ...prev,
+        presetOverrides: {
+          ...prev.presetOverrides,
+          [selectedPreset]: updatedPreset,
+        },
+      };
+    });
+  };
+
+  const handleResetPresetOverrides = () => {
+    setSettings((prev) => {
+      const nextOverrides = { ...(prev.presetOverrides || {}) };
+      delete nextOverrides[selectedPreset];
+      return {
+        ...prev,
+        presetOverrides: nextOverrides,
+      };
+    });
   };
 
   const handleSave = async () => {
@@ -181,9 +393,13 @@ export function SettingsPage() {
     new Set([...availablePresets, ...Object.keys(settings.presetOverrides || {})])
   );
 
+  const enabledFeaturesCount = PRESET_FEATURE_KEYS.filter((key) =>
+    isFeatureEnabled(currentPresetConfig[key])
+  ).length;
+
   return (
     <Box padding={8} background="neutral100">
-      <Flex justifyContent="space-between" alignItems="center" marginBottom={6}>
+      <Flex justifyContent="space-between" alignItems="center" marginBottom={6} wrap="wrap" gap={4}>
         <Box>
           <Typography variant="alpha" tag="h1">
             {formatMessage({
@@ -191,13 +407,15 @@ export function SettingsPage() {
               defaultMessage: 'Tiptap Editor Settings',
             })}
           </Typography>
-          <Typography variant="epsilon" textColor="neutral600">
-            {formatMessage({
-              id: 'tiptap-editor.settings.pageDescription',
-              defaultMessage:
-                'Configure global defaults, relational sync, iframe security, and toolbar presets.',
-            })}
-          </Typography>
+          <Box marginTop={1}>
+            <Typography variant="epsilon" textColor="neutral600">
+              {formatMessage({
+                id: 'tiptap-editor.settings.pageDescription',
+                defaultMessage:
+                  'Configure global defaults, relational sync, iframe security, and toolbar presets.',
+              })}
+            </Typography>
+          </Box>
         </Box>
         <Button onClick={handleSave} loading={isSaving} disabled={loadError}>
           {formatMessage({
@@ -219,7 +437,8 @@ export function SettingsPage() {
           <Typography textColor="danger700">
             {formatMessage({
               id: 'tiptap-editor.settings.loadError',
-              defaultMessage: 'Failed to load settings. Saving is disabled to prevent overwriting existing configuration.',
+              defaultMessage:
+                'Failed to load settings. Saving is disabled to prevent overwriting existing configuration.',
             })}
           </Typography>
         </Box>
@@ -238,181 +457,427 @@ export function SettingsPage() {
         </Box>
       )}
 
-      <Box
-        padding={6}
-        marginBottom={6}
-        background="neutral0"
-        shadow="filterShadow"
-        hasRadius
-      >
-        <Typography variant="delta" tag="h2">
-          {formatMessage({
-            id: 'tiptap-editor.settings.globalSectionTitle',
-            defaultMessage: 'Global Configuration',
+      <Tabs.Root defaultValue="global">
+        <Tabs.List
+          aria-label={formatMessage({
+            id: 'tiptap-editor.settings.pageTitle',
+            defaultMessage: 'Tiptap Editor Settings',
           })}
-        </Typography>
-
-        <Flex gap={6} wrap="wrap" marginTop={4}>
-          <Box style={{ minWidth: '220px' }}>
-            <Field.Root name="defaultPreset">
-              <Field.Label>
-                {formatMessage({
-                  id: 'tiptap-editor.settings.defaultPresetLabel',
-                  defaultMessage: 'Default Preset',
-                })}
-              </Field.Label>
-              <SingleSelect
-                value={settings.defaultPreset}
-                onChange={(val: string | number) =>
-                  setSettings((prev) => ({ ...prev, defaultPreset: String(val) }))
-                }
-              >
-                {presetNames.map((name) => (
-                  <SingleSelectOption key={name} value={name}>
-                    {name}
-                  </SingleSelectOption>
-                ))}
-              </SingleSelect>
-            </Field.Root>
-          </Box>
-
-          <Box style={{ minWidth: '220px' }}>
-            <Field.Root
-              name="defaultOutputFormat"
-              hint={formatMessage({
-                id: 'tiptap-editor.settings.defaultOutputFormatWarning',
-                defaultMessage:
-                  'Warning: Changing this default changes the storage format of fields without an explicit outputFormat.',
-              })}
-            >
-              <Field.Label>
-                {formatMessage({
-                  id: 'tiptap-editor.settings.defaultOutputFormatLabel',
-                  defaultMessage: 'Default Output Format',
-                })}
-              </Field.Label>
-              <SingleSelect
-                value={settings.defaultOutputFormat}
-                onChange={(val: string | number) =>
-                  setSettings((prev) => ({
-                    ...prev,
-                    defaultOutputFormat: String(val) as TiptapOutputFormat,
-                  }))
-                }
-              >
-                <SingleSelectOption value="json">
-                  {formatMessage({
-                    id: 'tiptap-editor.settings.outputFormatJson',
-                    defaultMessage: 'JSON (ProseMirror Document)',
-                  })}
-                </SingleSelectOption>
-                <SingleSelectOption value="html">
-                  {formatMessage({
-                    id: 'tiptap-editor.settings.outputFormatHtml',
-                    defaultMessage: 'HTML String',
-                  })}
-                </SingleSelectOption>
-                <SingleSelectOption value="markdown">
-                  {formatMessage({
-                    id: 'tiptap-editor.settings.outputFormatMarkdown',
-                    defaultMessage: 'Markdown String',
-                  })}
-                </SingleSelectOption>
-              </SingleSelect>
-              <Field.Hint />
-            </Field.Root>
-          </Box>
-
-          <Box style={{ minWidth: '320px', flex: 1 }}>
-            <Field.Root name="allowedIframeDomains">
-              <Field.Label>
-                {formatMessage({
-                  id: 'tiptap-editor.settings.allowedIframeDomainsLabel',
-                  defaultMessage: 'Allowed Iframe Domains (comma-separated)',
-                })}
-              </Field.Label>
-              <TextInput
-                name="allowedIframeDomains"
-                value={iframeDomainsInput}
-                onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-                  setIframeDomainsInput(e.target.value)
-                }
-              />
-            </Field.Root>
-          </Box>
-        </Flex>
-
-        <Box marginTop={4}>
-          <Checkbox
-            checked={settings.enableRelationalSync}
-            onCheckedChange={(checked: boolean) =>
-              setSettings((prev) => ({ ...prev, enableRelationalSync: Boolean(checked) }))
-            }
-          >
+        >
+          <Tabs.Trigger value="global">
             {formatMessage({
-              id: 'tiptap-editor.settings.enableRelationalSyncLabel',
-              defaultMessage:
-                "Automatically sync embedded Media ('<FieldName>'Media) and Internal Links ('<FieldName>'Links)",
+              id: 'tiptap-editor.settings.globalSectionTitle',
+              defaultMessage: 'Global Configuration',
             })}
-          </Checkbox>
-        </Box>
-      </Box>
-
-      <Box padding={6} background="neutral0" shadow="filterShadow" hasRadius>
-        <Flex justifyContent="space-between" alignItems="center" marginBottom={4}>
-          <Typography variant="delta" tag="h2">
+          </Tabs.Trigger>
+          <Tabs.Trigger value="presets">
             {formatMessage({
               id: 'tiptap-editor.settings.presetMatrixTitle',
               defaultMessage: 'Preset Feature Matrix',
-            })}
-          </Typography>
-          <Box style={{ minWidth: '220px' }}>
-            <SingleSelect
-              aria-label={formatMessage({
-                id: 'tiptap-editor.settings.presetMatrixSelectLabel',
-                defaultMessage: 'Preset to edit',
-              })}
-              value={selectedPreset}
-              onChange={(val: string | number) => setSelectedPreset(String(val))}
-            >
-              {presetNames.map((name) => (
-                <SingleSelectOption key={name} value={name}>
-                  {name}
-                </SingleSelectOption>
-              ))}
-            </SingleSelect>
-          </Box>
-        </Flex>
+            })}{' '}
+            ({enabledFeaturesCount}/{PRESET_FEATURE_KEYS.length})
+          </Tabs.Trigger>
+        </Tabs.List>
 
-        <div
-          style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fill, minmax(210px, 1fr))',
-            gap: '12px',
-          }}
-        >
-          {PRESET_FEATURE_KEYS.map((featureKey) => {
-            const isChecked = isFeatureEnabled(currentPresetConfig[featureKey]);
-            return (
-              <Box
-                key={featureKey}
-                padding={2}
-                background="neutral100"
-                hasRadius
-              >
-                <Checkbox
-                  checked={isChecked}
-                  onCheckedChange={(checked: boolean) =>
-                    handleToggleFeature(featureKey, Boolean(checked))
-                  }
-                >
-                  {featureKey}
-                </Checkbox>
+        <Tabs.Content value="global">
+          <Box
+            padding={6}
+            background="neutral0"
+            shadow="filterShadow"
+            hasRadius
+          >
+            <Box marginBottom={4}>
+              <Typography variant="delta" tag="h2">
+                {formatMessage({
+                  id: 'tiptap-editor.settings.globalSectionTitle',
+                  defaultMessage: 'Global Configuration',
+                })}
+              </Typography>
+              <Box marginTop={1}>
+                <Typography variant="pi" textColor="neutral600">
+                  {formatMessage({
+                    id: 'tiptap-editor.settings.globalSectionSubtitle',
+                    defaultMessage:
+                      'Default editor behavior applied when a Rich Text field does not specify custom options.',
+                  })}
+                </Typography>
               </Box>
-            );
-          })}
-        </div>
-      </Box>
+            </Box>
+
+            <div
+              style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(3, minmax(0, 1fr))',
+                gap: '20px',
+                alignItems: 'start',
+              }}
+            >
+              <Box>
+                <Field.Root
+                  name="defaultPreset"
+                  hint={formatMessage({
+                    id: 'tiptap-editor.settings.defaultPresetHint',
+                    defaultMessage:
+                      'Toolbar preset applied by default to new or unconfigured Tiptap fields.',
+                  })}
+                >
+                  <Field.Label>
+                    {formatMessage({
+                      id: 'tiptap-editor.settings.defaultPresetLabel',
+                      defaultMessage: 'Default Preset',
+                    })}
+                  </Field.Label>
+                  <SingleSelect
+                    value={settings.defaultPreset}
+                    onChange={(val: string | number) =>
+                      setSettings((prev) => ({ ...prev, defaultPreset: String(val) }))
+                    }
+                  >
+                    {presetNames.map((name) => (
+                      <SingleSelectOption key={name} value={name}>
+                        {getPresetLabel(name)}
+                      </SingleSelectOption>
+                    ))}
+                  </SingleSelect>
+                  <Field.Hint />
+                </Field.Root>
+              </Box>
+
+              <Box>
+                <Field.Root
+                  name="defaultOutputFormat"
+                  hint={formatMessage({
+                    id: 'tiptap-editor.settings.defaultOutputFormatWarning',
+                    defaultMessage:
+                      'Warning: Changing this default changes the storage format of fields without an explicit outputFormat.',
+                  })}
+                >
+                  <Field.Label>
+                    {formatMessage({
+                      id: 'tiptap-editor.settings.defaultOutputFormatLabel',
+                      defaultMessage: 'Default Output Format',
+                    })}
+                  </Field.Label>
+                  <SingleSelect
+                    value={settings.defaultOutputFormat}
+                    onChange={(val: string | number) =>
+                      setSettings((prev) => ({
+                        ...prev,
+                        defaultOutputFormat: String(val) as TiptapOutputFormat,
+                      }))
+                    }
+                  >
+                    <SingleSelectOption value="json">
+                      {formatMessage({
+                        id: 'tiptap-editor.settings.outputFormatJson',
+                        defaultMessage: 'JSON (ProseMirror Document)',
+                      })}
+                    </SingleSelectOption>
+                    <SingleSelectOption value="html">
+                      {formatMessage({
+                        id: 'tiptap-editor.settings.outputFormatHtml',
+                        defaultMessage: 'HTML String',
+                      })}
+                    </SingleSelectOption>
+                    <SingleSelectOption value="markdown">
+                      {formatMessage({
+                        id: 'tiptap-editor.settings.outputFormatMarkdown',
+                        defaultMessage: 'Markdown String',
+                      })}
+                    </SingleSelectOption>
+                  </SingleSelect>
+                  <Field.Hint />
+                </Field.Root>
+              </Box>
+
+              <Box>
+                <Field.Root
+                  name="allowedIframeDomains"
+                  hint={formatMessage({
+                    id: 'tiptap-editor.settings.allowedIframeDomainsHint',
+                    defaultMessage:
+                      'Comma-separated HTTPS hostnames allowed for embedded iframes (e.g., www.youtube.com, player.vimeo.com).',
+                  })}
+                >
+                  <Field.Label>
+                    {formatMessage({
+                      id: 'tiptap-editor.settings.allowedIframeDomainsLabel',
+                      defaultMessage: 'Allowed Iframe Domains (comma-separated)',
+                    })}
+                  </Field.Label>
+                  <TextInput
+                    name="allowedIframeDomains"
+                    placeholder="www.youtube.com, player.vimeo.com"
+                    value={iframeDomainsInput}
+                    onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                      setIframeDomainsInput(e.target.value)
+                    }
+                  />
+                  <Field.Hint />
+                </Field.Root>
+              </Box>
+            </div>
+
+            <Box
+              marginTop={5}
+              padding={4}
+              background="neutral100"
+              borderColor="neutral200"
+              hasRadius
+            >
+              <Checkbox
+                checked={settings.enableRelationalSync}
+                onCheckedChange={(checked: boolean) =>
+                  setSettings((prev) => ({ ...prev, enableRelationalSync: Boolean(checked) }))
+                }
+              >
+                {formatMessage({
+                  id: 'tiptap-editor.settings.enableRelationalSyncLabel',
+                  defaultMessage:
+                    "Automatically sync embedded Media ('<FieldName>'Media) and Internal Links ('<FieldName>'Links)",
+                })}
+              </Checkbox>
+            </Box>
+          </Box>
+        </Tabs.Content>
+
+        <Tabs.Content value="presets">
+          <Box padding={6} background="neutral0" shadow="filterShadow" hasRadius>
+            <Flex
+              justifyContent="space-between"
+              alignItems="flex-start"
+              marginBottom={4}
+              wrap="wrap"
+              gap={4}
+            >
+              <Box>
+                <Flex alignItems="center" gap={3}>
+                  <Typography variant="delta" tag="h2">
+                    {formatMessage({
+                      id: 'tiptap-editor.settings.presetMatrixTitle',
+                      defaultMessage: 'Preset Feature Matrix',
+                    })}
+                  </Typography>
+                  <Badge active={enabledFeaturesCount > 0}>
+                    {formatMessage(
+                      {
+                        id: 'tiptap-editor.settings.enabledFeaturesCount',
+                        defaultMessage: '{enabled} / {total} enabled',
+                      },
+                      {
+                        enabled: enabledFeaturesCount,
+                        total: PRESET_FEATURE_KEYS.length,
+                      }
+                    )}
+                  </Badge>
+                </Flex>
+                <Box marginTop={1}>
+                  <Typography variant="pi" textColor="neutral600">
+                    {formatMessage({
+                      id: 'tiptap-editor.settings.presetMatrixSubtitle',
+                      defaultMessage:
+                        'Toggle toolbar tools and extensions for the selected preset across all content types.',
+                    })}
+                  </Typography>
+                </Box>
+              </Box>
+
+              <Flex alignItems="flex-end" gap={3} wrap="wrap">
+                <Box style={{ minWidth: '220px' }}>
+                  <Field.Root name="selectedPreset">
+                    <Field.Label>
+                      {formatMessage({
+                        id: 'tiptap-editor.settings.presetMatrixSelectLabel',
+                        defaultMessage: 'Select preset to configure',
+                      })}
+                    </Field.Label>
+                    <SingleSelect
+                      aria-label={formatMessage({
+                        id: 'tiptap-editor.settings.presetMatrixSelectLabel',
+                        defaultMessage: 'Select preset to configure',
+                      })}
+                      value={selectedPreset}
+                      onChange={(val: string | number) => setSelectedPreset(String(val))}
+                    >
+                      {presetNames.map((name) => (
+                        <SingleSelectOption key={name} value={name}>
+                          {getPresetLabel(name)}
+                        </SingleSelectOption>
+                      ))}
+                    </SingleSelect>
+                  </Field.Root>
+                </Box>
+
+                <Button
+                  variant="secondary"
+                  size="S"
+                  onClick={() => handleBulkToggleFeatures([...PRESET_FEATURE_KEYS], true)}
+                >
+                  {formatMessage({
+                    id: 'tiptap-editor.settings.enableAllFeatures',
+                    defaultMessage: 'Enable All',
+                  })}
+                </Button>
+
+                <Button
+                  variant="tertiary"
+                  size="S"
+                  onClick={() => handleBulkToggleFeatures([...PRESET_FEATURE_KEYS], false)}
+                >
+                  {formatMessage({
+                    id: 'tiptap-editor.settings.disableAllFeatures',
+                    defaultMessage: 'Disable All',
+                  })}
+                </Button>
+
+                {settings.presetOverrides?.[selectedPreset] && (
+                  <Button
+                    variant="danger-light"
+                    size="S"
+                    onClick={handleResetPresetOverrides}
+                  >
+                    {formatMessage({
+                      id: 'tiptap-editor.settings.resetPresetOverrides',
+                      defaultMessage: 'Reset Defaults',
+                    })}
+                  </Button>
+                )}
+              </Flex>
+            </Flex>
+
+            <Divider />
+
+            <Box marginTop={4}>
+              <Tabs.Root defaultValue={FEATURE_CATEGORIES[0].id}>
+                <Tabs.List
+                  aria-label={formatMessage({
+                    id: 'tiptap-editor.settings.presetMatrixTitle',
+                    defaultMessage: 'Preset Feature Matrix',
+                  })}
+                  style={{
+                    display: 'grid',
+                    gridTemplateColumns: `repeat(${FEATURE_CATEGORIES.length}, minmax(0, 1fr))`,
+                    alignItems: 'stretch',
+                  }}
+                >
+                  {FEATURE_CATEGORIES.map((category) => {
+                    const categoryEnabledCount = category.features.filter((key) =>
+                      isFeatureEnabled(currentPresetConfig[key])
+                    ).length;
+                    return (
+                      <Tabs.Trigger
+                        key={category.id}
+                        value={category.id}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          textAlign: 'center',
+                          paddingBlock: '12px',
+                          paddingInline: '12px',
+                          minHeight: '64px',
+                        }}
+                      >
+                        {formatMessage({
+                          id: `tiptap-editor.settings.category.${category.id}`,
+                          defaultMessage: category.defaultTitle,
+                        })}{' '}
+                        ({categoryEnabledCount}/{category.features.length})
+                      </Tabs.Trigger>
+                    );
+                  })}
+                </Tabs.List>
+
+                {FEATURE_CATEGORIES.map((category) => {
+                  const categoryEnabledCount = category.features.filter((key) =>
+                    isFeatureEnabled(currentPresetConfig[key])
+                  ).length;
+                  const allCategoryEnabled =
+                    categoryEnabledCount === category.features.length;
+
+                  return (
+                    <Tabs.Content key={category.id} value={category.id}>
+                      <Box padding={4}>
+                        <Flex
+                          justifyContent="space-between"
+                          alignItems="center"
+                          marginBottom={3}
+                          wrap="wrap"
+                          gap={2}
+                        >
+                          <Flex alignItems="center" gap={2}>
+                            <Typography variant="sigma" textColor="neutral700">
+                              {formatMessage({
+                                id: `tiptap-editor.settings.category.${category.id}`,
+                                defaultMessage: category.defaultTitle,
+                              })}
+                            </Typography>
+                            <Badge active={categoryEnabledCount > 0}>
+                              {categoryEnabledCount} / {category.features.length}
+                            </Badge>
+                          </Flex>
+                          <Button
+                            variant="ghost"
+                            size="S"
+                            onClick={() =>
+                              handleBulkToggleFeatures(
+                                category.features,
+                                !allCategoryEnabled
+                              )
+                            }
+                          >
+                            {allCategoryEnabled
+                              ? formatMessage({
+                                  id: 'tiptap-editor.settings.disableCategory',
+                                  defaultMessage: 'Deselect category',
+                                })
+                              : formatMessage({
+                                  id: 'tiptap-editor.settings.enableCategory',
+                                  defaultMessage: 'Select category',
+                                })}
+                          </Button>
+                        </Flex>
+
+                        <div
+                          style={{
+                            display: 'grid',
+                            gridTemplateColumns: 'repeat(3, minmax(0, 1fr))',
+                            gap: '12px',
+                          }}
+                        >
+                          {category.features.map((featureKey) => {
+                            const isChecked = isFeatureEnabled(
+                              currentPresetConfig[featureKey]
+                            );
+                            return (
+                              <Box
+                                key={featureKey}
+                                padding={3}
+                                background={isChecked ? 'primary100' : 'neutral100'}
+                                borderColor={isChecked ? 'primary200' : 'neutral200'}
+                                hasRadius
+                              >
+                                <Checkbox
+                                  checked={isChecked}
+                                  onCheckedChange={(checked: boolean) =>
+                                    handleToggleFeature(featureKey, Boolean(checked))
+                                  }
+                                >
+                                  {getFeatureLabel(featureKey)}
+                                </Checkbox>
+                              </Box>
+                            );
+                          })}
+                        </div>
+                      </Box>
+                    </Tabs.Content>
+                  );
+                })}
+              </Tabs.Root>
+            </Box>
+          </Box>
+        </Tabs.Content>
+      </Tabs.Root>
     </Box>
   );
 }

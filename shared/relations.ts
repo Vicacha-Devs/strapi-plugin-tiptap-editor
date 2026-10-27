@@ -114,6 +114,54 @@ export function extractRelationsFromJSON(doc: unknown): ExtractedRelationsResult
           src: validSrc,
         });
       }
+    } else if (typeof n.type === 'string' && n.attrs && typeof n.attrs === 'object') {
+      const attrs = n.attrs;
+      const customPairs: Array<{
+        idKey: string;
+        docKey: string;
+        srcKey: string;
+        nodeType: MediaNodeType;
+      }> = [
+        {
+          idKey: 'beforeAssetId',
+          docKey: 'beforeDocumentId',
+          srcKey: 'beforeSrc',
+          nodeType: 'image',
+        },
+        {
+          idKey: 'afterAssetId',
+          docKey: 'afterDocumentId',
+          srcKey: 'afterSrc',
+          nodeType: 'image',
+        },
+      ];
+      for (const pair of customPairs) {
+        const rawId = attrs[pair.idKey];
+        const parsedId =
+          typeof rawId === 'number'
+            ? rawId
+            : typeof rawId === 'string' && /^\d+$/.test(rawId)
+              ? parseInt(rawId, 10)
+              : null;
+        const validAssetId =
+          typeof parsedId === 'number' && !Number.isNaN(parsedId) ? parsedId : null;
+        const rawDocId = attrs[pair.docKey];
+        const validDocId =
+          typeof rawDocId === 'string' && rawDocId.trim().length > 0 ? rawDocId.trim() : null;
+        const rawSrc = attrs[pair.srcKey];
+        const validSrc =
+          typeof rawSrc === 'string' && rawSrc.trim().length > 0 ? rawSrc.trim() : null;
+        if (validAssetId !== null) mediaIdsSet.add(validAssetId);
+        if (validDocId !== null) mediaDocIdsSet.add(validDocId);
+        if (validAssetId !== null || validDocId !== null) {
+          mediaAssets.push({
+            nodeType: pair.nodeType,
+            assetId: validAssetId,
+            documentId: validDocId,
+            src: validSrc,
+          });
+        }
+      }
     }
 
     if (n.type === 'linker') {

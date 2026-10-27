@@ -448,6 +448,7 @@ export function useVideo(
       }}
       icon={<Play />}
       active={false}
+      tint="purple"
       disabled={props.disabled || !editor || (editorState?.isInCodeBlock ?? false)}
       tooltip={formatMessage({
         id: 'tiptap-editor.toolbar.insertVideo',

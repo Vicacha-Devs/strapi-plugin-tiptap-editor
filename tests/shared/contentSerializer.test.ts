@@ -313,7 +313,7 @@ describe('shared/contentSerializer', () => {
       expect(markdownToJson(md)).toEqual(doc);
     });
 
-    it('wraps display math blocks in a paragraph node so inline mathematics nodes never sit directly under doc', () => {
+    it('wraps display math blocks in a paragraph node and serializes block displayMode with $$ delimiters', () => {
       const parsed = markdownToJson('$$\nx\n$$');
       expect(parsed.content?.[0]?.type).toBe('paragraph');
       expect(parsed.content?.[0]?.content).toEqual([
@@ -322,6 +322,24 @@ describe('shared/contentSerializer', () => {
           attrs: { latex: 'x', displayMode: 'block' },
         },
       ]);
+      const serialized = jsonToMarkdown(parsed);
+      expect(serialized).toContain('$$\nx\n$$');
+
+      const legacyBoolDoc = {
+        type: 'doc',
+        content: [
+          {
+            type: 'paragraph',
+            content: [
+              {
+                type: 'mathematics',
+                attrs: { latex: 'E=mc^2', displayMode: true },
+              },
+            ],
+          },
+        ],
+      };
+      expect(jsonToMarkdown(legacyBoolDoc)).toContain('$$\nE=mc^2\n$$');
     });
 
     it('escapes angle brackets in metadata comments and image alt text so literal <details> does not merge subsequent blocks', () => {
@@ -397,9 +415,21 @@ describe('shared/contentSerializer', () => {
       getHTML: () => '<p onclick="evil()">Serialized content</p>',
     };
 
-    it('serializes to JSON string by default', () => {
+    it('serializes to JSON string by default and exports words, characters, and reading time', () => {
       const out = serializeEditorContent(mockEditor, 'json');
-      expect(JSON.parse(out).type).toBe('doc');
+      const parsed = JSON.parse(out);
+      expect(parsed.type).toBe('doc');
+      expect(parsed.words).toBe(2);
+      expect(parsed.characters).toBe(18);
+      expect(parsed.readingTimeMinutes).toBe(1);
+      expect(parsed.readingTime).toBe('1 min read');
+      expect(parsed.stats).toEqual({
+        words: 2,
+        characters: 18,
+        readingTimeMinutes: 1,
+        readingTime: '1 min read',
+        wordsPerMinute: 200,
+      });
     });
 
     it('serializes to sanitized HTML when outputFormat is html', () => {

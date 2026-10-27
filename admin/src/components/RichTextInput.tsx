@@ -34,6 +34,11 @@ import { useEmojiPicker } from '../extensions/EmojiPicker';
 import { useSlashCommand } from '../extensions/SlashCommand';
 import { useSpeechTools } from '../extensions/SpeechTools';
 import { useEditorModes } from './EditorFooterAndModes';
+import { ToolbarButton } from './ToolbarButton';
+import {
+  getRegisteredTiptapExtensions,
+  isCustomExtensionEnabledForPreset,
+} from '../utils/customExtensionRegistry';
 import { usePresetConfig } from '../hooks/usePresetConfig';
 import { useKeyboardNavigation } from '../hooks/useKeyboardNavigation';
 import { useRelationalSync } from '../hooks/useRelationalSync';
@@ -171,8 +176,18 @@ const InnerEditor = forwardRef<HTMLDivElement, InnerEditorProps>(
       },
     });
 
+    const charCountEnabled =
+      config?.characterCount === undefined || isFeatureEnabled(config?.characterCount);
+    const charCountOpts = charCountEnabled
+      ? getFeatureOptions(config.characterCount, {
+          limit: characterLimit,
+          wordsPerMinute: 200,
+        })
+      : null;
+
     const { editor, field } = useTiptapEditor(props.name, '', extensions, {
       outputFormat: outputFormat ?? DEFAULT_RUNTIME_SETTINGS.defaultOutputFormat,
+      wordsPerMinute: charCountOpts?.wordsPerMinute,
       onDocUpdate: syncRelationsFromDoc,
     });
 
@@ -217,20 +232,17 @@ const InnerEditor = forwardRef<HTMLDivElement, InnerEditorProps>(
     });
     const semanticMarks = useSemanticMarks(editor, { disabled: props.disabled });
     const informationPane = useInformationPane(editor, { disabled: props.disabled });
+    const [openCustomDialogId, setOpenCustomDialogId] = useState<string | null>(null);
     const structuredBlocks = useStructuredBlocks(editor, { disabled: props.disabled });
     const mathematics = useMathematics(editor, { disabled: props.disabled });
     const emoji = useEmojiPicker(editor, { disabled: props.disabled });
-    const slashCommand = useSlashCommand(editor, { disabled: props.disabled, config });
+    const slashCommand = useSlashCommand(editor, {
+      disabled: props.disabled,
+      config,
+      onOpenCustomDialog: (extId: string) => setOpenCustomDialogId(extId),
+    });
     const speech = useSpeechTools(editor, { disabled: props.disabled });
 
-    const charCountEnabled =
-      config?.characterCount === undefined || isFeatureEnabled(config?.characterCount);
-    const charCountOpts = charCountEnabled
-      ? getFeatureOptions(config.characterCount, {
-          limit: characterLimit,
-          wordsPerMinute: 200,
-        })
-      : null;
     const editorModes = useEditorModes(editor, {
       disabled: props.disabled,
       characterLimit:
@@ -240,169 +252,73 @@ const InnerEditor = forwardRef<HTMLDivElement, InnerEditorProps>(
         charCountEnabled || Boolean(characterLimit && characterLimit > 0),
     });
 
+    const customExtensionToolbarItems: ToolbarItem[] = getRegisteredTiptapExtensions()
+      .filter(
+        (ext) =>
+          isCustomExtensionEnabledForPreset(ext, config) &&
+          Boolean(ext.ToolbarComponent || ext.toolbarButton || ext.DialogComponent)
+      )
+      .map((ext) => {
+        const isDialogOpen = openCustomDialogId === ext.id;
+        const handleOpenDialog = () => setOpenCustomDialogId(ext.id);
+        const handleCloseDialog = () => setOpenCustomDialogId(null);
+
+        let contentNode: React.ReactNode = null;
+        if (ext.ToolbarComponent) {
+          const CustomToolbarComp = ext.ToolbarComponent;
+          contentNode = (
+            <CustomToolbarComp
+              editor={editor}
+              disabled={props.disabled}
+              config={config}
+              isDialogOpen={isDialogOpen}
+              onOpenDialog={handleOpenDialog}
+              onCloseDialog={handleCloseDialog}
+            />
+          );
+        } else if (ext.toolbarButton) {
+          contentNode = (
+            <ToolbarButton
+              onClick={() => {
+                if (ext.toolbarButton?.onClick) {
+                  ext.toolbarButton.onClick(editor, { openDialog: handleOpenDialog });
+                } else {
+                  handleOpenDialog();
+                }
+              }}
+              icon={ext.toolbarButton.icon}
+              ariaLabel={ext.toolbarButton.label}
+              tooltip={ext.toolbarButton.tooltip || ext.toolbarButton.label}
+              active={
+                ext.toolbarButton.isActive ? ext.toolbarButton.isActive(editor) : isDialogOpen
+              }
+              disabled={!editor || props.disabled}
+            />
+          );
+        }
+
+        const overlayNode = ext.DialogComponent ? (
+          <ext.DialogComponent
+            editor={editor}
+            open={isDialogOpen}
+            onClose={handleCloseDialog}
+            config={config}
+          />
+        ) : undefined;
+
+        return {
+          id: `custom-${ext.id}`,
+          content: contentNode,
+          measureContent: contentNode ? (
+            <div style={{ width: '32px', height: '32px' }} />
+          ) : undefined,
+          overlay: overlayNode,
+          overflowOnly: ext.overflowOnly ?? false,
+        };
+      });
+
     const toolbarItemCandidates: Array<ToolbarItem | false | undefined> = [
-      isFeatureEnabled(config?.heading) && {
-        id: 'heading',
-        content: (
-          <>
-            {heading.headingSelect}
-            {heading.headingTagSelect}
-          </>
-        ),
-      },
-      isFeatureEnabled(config?.fontFamily) && {
-        id: 'fontFamily',
-        content: typography.fontFamilySelect,
-      },
-      isFeatureEnabled(config?.fontSize) && { id: 'fontSize', content: typography.fontSizeSelect },
-      isFeatureEnabled(config?.lineHeight) && {
-        id: 'lineHeight',
-        content: typography.lineHeightSelect,
-      },
-      isFeatureEnabled(config?.clearFormatting) && {
-        id: 'clearFormatting',
-        content: typography.clearFormattingButton,
-      },
-      isFeatureEnabled(config?.leadParagraph) && {
-        id: 'leadParagraph',
-        content: semanticMarks.leadParagraphButton,
-      },
-      (isFeatureEnabled(config?.heading) ||
-        isFeatureEnabled(config?.fontFamily) ||
-        isFeatureEnabled(config?.fontSize) ||
-        isFeatureEnabled(config?.lineHeight) ||
-        isFeatureEnabled(config?.clearFormatting) ||
-        isFeatureEnabled(config?.leadParagraph)) && {
-        id: 'headingSpacer',
-        content: <Spacer margin={1} />,
-      },
-      isFeatureEnabled(config?.bold) && { id: 'bold', content: starterKit.boldButton },
-      isFeatureEnabled(config?.italic) && { id: 'italic', content: starterKit.italicButton },
-      isFeatureEnabled(config?.underline) && {
-        id: 'underline',
-        content: starterKit.underlineButton,
-      },
-      (isFeatureEnabled(config?.bold) ||
-        isFeatureEnabled(config?.italic) ||
-        isFeatureEnabled(config?.underline)) && {
-        id: 'basicTextSpacer',
-        content: <Spacer margin={1} />,
-      },
-      isFeatureEnabled(config?.strike) && { id: 'strike', content: starterKit.strikeButton },
-      isFeatureEnabled(config?.superscript) && {
-        id: 'superscript',
-        content: script.superscriptButton,
-      },
-      isFeatureEnabled(config?.subscript) && { id: 'subscript', content: script.subscriptButton },
-      isFeatureEnabled(config?.textColor) && {
-        id: 'textColor',
-        content: textColor.textColorButton,
-      },
-      isFeatureEnabled(config?.highlightColor) && {
-        id: 'highlightColor',
-        content: highlightColor.highlightColorButton,
-      },
-      isFeatureEnabled(config?.abbr) && {
-        id: 'abbr',
-        content: semanticMarks.abbrButton,
-        overlay: semanticMarks.abbrDialog,
-      },
-      isFeatureEnabled(config?.language) && {
-        id: 'language',
-        content: semanticMarks.languageButton,
-        overlay: semanticMarks.languageDialog,
-      },
-      (isFeatureEnabled(config?.strike) ||
-        isFeatureEnabled(config?.superscript) ||
-        isFeatureEnabled(config?.subscript) ||
-        isFeatureEnabled(config?.textColor) ||
-        isFeatureEnabled(config?.highlightColor) ||
-        isFeatureEnabled(config?.abbr) ||
-        isFeatureEnabled(config?.language)) && {
-        id: 'textDecorationSpacer',
-        content: <Spacer margin={1} />,
-      },
-      isFeatureEnabled(config?.textAlign) && {
-        id: 'textAlign',
-        content: (
-          <>
-            {textAlign.textAlignLeftButton}
-            {textAlign.textAlignCenterButton}
-            {textAlign.textAlignRightButton}
-            {textAlign.textAlignJustifyButton}
-          </>
-        ),
-      },
-      isFeatureEnabled(config?.textAlign) && {
-        id: 'textAlignSpacer',
-        content: <Spacer margin={1} />,
-      },
-      isFeatureEnabled(config?.bulletList) && { id: 'bullet', content: starterKit.bulletButton },
-      isFeatureEnabled(config?.orderedList) && { id: 'ordered', content: starterKit.orderedButton },
-      isFeatureEnabled(config?.taskList) && {
-        id: 'taskList',
-        content: structuredBlocks.taskListButton,
-      },
-      (isFeatureEnabled(config?.bulletList) ||
-        isFeatureEnabled(config?.orderedList) ||
-        isFeatureEnabled(config?.taskList)) && {
-        id: 'listSpacer',
-        content: <Spacer margin={1} />,
-      },
-      isFeatureEnabled(config?.code) && { id: 'code', content: starterKit.codeButton },
-      isFeatureEnabled(config?.blockquote) && {
-        id: 'blockquote',
-        content: starterKit.blockquoteButton,
-      },
-      isFeatureEnabled(config?.informationPane) && {
-        id: 'informationPane',
-        content: informationPane.informationPaneButton,
-      },
-      isFeatureEnabled(config?.conversationHistory) && {
-        id: 'conversationHistory',
-        content: structuredBlocks.conversationHistoryButton,
-      },
-      isFeatureEnabled(config?.accordion) && {
-        id: 'accordion',
-        content: structuredBlocks.accordionButton,
-      },
-      isFeatureEnabled(config?.columns) && {
-        id: 'columns',
-        content: structuredBlocks.columnsButton,
-      },
-      isFeatureEnabled(config?.mathematics) && {
-        id: 'mathematics',
-        content: mathematics.mathematicsButton,
-        overlay: mathematics.mathematicsDialog,
-      },
-      isFeatureEnabled(config?.emoji) && {
-        id: 'emoji',
-        content: emoji.emojiButton,
-        measureContent: emoji.emojiTrigger,
-      },
-      isFeatureEnabled(config?.slashCommands) && {
-        id: 'slashCommands',
-        content: slashCommand.slashCommandButton,
-        measureContent: slashCommand.slashCommandTrigger,
-      },
-      isFeatureEnabled(config?.pageBreak) && {
-        id: 'pageBreak',
-        content: structuredBlocks.pageBreakButton,
-      },
-      isFeatureEnabled(config?.tableOfContents) && {
-        id: 'tableOfContents',
-        content: structuredBlocks.tableOfContentsButton,
-      },
-      isFeatureEnabled(config?.link) && {
-        id: 'link',
-        content: link.linkButton,
-        overlay: link.linkDialog,
-      },
-      isFeatureEnabled(config?.linker) && {
-        id: 'linker',
-        content: linker.linkerButton,
-        overlay: linker.linkerDialog,
-      },
+      // ─── 1. Primary Edifice Group: Pastel Media Action Pills ────────────────
       isFeatureEnabled(config?.mediaLibrary) && {
         id: 'mediaLibrary',
         content: image.imageButton,
@@ -423,32 +339,265 @@ const InnerEditor = forwardRef<HTMLDivElement, InnerEditorProps>(
         content: attachment.attachmentButton,
         overlay: attachment.attachmentDialog,
       },
+      (isFeatureEnabled(config?.mediaLibrary) ||
+        isFeatureEnabled(config?.video) ||
+        isFeatureEnabled(config?.audio) ||
+        isFeatureEnabled(config?.attachment)) && {
+        id: 'insertSpacer',
+        content: <Spacer margin={1} />,
+      },
+
+      // ─── 2. Primary Edifice Group: Typography & Colors (T ▾, TT ▾, A, Marker) ─
+      isFeatureEnabled(config?.heading) && {
+        id: 'heading',
+        content: (
+          <>
+            {heading.headingSelect}
+            {heading.headingTagSelect}
+          </>
+        ),
+        measureContent: heading.headingTrigger,
+      },
+      isFeatureEnabled(config?.fontSize) && {
+        id: 'fontSize',
+        content: typography.fontSizeSelect,
+        measureContent: typography.fontSizeTrigger,
+      },
+      isFeatureEnabled(config?.textColor) && {
+        id: 'textColor',
+        content: textColor.textColorButton,
+        measureContent: textColor.textColorTrigger,
+      },
+      isFeatureEnabled(config?.highlightColor) && {
+        id: 'highlightColor',
+        content: highlightColor.highlightColorButton,
+        measureContent: highlightColor.highlightColorTrigger,
+      },
+      (isFeatureEnabled(config?.heading) ||
+        isFeatureEnabled(config?.fontSize) ||
+        isFeatureEnabled(config?.textColor) ||
+        isFeatureEnabled(config?.highlightColor)) && {
+        id: 'headingSpacer',
+        content: <Spacer margin={1} />,
+      },
+
+      // ─── 3. Primary Edifice Group: Basic Formatting (B, I, U) ───────────────
+      isFeatureEnabled(config?.bold) && { id: 'bold', content: starterKit.boldButton },
+      isFeatureEnabled(config?.italic) && { id: 'italic', content: starterKit.italicButton },
+      isFeatureEnabled(config?.underline) && {
+        id: 'underline',
+        content: starterKit.underlineButton,
+      },
+      (isFeatureEnabled(config?.bold) ||
+        isFeatureEnabled(config?.italic) ||
+        isFeatureEnabled(config?.underline)) && {
+        id: 'basicTextSpacer',
+        content: <Spacer margin={1} />,
+      },
+
+      // ─── 4. Primary Edifice Group: Emoji & Links ────────────────────────────
+      isFeatureEnabled(config?.emoji) && {
+        id: 'emoji',
+        content: emoji.emojiButton,
+        measureContent: emoji.emojiTrigger,
+      },
+      isFeatureEnabled(config?.link) && {
+        id: 'link',
+        content: link.linkButton,
+        overlay: link.linkDialog,
+      },
+      isFeatureEnabled(config?.linker) && {
+        id: 'linker',
+        content: linker.linkerButton,
+        overlay: linker.linkerDialog,
+      },
+      (isFeatureEnabled(config?.emoji) ||
+        isFeatureEnabled(config?.link) ||
+        isFeatureEnabled(config?.linker)) && {
+        id: 'linksSpacer',
+        content: <Spacer margin={1} />,
+      },
+
+      // ─── 5. Primary Edifice Group: Lists & Compact Alignment ────────────────
+      isFeatureEnabled(config?.bulletList) && { id: 'bullet', content: starterKit.bulletButton },
+      isFeatureEnabled(config?.orderedList) && { id: 'ordered', content: starterKit.orderedButton },
+      isFeatureEnabled(config?.textAlign) && {
+        id: 'textAlign',
+        content: textAlign.textAlignDropdown ?? (
+          <>
+            {textAlign.textAlignLeftButton}
+            {textAlign.textAlignCenterButton}
+            {textAlign.textAlignRightButton}
+            {textAlign.textAlignJustifyButton}
+          </>
+        ),
+        measureContent: textAlign.textAlignTrigger,
+      },
+      (isFeatureEnabled(config?.bulletList) ||
+        isFeatureEnabled(config?.orderedList) ||
+        isFeatureEnabled(config?.textAlign)) && {
+        id: 'listSpacer',
+        content: <Spacer margin={1} />,
+      },
+
+      // ─── 6. "Plus ▾" Overflow Groups: Extended Marks & Typography ───────────
+      isFeatureEnabled(config?.strike) && {
+        id: 'strike',
+        content: starterKit.strikeButton,
+        overflowOnly: true,
+      },
+      isFeatureEnabled(config?.superscript) && {
+        id: 'superscript',
+        content: script.superscriptButton,
+        overflowOnly: true,
+      },
+      isFeatureEnabled(config?.subscript) && {
+        id: 'subscript',
+        content: script.subscriptButton,
+        overflowOnly: true,
+      },
+      isFeatureEnabled(config?.clearFormatting) && {
+        id: 'clearFormatting',
+        content: typography.clearFormattingButton,
+        overflowOnly: true,
+      },
+      isFeatureEnabled(config?.leadParagraph) && {
+        id: 'leadParagraph',
+        content: semanticMarks.leadParagraphButton,
+        overflowOnly: true,
+      },
+      isFeatureEnabled(config?.fontFamily) && {
+        id: 'fontFamily',
+        content: typography.fontFamilySelect,
+        overflowOnly: true,
+      },
+      isFeatureEnabled(config?.lineHeight) && {
+        id: 'lineHeight',
+        content: typography.lineHeightSelect,
+        overflowOnly: true,
+      },
+      isFeatureEnabled(config?.abbr) && {
+        id: 'abbr',
+        content: semanticMarks.abbrButton,
+        overlay: semanticMarks.abbrDialog,
+        overflowOnly: true,
+      },
+      isFeatureEnabled(config?.language) && {
+        id: 'language',
+        content: semanticMarks.languageButton,
+        overlay: semanticMarks.languageDialog,
+        overflowOnly: true,
+      },
+      (isFeatureEnabled(config?.strike) ||
+        isFeatureEnabled(config?.superscript) ||
+        isFeatureEnabled(config?.subscript) ||
+        isFeatureEnabled(config?.clearFormatting) ||
+        isFeatureEnabled(config?.leadParagraph) ||
+        isFeatureEnabled(config?.fontFamily) ||
+        isFeatureEnabled(config?.lineHeight) ||
+        isFeatureEnabled(config?.abbr) ||
+        isFeatureEnabled(config?.language)) && {
+        id: 'textDecorationSpacer',
+        content: <Spacer margin={1} />,
+        overflowOnly: true,
+      },
+
+      // ─── 7. "Plus ▾" Overflow Groups: Callouts, Code & Checklists ───────────
+      isFeatureEnabled(config?.taskList) && {
+        id: 'taskList',
+        content: structuredBlocks.taskListButton,
+        overflowOnly: true,
+      },
+      isFeatureEnabled(config?.code) && {
+        id: 'code',
+        content: starterKit.codeButton,
+        overflowOnly: true,
+      },
+      isFeatureEnabled(config?.blockquote) && {
+        id: 'blockquote',
+        content: starterKit.blockquoteButton,
+        overflowOnly: true,
+      },
+      isFeatureEnabled(config?.informationPane) && {
+        id: 'informationPane',
+        content: informationPane.informationPaneButton,
+        overflowOnly: true,
+      },
+      isFeatureEnabled(config?.conversationHistory) && {
+        id: 'conversationHistory',
+        content: structuredBlocks.conversationHistoryButton,
+        overflowOnly: true,
+      },
+      (isFeatureEnabled(config?.taskList) ||
+        isFeatureEnabled(config?.code) ||
+        isFeatureEnabled(config?.blockquote) ||
+        isFeatureEnabled(config?.informationPane) ||
+        isFeatureEnabled(config?.conversationHistory)) && {
+        id: 'calloutSpacer',
+        content: <Spacer margin={1} />,
+        overflowOnly: true,
+      },
+
+      // ─── 8. "Plus ▾" Overflow Groups: Structured Layout & Embeds ────────────
+      isFeatureEnabled(config?.accordion) && {
+        id: 'accordion',
+        content: structuredBlocks.accordionButton,
+        overflowOnly: true,
+      },
+      isFeatureEnabled(config?.columns) && {
+        id: 'columns',
+        content: structuredBlocks.columnsButton,
+        overflowOnly: true,
+      },
+      isFeatureEnabled(config?.mathematics) && {
+        id: 'mathematics',
+        content: mathematics.mathematicsButton,
+        overlay: mathematics.mathematicsDialog,
+        overflowOnly: true,
+      },
+      isFeatureEnabled(config?.pageBreak) && {
+        id: 'pageBreak',
+        content: structuredBlocks.pageBreakButton,
+        overflowOnly: true,
+      },
+      isFeatureEnabled(config?.tableOfContents) && {
+        id: 'tableOfContents',
+        content: structuredBlocks.tableOfContentsButton,
+        overflowOnly: true,
+      },
+      isFeatureEnabled(config?.slashCommands) && {
+        id: 'slashCommands',
+        content: slashCommand.slashCommandButton,
+        measureContent: slashCommand.slashCommandTrigger,
+        overflowOnly: true,
+      },
       isFeatureEnabled(config?.iframe) && {
         id: 'iframe',
         content: iframe.iframeButton,
         overlay: iframe.iframeDialog,
+        overflowOnly: true,
       },
-      (isFeatureEnabled(config?.code) ||
-        isFeatureEnabled(config?.blockquote) ||
-        isFeatureEnabled(config?.informationPane) ||
-        isFeatureEnabled(config?.conversationHistory) ||
-        isFeatureEnabled(config?.accordion) ||
+      (isFeatureEnabled(config?.accordion) ||
         isFeatureEnabled(config?.columns) ||
         isFeatureEnabled(config?.mathematics) ||
-        isFeatureEnabled(config?.emoji) ||
-        isFeatureEnabled(config?.slashCommands) ||
         isFeatureEnabled(config?.pageBreak) ||
         isFeatureEnabled(config?.tableOfContents) ||
-        isFeatureEnabled(config?.link) ||
-        isFeatureEnabled(config?.linker) ||
-        isFeatureEnabled(config?.mediaLibrary) ||
-        isFeatureEnabled(config?.video) ||
-        isFeatureEnabled(config?.audio) ||
-        isFeatureEnabled(config?.attachment) ||
+        isFeatureEnabled(config?.slashCommands) ||
         isFeatureEnabled(config?.iframe)) && {
-        id: 'insertSpacer',
+        id: 'structureSpacer',
         content: <Spacer margin={1} />,
+        overflowOnly: true,
       },
+
+      // ─── 8b. Registered Custom Extensions ───────────────────────────────────
+      ...customExtensionToolbarItems,
+      customExtensionToolbarItems.length > 0 && {
+        id: 'customExtensionsSpacer',
+        content: <Spacer margin={1} />,
+        overflowOnly: customExtensionToolbarItems.every((item) => item.overflowOnly),
+      },
+
+      // ─── 9. "Plus ▾" Overflow Groups: Tables ────────────────────────────────
       isFeatureEnabled(config?.table) && {
         id: 'table',
         content: (
@@ -464,19 +613,29 @@ const InnerEditor = forwardRef<HTMLDivElement, InnerEditorProps>(
           </>
         ),
         overlay: table.tableDialog,
+        overflowOnly: true,
       },
-      isFeatureEnabled(config?.table) && { id: 'tableSpacer', content: <Spacer margin={1} /> },
+      isFeatureEnabled(config?.table) && {
+        id: 'tableSpacer',
+        content: <Spacer margin={1} />,
+        overflowOnly: true,
+      },
+
+      // ─── 10. "Plus ▾" Overflow Groups: Speech & Editor Modes ────────────────
       isFeatureEnabled(config?.speechToText) && {
         id: 'speechToText',
         content: speech.speechToTextButton,
+        overflowOnly: true,
       },
       isFeatureEnabled(config?.textToSpeech) && {
         id: 'textToSpeech',
         content: speech.textToSpeechButton,
+        overflowOnly: true,
       },
       (isFeatureEnabled(config?.speechToText) || isFeatureEnabled(config?.textToSpeech)) && {
         id: 'speechSpacer',
         content: <Spacer margin={1} />,
+        overflowOnly: true,
       },
       isFeatureEnabled(config?.fullscreen) && {
         id: 'fullscreen',
@@ -487,6 +646,7 @@ const InnerEditor = forwardRef<HTMLDivElement, InnerEditorProps>(
             {editorModes.fullscreenButton}
           </>
         ),
+        overflowOnly: true,
       },
     ];
 
@@ -568,7 +728,9 @@ const RichTextInput = forwardRef<HTMLDivElement, RichTextInputProps>((props, for
   const [isSettingsLoading, setIsSettingsLoading] = useState<boolean>(true);
   const [settingsLoadFailed, setSettingsLoadFailed] = useState<boolean>(false);
   const effectivePresetName = normalizedPresetName ?? runtimeSettings.defaultPreset;
-  const { config, isLoading } = usePresetConfig(effectivePresetName);
+  const { config, isLoading } = usePresetConfig(
+    isSettingsLoading && !normalizedPresetName ? undefined : effectivePresetName
+  );
 
   useEffect(() => {
     let mounted = true;

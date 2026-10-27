@@ -1,7 +1,7 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Editor, Extension, textInputRule } from '@tiptap/core';
 import { useEditorState } from '@tiptap/react';
-import { SingleSelect, SingleSelectOption } from '@strapi/design-system';
+import { Box, Flex, Popover, SingleSelect, SingleSelectOption } from '@strapi/design-system';
 import { Cross } from '@strapi/icons';
 import { useIntl } from 'react-intl';
 import { ToolbarButton } from '../components/ToolbarButton';
@@ -51,7 +51,7 @@ export const SmartTypographyExtension = Extension.create({
 });
 
 /**
- * React hook providing toolbar selectors for font family, font size, line height, and clear formatting.
+ * React hook providing toolbar selectors for font family, font size (`TT ▾`), line height, and clear formatting.
  */
 export function useTypographyControls(
   editor: Editor | null,
@@ -63,6 +63,7 @@ export function useTypographyControls(
   } = { disabled: false }
 ) {
   const { formatMessage } = useIntl();
+  const [sizePopoverOpen, setSizePopoverOpen] = useState(false);
   const fonts = props.fonts ?? DEFAULT_FONT_FAMILIES;
   const sizes = props.sizes ?? DEFAULT_FONT_SIZES;
   const heights = props.heights ?? DEFAULT_LINE_HEIGHTS;
@@ -116,6 +117,7 @@ export function useTypographyControls(
     } else {
       editor.chain().focus().setMark('textStyle', { fontSize: val }).run();
     }
+    setSizePopoverOpen(false);
   };
 
   const handleLineHeightChange = (val: string) => {
@@ -139,6 +141,61 @@ export function useTypographyControls(
     editor.chain().focus().clearNodes().unsetAllMarks().run();
   };
 
+  const activeFontSize = editorState?.fontSize ?? 'default';
+  const isDisabled = !editor || Boolean(props.disabled);
+  const fontSizeLabel = formatMessage({
+    id: 'tiptap-editor.typography.fontSize',
+    defaultMessage: 'Font Size',
+  });
+
+  const renderFontSizeTrigger = () => (
+    <button
+      type="button"
+      disabled={isDisabled}
+      aria-label={fontSizeLabel}
+      title={fontSizeLabel}
+      style={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: '3px',
+        height: '32px',
+        padding: '0 8px',
+        borderRadius: '4px',
+        border: '1px solid transparent',
+        background:
+          sizePopoverOpen || activeFontSize !== 'default'
+            ? 'rgba(73, 69, 255, 0.1)'
+            : 'transparent',
+        color: activeFontSize !== 'default' ? '#4945ff' : 'inherit',
+        fontFamily: 'Georgia, Cambria, serif',
+        fontWeight: 700,
+        fontSize: '1.25rem',
+        cursor: isDisabled ? 'not-allowed' : 'pointer',
+        opacity: isDisabled ? 0.5 : 1,
+      }}
+    >
+      {activeFontSize !== 'default' ? (
+        <span style={{ fontFamily: 'inherit', fontSize: '1.15rem' }}>{activeFontSize}</span>
+      ) : (
+        <span style={{ display: 'inline-flex', alignItems: 'baseline', lineHeight: 1 }}>
+          <span style={{ fontSize: '1.05rem' }}>T</span>
+          <span style={{ fontSize: '1.35rem', marginLeft: '-1px' }}>T</span>
+        </span>
+      )}
+      <svg width="10" height="10" viewBox="0 0 12 12" aria-hidden="true">
+        <path
+          d="M3 4.5L6 7.5L9 4.5"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.6"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+      </svg>
+    </button>
+  );
+
   return {
     fontFamilySelect: (
       <SingleSelect
@@ -152,7 +209,7 @@ export function useTypographyControls(
         })}
         value={editorState?.fontFamily ?? 'default'}
         onChange={(v: string | number) => v != null && handleFontFamilyChange(String(v))}
-        disabled={!editor || props.disabled}
+        disabled={isDisabled}
         size="S"
       >
         {fonts.map((f) => (
@@ -167,32 +224,51 @@ export function useTypographyControls(
         ))}
       </SingleSelect>
     ),
+    fontSizeTrigger: renderFontSizeTrigger(),
     fontSizeSelect: (
-      <SingleSelect
-        placeholder={formatMessage({
-          id: 'tiptap-editor.typography.fontSize',
-          defaultMessage: 'Font Size',
-        })}
-        aria-label={formatMessage({
-          id: 'tiptap-editor.typography.fontSize',
-          defaultMessage: 'Font Size',
-        })}
-        value={editorState?.fontSize ?? 'default'}
-        onChange={(v: string | number) => v != null && handleFontSizeChange(String(v))}
-        disabled={!editor || props.disabled}
-        size="S"
-      >
-        {sizes.map((s) => (
-          <SingleSelectOption key={s} value={s}>
-            {s === 'default'
-              ? formatMessage({
-                  id: 'tiptap-editor.typography.sizeAuto',
-                  defaultMessage: 'Size: Auto',
-                })
-              : s}
-          </SingleSelectOption>
-        ))}
-      </SingleSelect>
+      <Popover.Root open={sizePopoverOpen} onOpenChange={setSizePopoverOpen}>
+        <Popover.Trigger>{renderFontSizeTrigger()}</Popover.Trigger>
+        <Popover.Content side="bottom" align="start" sideOffset={4}>
+          <Box padding={2} style={{ minWidth: '140px' }}>
+            <Flex direction="column" alignItems="stretch" gap={1}>
+              {sizes.map((s) => {
+                const isActive = activeFontSize === s;
+                return (
+                  <button
+                    key={s}
+                    type="button"
+                    onClick={() => handleFontSizeChange(s)}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      width: '100%',
+                      padding: '5px 10px',
+                      border: 'none',
+                      borderRadius: '4px',
+                      background: isActive ? 'rgba(73, 69, 255, 0.1)' : 'transparent',
+                      color: isActive ? '#4945ff' : 'inherit',
+                      fontSize: '1.25rem',
+                      fontWeight: isActive ? 600 : 400,
+                      cursor: 'pointer',
+                      textAlign: 'left',
+                    }}
+                  >
+                    <span>
+                      {s === 'default'
+                        ? formatMessage({
+                            id: 'tiptap-editor.typography.sizeAuto',
+                            defaultMessage: 'Size: Auto',
+                          })
+                        : s}
+                    </span>
+                  </button>
+                );
+              })}
+            </Flex>
+          </Box>
+        </Popover.Content>
+      </Popover.Root>
     ),
     lineHeightSelect: (
       <SingleSelect
@@ -206,7 +282,7 @@ export function useTypographyControls(
         })}
         value={editorState?.lineHeight ?? 'default'}
         onChange={(v: string | number) => v != null && handleLineHeightChange(String(v))}
-        disabled={!editor || props.disabled}
+        disabled={isDisabled}
         size="S"
       >
         {heights.map((h) => (
@@ -232,7 +308,7 @@ export function useTypographyControls(
         onClick={handleClearFormatting}
         icon={<Cross />}
         active={false}
-        disabled={!editor || props.disabled}
+        disabled={isDisabled}
         tooltip={formatMessage({
           id: 'tiptap-editor.toolbar.clearFormatting',
           defaultMessage: 'Clear formatting',
@@ -241,3 +317,4 @@ export function useTypographyControls(
     ),
   };
 }
+

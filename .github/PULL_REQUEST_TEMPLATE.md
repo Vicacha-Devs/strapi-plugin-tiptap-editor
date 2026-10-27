@@ -17,7 +17,7 @@
 
 ## Verification Checklist
 
-- [ ] `npm run test:ts:front` and `npm run test:ts:back` pass with 0 TypeScript errors
+- [ ] `yarn test:ts:front` and `yarn test:ts:back` pass with 0 TypeScript errors
 - [ ] `npm test` passes all Vitest test suites
 - [ ] `npm run build` and `npm run verify` (`@strapi/sdk-plugin verify`) succeed cleanly
 - [ ] Works in both Strapi **Light** and **Dark** themes and supports **RTL/LTR** text directions

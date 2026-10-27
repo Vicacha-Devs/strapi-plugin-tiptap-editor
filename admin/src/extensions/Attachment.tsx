@@ -247,6 +247,7 @@ export function useAttachment(
       onClick={() => setShowMediaLibrary(true)}
       icon={<Paperclip />}
       active={false}
+      tint="amber"
       disabled={props.disabled || !editor || (editorState?.isInCodeBlock ?? false)}
       tooltip={formatMessage({
         id: 'tiptap-editor.toolbar.insertAttachment',

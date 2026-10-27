@@ -1,15 +1,16 @@
-import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { Flex, Popover, IconButton } from '@strapi/design-system';
-import { More } from '@strapi/icons';
+import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
+import { Flex, Popover } from '@strapi/design-system';
 import { useIntl } from 'react-intl';
 import styled from 'styled-components';
+import { Spacer } from './Spacer';
 
-const MORE_BUTTON_WIDTH = 40;
+const MORE_BUTTON_WIDTH = 76;
 const ITEM_GAP = 4;
 
 const StyledPopoverContent = styled(Popover.Content)`
   /* Above CM header (100), left menu (200) and fullscreen editor (250); below DS overlays (300) */
   z-index: 260 !important;
+  max-width: min(560px, 92vw);
 `;
 
 const MeasureContainer = styled.div`
@@ -29,19 +30,26 @@ export interface ToolbarItem {
   measureContent?: React.ReactNode;
   /** Portaled dialogs/popovers rendered once, outside measurement and overflow */
   overlay?: React.ReactNode;
+  /** Keep this item inside the "Plus ▾" overflow menu even when horizontal space is available */
+  overflowOnly?: boolean;
 }
 
 /**
- * Responsive toolbar container that measures item widths via ResizeObserver and moves
- * overflowing items into a "More" popover menu.
+ * Responsive Edifice-style toolbar container that keeps primary tools on the main bar
+ * and groups secondary or overflowing tools inside the "Plus ▾" popover menu.
  */
 export const ResponsiveToolbar = ({ items }: { items: ToolbarItem[] }) => {
   const { formatMessage } = useIntl();
   const toolbarRef = useRef<HTMLDivElement>(null);
   const measureRef = useRef<HTMLDivElement>(null);
-  const [visibleCount, setVisibleCount] = useState(items.length);
 
-  const itemIdsKey = items.map((item) => item.id).join('\0');
+  const primaryItems = useMemo(() => items.filter((item) => !item.overflowOnly), [items]);
+  const secondaryItems = useMemo(() => items.filter((item) => item.overflowOnly), [items]);
+  const hasSecondaryItems = secondaryItems.some((item) => !item.id.toLowerCase().includes('spacer'));
+
+  const [visibleCount, setVisibleCount] = useState(primaryItems.length);
+
+  const primaryIdsKey = primaryItems.map((item) => item.id).join('\0');
 
   const calculate = useCallback(() => {
     const toolbar = toolbarRef.current;
@@ -51,19 +59,24 @@ export const ResponsiveToolbar = ({ items }: { items: ToolbarItem[] }) => {
     const availableWidth = toolbar.clientWidth;
     const children = Array.from(measure.children) as HTMLElement[];
 
-    // Check if everything fits without the "More" button
+    // Check if everything fits without the "Plus" button when there are no secondary items
     let totalWidth = 0;
     for (let i = 0; i < children.length; i++) {
       totalWidth += children[i].offsetWidth + (i > 0 ? ITEM_GAP : 0);
     }
 
-    if (totalWidth <= availableWidth) {
-      setVisibleCount(items.length);
+    if (!hasSecondaryItems && totalWidth <= availableWidth) {
+      setVisibleCount(primaryItems.length);
       return;
     }
 
-    // Reserve space for the "More" button and find how many items fit
+    // Reserve space for the "Plus ▾" button and find how many primary items fit
     const maxWidth = availableWidth - MORE_BUTTON_WIDTH - ITEM_GAP;
+    if (totalWidth <= maxWidth) {
+      setVisibleCount(primaryItems.length);
+      return;
+    }
+
     let usedWidth = 0;
     let count = 0;
 
@@ -75,7 +88,7 @@ export const ResponsiveToolbar = ({ items }: { items: ToolbarItem[] }) => {
     }
 
     setVisibleCount(Math.max(0, count));
-  }, [items.length, itemIdsKey]);
+  }, [primaryItems.length, primaryIdsKey, hasSecondaryItems]);
 
   useEffect(() => {
     const toolbar = toolbarRef.current;
@@ -95,18 +108,52 @@ export const ResponsiveToolbar = ({ items }: { items: ToolbarItem[] }) => {
     return () => observer.disconnect();
   }, [calculate]);
 
-  const visibleItems = items.slice(0, visibleCount);
-  const overflowItems = items.slice(visibleCount);
+  const rawVisibleItems = primaryItems.slice(0, visibleCount);
+  // Strip trailing spacers from visible items
+  let visibleEndIdx = rawVisibleItems.length - 1;
+  while (
+    visibleEndIdx >= 0 &&
+    rawVisibleItems[visibleEndIdx].id.toLowerCase().includes('spacer')
+  ) {
+    visibleEndIdx--;
+  }
+  const visibleItems = rawVisibleItems.slice(0, visibleEndIdx + 1);
 
-  const filteredOverflowItems = overflowItems.filter(
-    (item) => !item.id.toLowerCase().includes('spacer')
-  );
+  const overflowItems = [...primaryItems.slice(visibleCount), ...secondaryItems];
+
+  // Strip leading and trailing spacers from overflow, then collapse any consecutive spacers
+  let startIdx = 0;
+  while (
+    startIdx < overflowItems.length &&
+    overflowItems[startIdx].id.toLowerCase().includes('spacer')
+  ) {
+    startIdx++;
+  }
+  let endIdx = overflowItems.length - 1;
+  while (
+    endIdx >= startIdx &&
+    overflowItems[endIdx].id.toLowerCase().includes('spacer')
+  ) {
+    endIdx--;
+  }
+  const trimmedOverflow = overflowItems.slice(startIdx, endIdx + 1);
+  const filteredOverflowItems = trimmedOverflow.filter((item, idx, arr) => {
+    const isSpacer = item.id.toLowerCase().includes('spacer');
+    if (!isSpacer) return true;
+    const prevIsSpacer = idx > 0 && arr[idx - 1].id.toLowerCase().includes('spacer');
+    return !prevIsSpacer;
+  });
 
   return (
     <div style={{ position: 'relative', width: '100%' }}>
-      {/* Hidden container to measure all item widths */}
-      <MeasureContainer ref={measureRef} aria-hidden="true" data-measure="true" {...({ inert: '' } as Record<string, string>)}>
-        {items.map((item) => (
+      {/* Hidden container to measure primary item widths */}
+      <MeasureContainer
+        ref={measureRef}
+        aria-hidden="true"
+        data-measure="true"
+        {...({ inert: '' } as Record<string, string>)}
+      >
+        {primaryItems.map((item) => (
           <div key={item.id} style={{ display: 'inline-flex', alignItems: 'center' }}>
             {item.measureContent ?? item.content}
           </div>
@@ -118,37 +165,63 @@ export const ResponsiveToolbar = ({ items }: { items: ToolbarItem[] }) => {
         ) : null
       )}
 
-      {/* Visible toolbar */}
+      {/* Visible Edifice toolbar */}
       <Flex ref={toolbarRef} gap={1} alignItems="center" width="100%">
-        {visibleItems.map((item, idx) => {
-          // Hide trailing spacer
-          if (item.id.toLowerCase().includes('spacer') && idx === visibleItems.length - 1) {
-            return null;
-          }
-          return <React.Fragment key={item.id}>{item.content}</React.Fragment>;
-        })}
+        {visibleItems.map((item) => (
+          <React.Fragment key={item.id}>{item.content}</React.Fragment>
+        ))}
 
         {filteredOverflowItems.length > 0 && (
-          <Popover.Root>
-            <Popover.Trigger>
-              <IconButton
-                label={formatMessage({ id: 'tiptap-editor.more', defaultMessage: 'More' })}
-                variant="ghost"
-                marginLeft="auto"
-              >
-                <More />
-              </IconButton>
-            </Popover.Trigger>
-            <StyledPopoverContent side="bottom" align="end" sideOffset={6}>
-              <Flex gap={1} padding={2} wrap="wrap" alignItems="center">
-                {filteredOverflowItems.map((item) => (
-                  <React.Fragment key={item.id}>{item.content}</React.Fragment>
-                ))}
-              </Flex>
-            </StyledPopoverContent>
-          </Popover.Root>
+          <>
+            {visibleItems.length > 0 && <Spacer margin={1} />}
+            <Popover.Root>
+              <Popover.Trigger>
+                <button
+                  type="button"
+                  aria-label={formatMessage({ id: 'tiptap-editor.more', defaultMessage: 'Plus' })}
+                  title={formatMessage({ id: 'tiptap-editor.more', defaultMessage: 'More tools' })}
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '4px',
+                    height: '32px',
+                    padding: '0 10px',
+                    borderRadius: '4px',
+                    border: '1px solid transparent',
+                    background: 'transparent',
+                    color: 'inherit',
+                    fontSize: '1.3rem',
+                    fontWeight: 500,
+                    cursor: 'pointer',
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  <span>{formatMessage({ id: 'tiptap-editor.more', defaultMessage: 'Plus' })}</span>
+                  <svg width="10" height="10" viewBox="0 0 12 12" aria-hidden="true">
+                    <path
+                      d="M3 4.5L6 7.5L9 4.5"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="1.6"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                  </svg>
+                </button>
+              </Popover.Trigger>
+              <StyledPopoverContent side="bottom" align="end" sideOffset={6}>
+                <Flex gap={1} padding={2} wrap="wrap" alignItems="center">
+                  {filteredOverflowItems.map((item) => (
+                    <React.Fragment key={item.id}>{item.content}</React.Fragment>
+                  ))}
+                </Flex>
+              </StyledPopoverContent>
+            </Popover.Root>
+          </>
         )}
       </Flex>
     </div>
   );
 };
+

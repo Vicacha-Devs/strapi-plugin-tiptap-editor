@@ -63,7 +63,7 @@ describe('buildExtensions', () => {
     expect(hasHeading).toBe(true);
   });
 
-  it('configures HeadingWithSEOTag with default levels [1,2,3,4,5,6] when heading is true', () => {
+  it('configures HeadingWithSEOTag with default levels [2,3,4,5,6] when heading is true', () => {
     const extensions = buildExtensions({ heading: true });
     const heading = extensions.find((ext: any) => ext.name === 'heading');
     expect(heading).toBeDefined();
@@ -374,4 +374,24 @@ describe('buildExtensions', () => {
       protocols: [{ scheme: 'strapi', optionalSlashes: false }],
     });
   });
+
+  it('validates CustomTableCell and CustomTableHeader backgroundColor so unsafe CSS is dropped while #eaf5ff remains valid', () => {
+    const extensions = buildExtensions({ table: true });
+    const tableCell = extensions.find((ext: any) => ext.name === 'tableCell') as any;
+    const tableHeader = extensions.find((ext: any) => ext.name === 'tableHeader') as any;
+    expect(tableCell).toBeDefined();
+    expect(tableHeader).toBeDefined();
+
+    for (const ext of [tableCell, tableHeader]) {
+      const attrs = ext.config.addAttributes.call({ parent: () => ({}) });
+      expect(attrs.backgroundColor.renderHTML({ backgroundColor: 'red; position:fixed' })).toEqual(
+        {}
+      );
+      expect(attrs.backgroundColor.renderHTML({ backgroundColor: '#eaf5ff' })).toEqual({
+        'data-background-color': '#eaf5ff',
+        style: 'background-color: #eaf5ff',
+      });
+    }
+  });
 });
+

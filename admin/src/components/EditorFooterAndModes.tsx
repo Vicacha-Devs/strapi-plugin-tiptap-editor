@@ -5,6 +5,7 @@ import { Collapse, Expand, Eye } from '@strapi/icons';
 import { useIntl } from 'react-intl';
 import { getPluginId } from '../utils/getTranslation';
 import {
+  buildExportedJsonDocument,
   jsonToMarkdown,
   sanitizeHtmlString,
   type ProseMirrorJSONNode,
@@ -271,13 +272,17 @@ export const useEditorModes = (editor: Editor | null, options?: EditorModesOptio
   const inspectorOutput = useMemo(() => {
     if (!editor || !inspectorDoc) return '';
     if (inspectorTab === 'json') {
-      return JSON.stringify(editor.getJSON(), null, 2);
+      return JSON.stringify(
+        buildExportedJsonDocument(editor, { wordsPerMinute: options?.wordsPerMinute }),
+        null,
+        2
+      );
     }
     if (inspectorTab === 'html') {
       return sanitizeHtmlString(editor.getHTML());
     }
     return jsonToMarkdown(editor.getJSON() as ProseMirrorJSONNode);
-  }, [editor, inspectorDoc, inspectorTab]);
+  }, [editor, inspectorDoc, inspectorTab, options?.wordsPerMinute]);
 
   const inspectorDrawer = showInspector && editor ? (
     <Box

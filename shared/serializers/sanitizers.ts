@@ -185,6 +185,7 @@ export function sanitizeHtmlString(html: string): string {
       ADD_TAGS: DOMPURIFY_ADD_TAGS,
       FORBID_TAGS: DOMPURIFY_FORBID_TAGS,
       ADD_ATTR: DOMPURIFY_ADD_ATTR,
+      ALLOW_DATA_ATTR: true,
       FORBID_ATTR: ['srcdoc'],
       ALLOWED_URI_REGEXP: DOMPURIFY_ALLOWED_URI_REGEXP,
     })
@@ -258,15 +259,24 @@ export function sanitizeRestoredNodeTree(node: ProseMirrorJSONNode): ProseMirror
   const copy: ProseMirrorJSONNode = { ...node };
   if (copy.attrs && typeof copy.attrs === 'object') {
     const attrs = { ...copy.attrs };
-    if (typeof attrs.src === 'string') {
-      if (copy.type === 'iframe') {
-        attrs.src = isSafeIframeUrl(attrs.src) ? attrs.src : '';
-      } else {
-        attrs.src = isSafeUrl(attrs.src) ? attrs.src : '#';
+    for (const [key, value] of Object.entries(attrs)) {
+      if (typeof value !== 'string') continue;
+      if (key === 'src') {
+        if (copy.type === 'iframe') {
+          attrs[key] = isSafeIframeUrl(value) ? value : '';
+        } else {
+          attrs[key] = isSafeUrl(value) ? value : '#';
+        }
+      } else if (key === 'embedUrl' || key === 'iframeSrc') {
+        attrs[key] = value ? (isSafeIframeUrl(value) ? value : '') : '';
+      } else if (
+        key === 'href' ||
+        key === 'url' ||
+        key.endsWith('Src') ||
+        key.endsWith('Url')
+      ) {
+        attrs[key] = value ? (isSafeUrl(value) ? value : '#') : '';
       }
-    }
-    if (typeof attrs.href === 'string') {
-      attrs.href = isSafeUrl(attrs.href) ? attrs.href : '#';
     }
     copy.attrs = attrs;
   }

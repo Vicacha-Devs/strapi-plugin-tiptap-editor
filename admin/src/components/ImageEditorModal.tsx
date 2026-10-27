@@ -188,6 +188,16 @@ export const ImageEditorModal: React.FC<ImageEditorModalProps> = ({
 
   const handleApply = async () => {
     setUploadError(null);
+    if (hasTransformations && !canvasReady) {
+      setUploadError(
+        formatMessage({
+          id: `${getPluginId()}.imageEditor.transformUnavailable`,
+          defaultMessage:
+            'Image transformations are unavailable for this image. Reset them to save metadata only.',
+        })
+      );
+      return;
+    }
     if (canvasReady && imageObjRef.current && hasTransformations) {
       try {
         setIsUploading(true);
@@ -320,6 +330,7 @@ export const ImageEditorModal: React.FC<ImageEditorModalProps> = ({
                   </Field.Label>
                   <SingleSelect
                     size="S"
+                    disabled={Boolean(canvasError)}
                     value={aspectPreset}
                     onChange={(val: string | number) => setAspectPreset(val as AspectRatioPreset)}
                   >
@@ -339,6 +350,7 @@ export const ImageEditorModal: React.FC<ImageEditorModalProps> = ({
               <Button
                 variant="tertiary"
                 size="S"
+                disabled={Boolean(canvasError)}
                 onClick={() => setRotation((r) => (r - 90) % 360)}
               >
                 {formatMessage({
@@ -349,6 +361,7 @@ export const ImageEditorModal: React.FC<ImageEditorModalProps> = ({
               <Button
                 variant="tertiary"
                 size="S"
+                disabled={Boolean(canvasError)}
                 onClick={() => setRotation((r) => (r + 90) % 360)}
               >
                 {formatMessage({
@@ -359,6 +372,7 @@ export const ImageEditorModal: React.FC<ImageEditorModalProps> = ({
               <Button
                 variant={flipH ? 'secondary' : 'tertiary'}
                 size="S"
+                disabled={Boolean(canvasError)}
                 onClick={() => setFlipH((v) => !v)}
               >
                 {formatMessage({
@@ -369,6 +383,7 @@ export const ImageEditorModal: React.FC<ImageEditorModalProps> = ({
               <Button
                 variant={flipV ? 'secondary' : 'tertiary'}
                 size="S"
+                disabled={Boolean(canvasError)}
                 onClick={() => setFlipV((v) => !v)}
               >
                 {formatMessage({
@@ -393,6 +408,7 @@ export const ImageEditorModal: React.FC<ImageEditorModalProps> = ({
                     min="1"
                     max="3"
                     step="0.1"
+                    disabled={Boolean(canvasError)}
                     value={zoom}
                     onChange={(e) => setZoom(Number(e.target.value))}
                     aria-label={formatMessage({

@@ -1,8 +1,9 @@
+import React, { useState } from 'react';
 import { Editor } from '@tiptap/core';
 import { Plugin, PluginKey } from '@tiptap/pm/state';
 import { useEditorState } from '@tiptap/react';
 import Heading from '@tiptap/extension-heading';
-import { SingleSelect, SingleSelectOption } from '@strapi/design-system';
+import { Box, Flex, Popover, SingleSelect, SingleSelectOption, Typography } from '@strapi/design-system';
 import { useIntl } from 'react-intl';
 
 /**
@@ -104,7 +105,9 @@ export function useHeading(
   props: { disabled?: boolean; levels?: number[] } = { disabled: false }
 ) {
   const { formatMessage } = useIntl();
+  const [open, setOpen] = useState(false);
   const levels = props.levels ?? [1, 2, 3, 4, 5, 6];
+  const seoTagLevels = [1, 2, 3, 4, 5, 6];
   const editorState = useEditorState({
     editor,
     selector: (ctx) => {
@@ -124,6 +127,7 @@ export function useHeading(
 
     if (value === 'p') {
       editor.chain().focus().setParagraph().run();
+      setOpen(false);
       return;
     }
 
@@ -140,6 +144,7 @@ export function useHeading(
         .updateAttributes('heading', { tag: `h${level}` })
         .run();
     }
+    setOpen(false);
   };
 
   const onChangeHeadingTag = (value: string) => {
@@ -148,54 +153,159 @@ export function useHeading(
     editor.chain().focus().updateAttributes('heading', { tag: value }).run();
   };
 
+  const currentHeadingLabel = editorState?.headingLevel ? `H${editorState.headingLevel}` : 'T';
+  const isDisabled = !editor || Boolean(props.disabled);
+  const textStyleLabel = formatMessage({
+    id: 'tiptap-editor.heading.textStyle',
+    defaultMessage: 'Text style',
+  });
+
+  const renderTriggerButton = () => (
+    <button
+      type="button"
+      disabled={isDisabled}
+      aria-label={textStyleLabel}
+      title={textStyleLabel}
+      style={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: '3px',
+        height: '32px',
+        padding: '0 8px',
+        borderRadius: '4px',
+        border: '1px solid transparent',
+        background: open || editorState?.headingLevel ? 'rgba(73, 69, 255, 0.1)' : 'transparent',
+        color: editorState?.headingLevel ? '#4945ff' : 'inherit',
+        fontFamily: 'Georgia, Cambria, serif',
+        fontWeight: 700,
+        fontSize: '1.35rem',
+        cursor: isDisabled ? 'not-allowed' : 'pointer',
+        opacity: isDisabled ? 0.5 : 1,
+      }}
+    >
+      <span>{currentHeadingLabel}</span>
+      <svg width="10" height="10" viewBox="0 0 12 12" aria-hidden="true">
+        <path
+          d="M3 4.5L6 7.5L9 4.5"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.6"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+      </svg>
+    </button>
+  );
+
   return {
+    headingTrigger: renderTriggerButton(),
     headingSelect: (
-      <SingleSelect
-        placeholder={formatMessage({ id: 'tiptap-editor.heading.style', defaultMessage: 'Style' })}
-        aria-label={formatMessage({
-          id: 'tiptap-editor.heading.textStyle',
-          defaultMessage: 'Text style',
-        })}
-        value={editorState?.headingLevel ? `h${editorState.headingLevel}` : 'p'}
-        onChange={(v: string | number) => v != null && onChangeHeading(String(v))}
-        disabled={!editor || props.disabled}
-        size="S"
-      >
-        <SingleSelectOption value="p">
-          {formatMessage({ id: 'tiptap-editor.heading.paragraph', defaultMessage: 'Paragraph' })}
-        </SingleSelectOption>
-        {levels.map((level) => (
-          <SingleSelectOption key={`h${level}`} value={`h${level}`}>
-            {formatMessage(
-              { id: 'tiptap-editor.heading.heading', defaultMessage: 'Heading {level}' },
-              { level }
-            )}
-          </SingleSelectOption>
-        ))}
-      </SingleSelect>
+      <Popover.Root open={open} onOpenChange={setOpen}>
+        <Popover.Trigger>{renderTriggerButton()}</Popover.Trigger>
+        <Popover.Content side="bottom" align="start" sideOffset={4}>
+          <Box padding={2} style={{ minWidth: '190px' }}>
+            <Flex direction="column" alignItems="stretch" gap={1}>
+              <button
+                type="button"
+                onClick={() => onChangeHeading('p')}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  width: '100%',
+                  padding: '6px 10px',
+                  border: 'none',
+                  borderRadius: '4px',
+                  background: !editorState?.headingLevel ? 'rgba(73, 69, 255, 0.1)' : 'transparent',
+                  color: !editorState?.headingLevel ? '#4945ff' : 'inherit',
+                  fontSize: '1.3rem',
+                  fontWeight: !editorState?.headingLevel ? 600 : 400,
+                  cursor: 'pointer',
+                  textAlign: 'left',
+                }}
+              >
+                <span>
+                  {formatMessage({
+                    id: 'tiptap-editor.heading.paragraph',
+                    defaultMessage: 'Paragraph',
+                  })}
+                </span>
+                <span style={{ fontSize: '1.1rem', opacity: 0.6 }}>p</span>
+              </button>
+              {levels.map((level) => {
+                const isActive = editorState?.headingLevel === level;
+                return (
+                  <button
+                    key={`h${level}`}
+                    type="button"
+                    onClick={() => onChangeHeading(`h${level}`)}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      width: '100%',
+                      padding: '6px 10px',
+                      border: 'none',
+                      borderRadius: '4px',
+                      background: isActive ? 'rgba(73, 69, 255, 0.1)' : 'transparent',
+                      color: isActive ? '#4945ff' : 'inherit',
+                      fontSize: `${Math.max(1.25, 1.85 - level * 0.12)}rem`,
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                      textAlign: 'left',
+                    }}
+                  >
+                    <span>
+                      {formatMessage(
+                        { id: 'tiptap-editor.heading.heading', defaultMessage: 'Heading {level}' },
+                        { level }
+                      )}
+                    </span>
+                    <span style={{ fontSize: '1.1rem', opacity: 0.6 }}>{`h${level}`}</span>
+                  </button>
+                );
+              })}
+
+              <Box
+                paddingTop={2}
+                marginTop={1}
+                style={{ borderTop: '1px solid rgba(128, 128, 128, 0.2)' }}
+              >
+                <Box paddingBottom={1}>
+                  <Typography variant="pi" textColor="neutral600">
+                    {formatMessage({
+                      id: 'tiptap-editor.heading.seoTag',
+                      defaultMessage: 'SEO Tag Override',
+                    })}
+                  </Typography>
+                </Box>
+                <SingleSelect
+                  placeholder={formatMessage({
+                    id: 'tiptap-editor.heading.seoTag',
+                    defaultMessage: 'SEO Tag',
+                  })}
+                  aria-label={formatMessage({
+                    id: 'tiptap-editor.heading.seoTagAriaLabel',
+                    defaultMessage: "Heading's HTML tag for SEO purposes",
+                  })}
+                  value={editorState?.headingTag}
+                  onChange={(v: string | number) => v != null && onChangeHeadingTag(String(v))}
+                  disabled={!editor || props.disabled || !editorState?.headingLevel}
+                  size="S"
+                >
+                  {seoTagLevels.map((level) => (
+                    <SingleSelectOption key={`h${level}`} value={`h${level}`}>
+                      {`h${level}`}
+                    </SingleSelectOption>
+                  ))}
+                </SingleSelect>
+              </Box>
+            </Flex>
+          </Box>
+        </Popover.Content>
+      </Popover.Root>
     ),
-    headingTagSelect: (
-      <SingleSelect
-        placeholder={formatMessage({
-          id: 'tiptap-editor.heading.seoTag',
-          defaultMessage: 'SEO Tag',
-        })}
-        aria-label={formatMessage({
-          id: 'tiptap-editor.heading.seoTagAriaLabel',
-          defaultMessage: "Heading's HTML tag for SEO purposes",
-        })}
-        value={editorState?.headingTag}
-        onChange={(v: string | number) => v != null && onChangeHeadingTag(String(v))}
-        disabled={!editor || props.disabled || !editorState?.headingLevel}
-        size="S"
-      >
-        <SingleSelectOption value="h1">h1</SingleSelectOption>
-        <SingleSelectOption value="h2">h2</SingleSelectOption>
-        <SingleSelectOption value="h3">h3</SingleSelectOption>
-        <SingleSelectOption value="h4">h4</SingleSelectOption>
-        <SingleSelectOption value="h5">h5</SingleSelectOption>
-        <SingleSelectOption value="h6">h6</SingleSelectOption>
-      </SingleSelect>
-    ),
+    headingTagSelect: null,
   };
 }

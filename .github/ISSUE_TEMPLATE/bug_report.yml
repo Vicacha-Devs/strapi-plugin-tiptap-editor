@@ -1,5 +1,5 @@
 name: Bug Report
-description: Report a bug in @vicacha-devs/strapi-plugin-tiptap-editor
+description: Report a bug in @notum-cz/strapi-plugin-tiptap-editor
 title: "[Bug]: "
 labels: ["bug", "triage"]
 body:

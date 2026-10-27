@@ -435,8 +435,9 @@ export function useAudio(
   const audioButton = (
     <ToolbarButton
       onClick={() => setShowAudioDialog(true)}
-      icon={<VolumeUp />}
+      icon={<Microphone />}
       active={false}
+      tint="rose"
       disabled={props.disabled || !editor || (editorState?.isInCodeBlock ?? false)}
       tooltip={formatMessage({
         id: 'tiptap-editor.toolbar.insertAudio',

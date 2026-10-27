@@ -12,6 +12,7 @@
 - **`admin/src/`**:
   - `extensions/`: Tiptap v3 extensions and toolbar hooks (`StarterKit`, `Heading`, `Link`, `Linker`, `Image`, `Video`, `Audio`, `Attachment`, `Iframe`, `Table`, `TextAlign`, `TextColor`, `HighlightColor`, `TypographyControls`, `SemanticMarks`, `InformationPane`, `StructuredBlocks`, `Mathematics`, `EmojiPicker`, `SlashCommand`, `SpeechTools`).
   - `components/`: `RichTextInput`, `ResponsiveToolbar`, `BaseTiptapInput`, `EditorFooterAndModes`, `ImageEditorModal`, `ImageAltPopover`, `MediaLibraryWrapper`, `ToolbarButton`, `Spacer`.
+  - `utils/`: `buildExtensions.ts` and `customExtensionRegistry.ts` (`registerTiptapExtension`, `unregisterTiptapExtension`, `getRegisteredTiptapExtension`, `getRegisteredTiptapExtensions`, `isCustomExtensionEnabledForPreset`).
   - `hooks/`: `usePresetConfig`, `useKeyboardNavigation` (WCAG 2.1 AA roving focus), `useRelationalSync` (`<FieldName>Media` & `<FieldName>Links`).
   - `pages/`: `SettingsPage.tsx` (`/settings/tiptap-editor`).
 

@@ -127,7 +127,7 @@ This plugin is compatible with Strapi `v5.39.0` and Node.js `^20.19.0 || ^22.13.
 | -------------- | -------------- | ------------------------------------ | -------------- | ------------ |
 | 1.2.x+         | 5.39.0         | `^20.19.0 \|\| ^22.13.0 \|\| >=24.0.0` | 3.20.1         | ✅           |
 
-> **Node.js Dependency Compatibility Note:** Runtime dependencies `undici` (`6.29.0`) and `isomorphic-dompurify` (`3.19.0`) are intentionally pinned to their `6.x` and `3.x` release lines to preserve Node.js `20.19+` and `22.13+` compatibility across the full Strapi v5 engine range (`isomorphic-dompurify` `4.x` requires Node `>=22.22.2`).
+> **Node.js Dependency Compatibility Note:** Runtime dependency `isomorphic-dompurify` (`3.19.0`) is intentionally pinned to its `3.x` release line to preserve Node.js `20.19+` and `22.13+` compatibility across the full Strapi v5 engine range (`isomorphic-dompurify` `4.x` requires Node `>=22.22.2`).
 
 ---
 
@@ -434,6 +434,296 @@ export default () => ({
     config: {
       theme: {
         css: readFileSync(require.resolve('@repo/design-system/strapi-styles.css'), 'utf-8'),
+      },
+    },
+  },
+});
+```
+
+---
+
+## Registering Custom Extensions (Nodes, Marks, Toolbar & `/slash` Commands)
+
+Host Strapi applications (or sibling plugins) can register custom Tiptap `Node`, `Mark`, or `Extension` definitions—complete with custom toolbar buttons, modal dialogs, Strapi Media Library pickers (`MediaLibraryWrapper`), and `/slash` command items—from `src/admin/app.tsx` using `registerTiptapExtension`.
+
+### Exported Public Admin API
+
+Import from `@notum-cz/strapi-plugin-tiptap-editor/strapi-admin`:
+
+| Export | Description |
+| --- | --- |
+| `registerTiptapExtension(registration)` | Registers a custom Tiptap extension, toolbar trigger, dialog component, and `/slash` command items. Returns an unregister cleanup function. |
+| `unregisterTiptapExtension(id)` | Removes a previously registered custom extension by `id`. |
+| `getRegisteredTiptapExtension(id)` | Retrieves a single registered custom extension by `id`. |
+| `getRegisteredTiptapExtensions()` | Returns all registered custom extensions in registration order. |
+| `MediaLibraryWrapper` | Renders Strapi's native Media Library modal (`allowedTypes`, `onClose`, `onSelectAssets`). |
+| `ToolbarButton` | Standard Tiptap toolbar icon button with tooltip and active/disabled states. |
+
+---
+
+### Example 1: Custom Block Using Strapi's Media Library (Before / After Image Slider)
+
+Because `MediaLibraryWrapper` is exported from `@notum-cz/strapi-plugin-tiptap-editor/strapi-admin`, your custom dialog can open Strapi's native Media Library modal directly to let editors pick multiple assets:
+
+```tsx
+// src/admin/app.tsx
+import React, { useState } from 'react';
+import { Node, mergeAttributes } from '@tiptap/core';
+import { Images } from '@strapi/icons';
+import {
+  registerTiptapExtension,
+  MediaLibraryWrapper,
+  type CustomExtensionDialogProps,
+  type StrapiFile,
+} from '@notum-cz/strapi-plugin-tiptap-editor/strapi-admin';
+
+const BeforeAfterNode = Node.create({
+  name: 'beforeAfterSlider',
+  group: 'block',
+  atom: true,
+  addAttributes() {
+    return {
+      beforeUrl: { default: '' },
+      afterUrl: { default: '' },
+      caption: { default: '' },
+    };
+  },
+  parseHTML() {
+    return [{ tag: 'figure[data-before-after]' }];
+  },
+  renderHTML({ HTMLAttributes }) {
+    return [
+      'figure',
+      mergeAttributes(HTMLAttributes, {
+        'data-before-after': 'true',
+        class: 'before-after-slider',
+      }),
+      ['img', { src: HTMLAttributes.beforeUrl, alt: 'Before' }],
+      ['img', { src: HTMLAttributes.afterUrl, alt: 'After' }],
+      ['figcaption', {}, HTMLAttributes.caption || ''],
+    ];
+  },
+});
+
+function BeforeAfterDialog({ editor, open, onClose }: CustomExtensionDialogProps) {
+  const [step, setStep] = useState<'before' | 'after' | null>('before');
+  const [beforeUrl, setBeforeUrl] = useState('');
+
+  if (!open || !editor) return null;
+
+  const handleSelectAssets = (files: StrapiFile[]) => {
+    const file = files[0];
+    if (!file) return;
+    if (step === 'before') {
+      setBeforeUrl(file.url);
+      setStep('after');
+    } else {
+      editor
+        .chain()
+        .focus()
+        .insertContent({
+          type: 'beforeAfterSlider',
+          attrs: { beforeUrl, afterUrl: file.url, caption: file.caption || '' },
+        })
+        .run();
+      setStep('before');
+      onClose();
+    }
+  };
+
+  return (
+    <MediaLibraryWrapper
+      allowedTypes={['images']}
+      onClose={onClose}
+      onSelectAssets={handleSelectAssets}
+    />
+  );
+}
+
+export default {
+  register() {
+    registerTiptapExtension({
+      id: 'beforeAfterSlider',
+      label: 'Before / After Image Slider',
+      extensions: [BeforeAfterNode],
+      toolbarButton: {
+        label: 'Before / After Slider',
+        icon: <Images />,
+        onClick: (_editor, { openDialog }) => openDialog(),
+      },
+      DialogComponent: BeforeAfterDialog,
+      overflowOnly: true, // Place in "Plus ▾" overflow menu (or false for primary toolbar)
+      slashCommands: [
+        {
+          id: 'beforeAfterSlider',
+          defaultLabel: 'Before / After Image Slider',
+          defaultDescription: 'Compare two images from the Media Library',
+          badge: 'B/A',
+          keywords: ['before', 'after', 'compare', 'slider', 'image'],
+          openExtensionDialogId: 'beforeAfterSlider',
+        },
+      ],
+    });
+  },
+};
+```
+
+---
+
+### Example 2: Custom Block Fetching External / Internal JSON APIs (Quran Verse / Scripture Picker)
+
+For blocks that fetch data from an API (such as an internal Strapi endpoint `/api/islam/quran/surahs` or an external REST API) and insert structured content into Tiptap:
+
+```tsx
+// src/admin/app.tsx
+import React, { useState } from 'react';
+import { Node, mergeAttributes } from '@tiptap/core';
+import { Book } from '@strapi/icons';
+import { Button, Dialog, Field, Flex, TextInput } from '@strapi/design-system';
+import {
+  registerTiptapExtension,
+  type CustomExtensionDialogProps,
+} from '@notum-cz/strapi-plugin-tiptap-editor/strapi-admin';
+
+const QuranVerseNode = Node.create({
+  name: 'quranVerseBlock',
+  group: 'block',
+  atom: true,
+  addAttributes() {
+    return {
+      reference: { default: '1:1' },
+      arabicText: { default: '' },
+      translation: { default: '' },
+    };
+  },
+  parseHTML() {
+    return [{ tag: 'blockquote[data-quran-verse]' }];
+  },
+  renderHTML({ HTMLAttributes }) {
+    return [
+      'blockquote',
+      mergeAttributes(HTMLAttributes, {
+        'data-quran-verse': HTMLAttributes.reference,
+        class: 'quran-verse-embed',
+      }),
+      ['p', { dir: 'rtl', lang: 'ar', class: 'quran-arabic' }, HTMLAttributes.arabicText],
+      ['p', { class: 'quran-translation' }, HTMLAttributes.translation],
+      ['cite', { class: 'quran-ref' }, `Surah ${HTMLAttributes.reference}`],
+    ];
+  },
+});
+
+function QuranVerseDialog({ editor, open, onClose }: CustomExtensionDialogProps) {
+  const [reference, setReference] = useState('2:255');
+  const [loading, setLoading] = useState(false);
+
+  if (!open || !editor) return null;
+
+  const handleInsert = async () => {
+    setLoading(true);
+    try {
+      const res = await fetch(
+        `https://api.alquran.cloud/v1/ayah/${encodeURIComponent(reference)}/editions/quran-uthmani,es.cortes`
+      );
+      const json = await res.json();
+      const [arabicEdition, translationEdition] = json?.data ?? [];
+      editor
+        .chain()
+        .focus()
+        .insertContent({
+          type: 'quranVerseBlock',
+          attrs: {
+            reference,
+            arabicText: arabicEdition?.text ?? '',
+            translation: translationEdition?.text ?? '',
+          },
+        })
+        .run();
+      onClose();
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <Dialog.Root open={open} onOpenChange={(isOpen: boolean) => !isOpen && onClose()}>
+      <Dialog.Content>
+        <Dialog.Header>Insert Quran Verse</Dialog.Header>
+        <Dialog.Body>
+          <Flex direction="column" alignItems="stretch" gap={3}>
+            <Field.Root>
+              <Field.Label>Surah:Ayah Reference (e.g. 2:255)</Field.Label>
+              <TextInput
+                value={reference}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setReference(e.target.value)}
+              />
+            </Field.Root>
+          </Flex>
+        </Dialog.Body>
+        <Dialog.Footer>
+          <Dialog.Cancel>
+            <Button variant="tertiary" onClick={onClose}>
+              Cancel
+            </Button>
+          </Dialog.Cancel>
+          <Button onClick={handleInsert} loading={loading}>
+            Fetch & Insert Verse
+          </Button>
+        </Dialog.Footer>
+      </Dialog.Content>
+    </Dialog.Root>
+  );
+}
+
+registerTiptapExtension({
+  id: 'quranVerseBlock',
+  label: 'Quran Verse Embed',
+  extensions: [QuranVerseNode],
+  toolbarButton: {
+    label: 'Insert Quran Verse',
+    icon: <Book />,
+    onClick: (_editor, { openDialog }) => openDialog(),
+  },
+  DialogComponent: QuranVerseDialog,
+  overflowOnly: true,
+  slashCommands: [
+    {
+      id: 'quranVerseBlock',
+      defaultLabel: 'Quran Verse (Ayah)',
+      defaultDescription: 'Fetch and embed a Quranic verse with Arabic and translation',
+      badge: 'Ayah',
+      keywords: ['quran', 'ayah', 'verse', 'surah', 'islam'],
+      openExtensionDialogId: 'quranVerseBlock',
+    },
+  ],
+});
+```
+
+---
+
+### Enabling or Disabling Custom Extensions Per Preset
+
+By default, registered custom extensions are active across presets (`defaultEnabled: true`). You can enable or disable specific custom extensions per preset in `config/plugins.ts` via `customExtensions`:
+
+```ts
+// config/plugins.ts
+export default () => ({
+  'tiptap-editor': {
+    config: {
+      presets: {
+        standard: {
+          // ...built-in features
+          customExtensions: {
+            beforeAfterSlider: true,
+            quranVerseBlock: true,
+          },
+        },
+        minimal: {
+          customExtensions: {
+            beforeAfterSlider: false,
+            quranVerseBlock: false,
+          },
+        },
       },
     },
   },

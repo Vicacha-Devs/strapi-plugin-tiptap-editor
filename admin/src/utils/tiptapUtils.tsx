@@ -17,6 +17,7 @@ export type TiptapInputProps = InputProps & {
 
 export interface UseTiptapEditorOptions {
   outputFormat?: TiptapOutputFormat;
+  wordsPerMinute?: number;
   onDocUpdate?: (json: JSONContent) => void;
 }
 
@@ -29,12 +30,14 @@ export function tiptapContent(text: string): JSONContent {
     content: [
       {
         type: 'paragraph',
-        content: [
-          {
-            type: 'text',
-            text: text,
-          },
-        ],
+        content: text
+          ? [
+              {
+                type: 'text',
+                text: text,
+              },
+            ]
+          : [],
       },
     ],
   };
@@ -86,6 +89,10 @@ export function parseJSONContent(
   try {
     return JSON.parse(value) as JSONContent;
   } catch (e) {
+    const markdownFallback = markdownToJson(trimmed) as JSONContent;
+    if (markdownFallback?.type === 'doc' && Array.isArray(markdownFallback.content) && markdownFallback.content.length > 0) {
+      return markdownFallback;
+    }
     console.error('Failed to parse JSON content:', e);
     return tiptapContent(`
           This component's content is malformed. Please change it or remove this component.
@@ -114,7 +121,9 @@ export function useTiptapEditor(
     content: initialContent,
     onUpdate: ({ editor: ed }) => {
       const json = ed.getJSON();
-      const serialized = serializeEditorContent(ed, outputFormat);
+      const serialized = serializeEditorContent(ed, outputFormat, {
+        wordsPerMinute: options?.wordsPerMinute,
+      });
       field.onChange(name, serialized);
       options?.onDocUpdate?.(json);
     },

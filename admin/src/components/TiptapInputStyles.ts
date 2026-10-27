@@ -26,6 +26,15 @@ export const TiptapInputStyles = styled.div`
     padding-bottom: 0.25rem;
   }
 
+  .editor-toolbar button[data-tint] svg,
+  .editor-toolbar button[data-tint] svg path {
+    fill: currentColor !important;
+  }
+
+  .editor-toolbar button[data-tint]:hover:not(:disabled) {
+    filter: brightness(0.96);
+  }
+
   .ProseMirror {
     font-size: 1.4rem; /* Increase editor font size to match Strapi default */
     outline: none;

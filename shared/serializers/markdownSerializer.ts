@@ -23,7 +23,9 @@ export function serializeInline(nodes?: ProseMirrorJSONNode[]): string {
       }
       if (node.type === 'mathematics') {
         const latex = String(node.attrs?.latex || '');
-        return `$${latex}$`;
+        const isBlock =
+          node.attrs?.displayMode === 'block' || node.attrs?.displayMode === true;
+        return isBlock ? `$$\n${latex}\n$$` : `$${latex}$`;
       }
       if (node.type !== 'text' || typeof node.text !== 'string') {
         return serializeBlockToMarkdown(node);

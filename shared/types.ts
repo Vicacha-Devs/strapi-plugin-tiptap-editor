@@ -133,6 +133,9 @@ export interface TiptapPresetConfig {
   textToSpeech?: boolean | Record<string, unknown>;
   characterCount?: boolean | CharacterCountConfig;
   fullscreen?: boolean | Record<string, unknown>;
+  customExtensions?: Record<string, boolean | Record<string, unknown>>;
+  // Custom registered block / mark extensions
+  [customFeatureKey: string]: boolean | Record<string, unknown> | undefined;
 }
 
 export interface TiptapRuntimeSettings {
@@ -151,7 +154,59 @@ export interface TiptapPluginConfig {
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 
-export const PRESET_FEATURE_KEYS: Array<keyof TiptapPresetConfig> = [
+export type BuiltInPresetFeatureKey =
+  | 'bold'
+  | 'italic'
+  | 'strike'
+  | 'underline'
+  | 'code'
+  | 'codeBlock'
+  | 'blockquote'
+  | 'bulletList'
+  | 'orderedList'
+  | 'hardBreak'
+  | 'horizontalRule'
+  | 'history'
+  | 'heading'
+  | 'link'
+  | 'table'
+  | 'textAlign'
+  | 'superscript'
+  | 'subscript'
+  | 'textColor'
+  | 'highlightColor'
+  | 'mediaLibrary'
+  | 'fontFamily'
+  | 'fontSize'
+  | 'lineHeight'
+  | 'clearFormatting'
+  | 'typography'
+  | 'leadParagraph'
+  | 'language'
+  | 'abbr'
+  | 'video'
+  | 'audio'
+  | 'attachment'
+  | 'iframe'
+  | 'linker'
+  | 'informationPane'
+  | 'accordion'
+  | 'conversationHistory'
+  | 'columns'
+  | 'taskList'
+  | 'mathematics'
+  | 'emoji'
+  | 'slashCommands'
+  | 'pageBreak'
+  | 'tableOfContents'
+  | 'speechToText'
+  | 'textToSpeech'
+  | 'characterCount'
+  | 'fullscreen';
+
+export type PresetFeatureKey = BuiltInPresetFeatureKey;
+
+export const PRESET_FEATURE_KEYS: BuiltInPresetFeatureKey[] = [
   'bold',
   'italic',
   'strike',
@@ -272,7 +327,7 @@ const isPlainObject = (value: unknown): value is Record<string, unknown> => {
  * Returns true when a preset feature value is enabled.
  * undefined (absent key) returns false — a preset defines what's ON, everything else is OFF.
  */
-export const isFeatureEnabled = (value: TiptapPresetConfig[keyof TiptapPresetConfig]): boolean => {
+export const isFeatureEnabled = (value: unknown): boolean => {
   if (value === undefined) {
     return false; // absent key = disabled
   }

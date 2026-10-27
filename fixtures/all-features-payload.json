@@ -600,6 +600,207 @@
       ]
     },
     {
+      "type": "informationPane",
+      "attrs": {
+        "variant": "info",
+        "title": "Information Notice"
+      },
+      "content": [
+        {
+          "type": "paragraph",
+          "content": [
+            {
+              "type": "text",
+              "text": "Important callout inside an Information Pane."
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "conversationHistory",
+      "attrs": {
+        "author": "Editor Team",
+        "timestamp": "2026-10-09 10:00"
+      },
+      "content": [
+        {
+          "type": "paragraph",
+          "content": [
+            {
+              "type": "text",
+              "text": "Logged discussion note in conversation history."
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "details",
+      "attrs": {
+        "open": true
+      },
+      "content": [
+        {
+          "type": "detailsSummary",
+          "content": [
+            {
+              "type": "text",
+              "text": "Expandable Accordion Section"
+            }
+          ]
+        },
+        {
+          "type": "detailsContent",
+          "content": [
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "Hidden details content revealed on click."
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "layoutContainer",
+      "attrs": {
+        "columns": "1:1"
+      },
+      "content": [
+        {
+          "type": "layoutColumn",
+          "content": [
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "Left column content."
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "layoutColumn",
+          "content": [
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "Right column content."
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "layoutContainer",
+      "attrs": {
+        "columns": "1:1:1"
+      },
+      "content": [
+        {
+          "type": "layoutColumn",
+          "content": [
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "Column 1 content."
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "layoutColumn",
+          "content": [
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "Column 2 content."
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "layoutColumn",
+          "content": [
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "Column 3 content."
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "taskList",
+      "content": [
+        {
+          "type": "taskItem",
+          "attrs": {
+            "checked": true
+          },
+          "content": [
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "Completed checklist task"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "taskItem",
+          "attrs": {
+            "checked": false
+          },
+          "content": [
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "Pending checklist task"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "tableOfContents",
+      "attrs": {
+        "headings": []
+      }
+    },
+    {
+      "type": "pageBreak"
+    },
+    {
       "type": "video",
       "attrs": {
         "src": "https://example.com/demo-video.mp4",
@@ -662,6 +863,22 @@
         "height": 400,
         "data-align": "center"
       }
+    },
+    {
+      "type": "paragraph",
+      "content": [
+        {
+          "type": "text",
+          "text": "Energy: "
+        },
+        {
+          "type": "mathematics",
+          "attrs": {
+            "latex": "E = mc^2",
+            "displayMode": "inline"
+          }
+        }
+      ]
     },
     {
       "type": "paragraph",

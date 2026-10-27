@@ -145,6 +145,45 @@ vi.mock('../../admin/src/extensions/Image', () => ({
   StrapiImage: { configure: vi.fn(() => ({})) },
 }));
 
+// ─── Mock structured block / productivity hooks ──────────────────────────────
+vi.mock('../../admin/src/extensions/InformationPane', () => ({
+  useInformationPane: () => ({ informationPaneButton: null }),
+}));
+vi.mock('../../admin/src/extensions/StructuredBlocks', () => ({
+  useStructuredBlocks: () => ({
+    accordionButton: null,
+    columnsButton: null,
+    taskListButton: null,
+    conversationHistoryButton: null,
+    pageBreakButton: null,
+    tableOfContentsButton: null,
+  }),
+}));
+vi.mock('../../admin/src/extensions/Mathematics', () => ({
+  useMathematics: () => ({ mathematicsButton: null, mathematicsDialog: null }),
+}));
+vi.mock('../../admin/src/extensions/EmojiPicker', () => ({
+  useEmojiPicker: () => ({ emojiButton: null }),
+}));
+vi.mock('../../admin/src/extensions/SlashCommand', () => ({
+  useSlashCommand: () => ({ slashCommandButton: null }),
+}));
+vi.mock('../../admin/src/extensions/SpeechTools', () => ({
+  useSpeechTools: () => ({
+    speechToTextButton: null,
+    textToSpeechButton: null,
+    speechLiveRegion: null,
+  }),
+}));
+vi.mock('../../admin/src/components/EditorFooterAndModes', () => ({
+  useEditorModes: () => ({
+    isFullscreen: false,
+    previewButton: null,
+    fullscreenButton: null,
+    characterCountFooter: null,
+  }),
+}));
+
 const mockVideo = { videoButton: null, videoDialog: null };
 vi.mock('../../admin/src/extensions/Video', () => ({
   useVideo: () => mockVideo,
@@ -353,7 +392,7 @@ describe('RichTextInput', () => {
     const props = { name: 'content' };
     // Render through InnerEditor so useMemo runs
     shallowRender(RichTextInput(props as any, null));
-    expect(capturedUseMemoDeps).toEqual(['default']);
+    expect(capturedUseMemoDeps).toEqual(['default', undefined]);
   });
 
   it('wraps output in EditorErrorBoundary (rendered through InnerEditor)', () => {

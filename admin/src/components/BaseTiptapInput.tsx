@@ -13,6 +13,8 @@ type TiptapInputProps = InputProps & {
   field: FieldValue;
   children?: React.ReactNode;
   noPresetConfigured?: boolean;
+  isFullscreen?: boolean;
+  footer?: React.ReactNode;
   toolbarRef?: React.RefObject<HTMLDivElement | null>;
   onToolbarKeyDown?: (event: React.KeyboardEvent<HTMLDivElement>) => void;
 };
@@ -35,6 +37,8 @@ const BaseTiptapInput = forwardRef<HTMLDivElement, TiptapInputProps>(
       noPresetConfigured,
       toolbarRef,
       onToolbarKeyDown,
+      isFullscreen = false,
+      footer,
     },
     forwardedRef
   ) => {
@@ -48,7 +52,7 @@ const BaseTiptapInput = forwardRef<HTMLDivElement, TiptapInputProps>(
 
         <TiptapInputStyles>
           <Box
-            className={`tiptap-editor-wrapper ${field.error ? 'has-error' : ''} ${disabled ? 'is-disabled' : ''}`}
+            className={`tiptap-editor-wrapper ${field.error ? 'has-error' : ''} ${disabled ? 'is-disabled' : ''} ${isFullscreen ? 'is-fullscreen' : ''}`}
             hasRadius
             borderColor={borderColor}
             background={background}
@@ -96,6 +100,7 @@ const BaseTiptapInput = forwardRef<HTMLDivElement, TiptapInputProps>(
             >
               <EditorContent editor={editor} disabled={disabled} ref={forwardedRef} />
             </Box>
+            {footer}
           </Box>
         </TiptapInputStyles>
 

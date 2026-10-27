@@ -1,6 +1,26 @@
 import styled from 'styled-components';
 
 export const TiptapInputStyles = styled.div`
+  .tiptap-editor-wrapper.is-fullscreen {
+    position: fixed;
+    inset: 16px;
+    z-index: 250;
+    display: flex;
+    flex-direction: column;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.35);
+    background: ${({ theme }) => theme.colors.neutral100};
+  }
+
+  .tiptap-editor-wrapper.is-fullscreen .editor-content {
+    flex-grow: 1;
+    overflow-y: auto;
+  }
+
+  .tiptap-editor-wrapper.is-fullscreen .ProseMirror {
+    max-height: none;
+    min-height: 70vh;
+  }
+
   .editor-toolbar {
     margin-bottom: 0.25rem;
     padding-bottom: 0.25rem;

@@ -5,12 +5,27 @@ import Subscript from '@tiptap/extension-subscript';
 import Underline from '@tiptap/extension-underline';
 import { TableKit } from '@tiptap/extension-table';
 import TextAlign from '@tiptap/extension-text-align';
-import { Gapcursor } from '@tiptap/extensions';
+import { CharacterCount, Gapcursor } from '@tiptap/extensions';
 import { TextStyle, Color } from '@tiptap/extension-text-style';
 import Highlight from '@tiptap/extension-highlight';
 import { BaseHeadingWithSEOTag } from '../extensions/Heading';
 import { PasteStripper } from '../extensions/PasteStripper';
 import { StrapiImage } from '../extensions/Image';
+import { InformationPane } from '../extensions/InformationPane';
+import {
+  DetailsNode,
+  DetailsSummaryNode,
+  DetailsContentNode,
+  ConversationHistoryNode,
+  LayoutContainerNode,
+  LayoutColumnNode,
+  TaskListNode,
+  TaskItemNode,
+  PageBreakNode,
+  TableOfContentsNode,
+} from '../extensions/StructuredBlocks';
+import { MathematicsNode } from '../extensions/Mathematics';
+import { EmojiShortcodeExtension } from '../extensions/EmojiPicker';
 import { TiptapPresetConfig, isFeatureEnabled, getFeatureOptions } from '../../../shared/types';
 
 // Helper: converts a preset feature value to StarterKit's expected format
@@ -24,7 +39,18 @@ const starterKitFeatureValue = (
   return getFeatureOptions(value, {}) ?? {};
 };
 
-export function buildExtensions(config: TiptapPresetConfig): Extensions {
+export interface BuildExtensionsOptions {
+  characterLimit?: number;
+}
+
+/**
+ * Builds the array of TipTap extensions for a given preset configuration and field options.
+ * Structured block schemas are always registered so stored content round-trips without data loss.
+ */
+export function buildExtensions(
+  config: TiptapPresetConfig,
+  options?: BuildExtensionsOptions
+): Extensions {
   const starterKitConfig: Record<string, unknown> = {
     heading: false as const, // ALWAYS false — heading handled separately via BaseHeadingWithSEOTag
     bold: starterKitFeatureValue(config.bold),
@@ -109,6 +135,46 @@ export function buildExtensions(config: TiptapPresetConfig): Extensions {
     extensions.push(StrapiImage.configure(mediaOpts ?? {}));
   } else {
     extensions.push(StrapiImage.configure({ enableContentCheck: true }));
+  }
+
+  extensions.push(
+    isFeatureEnabled(config.informationPane)
+      ? InformationPane.configure({ enableContentCheck: false })
+      : InformationPane.configure({ enableContentCheck: true }),
+    isFeatureEnabled(config.mathematics)
+      ? MathematicsNode.configure({ enableContentCheck: false })
+      : MathematicsNode.configure({ enableContentCheck: true })
+  );
+
+  // Schema-only: always registered so stored content round-trips without data loss
+  extensions.push(
+    DetailsNode,
+    DetailsSummaryNode,
+    DetailsContentNode,
+    ConversationHistoryNode,
+    LayoutContainerNode,
+    LayoutColumnNode,
+    TaskListNode,
+    TaskItemNode,
+    PageBreakNode,
+    TableOfContentsNode
+  );
+
+  // Input-rule extension: gated by preset config
+  if (isFeatureEnabled(config.emoji)) {
+    extensions.push(EmojiShortcodeExtension);
+  }
+
+  const ccEnabled =
+    config.characterCount === undefined || isFeatureEnabled(config.characterCount);
+  const ccOpts = ccEnabled ? getFeatureOptions(config.characterCount, { limit: null }) : null;
+  const effectiveCharLimit =
+    options?.characterLimit && options.characterLimit > 0
+      ? options.characterLimit
+      : ccOpts?.limit ?? null;
+
+  if (ccEnabled || (effectiveCharLimit && effectiveCharLimit > 0)) {
+    extensions.push(CharacterCount.configure({ limit: effectiveCharLimit }));
   }
 
   extensions.push(Gapcursor);

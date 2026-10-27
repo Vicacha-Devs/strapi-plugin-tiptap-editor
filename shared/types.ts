@@ -22,6 +22,15 @@ export type HeadingConfig = {
   levels?: HeadingLevel[];
 };
 
+export type CharacterCountConfig = {
+  limit?: number | null;
+  wordsPerMinute?: number;
+};
+
+export type InformationPaneConfig = {
+  variants?: Array<'info' | 'warning' | 'success' | 'danger' | 'neutral' | 'tip'>;
+};
+
 export type TextColorConfig = {
   customColorPicker?: boolean | { enabled?: boolean };
 };
@@ -77,6 +86,21 @@ export interface TiptapPresetConfig {
   textColor?: boolean | TextColorConfig;
   highlightColor?: boolean | HighlightColorConfig;
   mediaLibrary?: boolean | Record<string, unknown>;
+  // Rich Callouts, Structured Blocks & Productivity Tools
+  informationPane?: boolean | InformationPaneConfig;
+  accordion?: boolean | Record<string, unknown>;
+  conversationHistory?: boolean | Record<string, unknown>;
+  columns?: boolean | Record<string, unknown>;
+  taskList?: boolean | Record<string, unknown>;
+  mathematics?: boolean | Record<string, unknown>;
+  emoji?: boolean | Record<string, unknown>;
+  slashCommands?: boolean | Record<string, unknown>;
+  pageBreak?: boolean | Record<string, unknown>;
+  tableOfContents?: boolean | Record<string, unknown>;
+  speechToText?: boolean | Record<string, unknown>;
+  textToSpeech?: boolean | Record<string, unknown>;
+  characterCount?: boolean | CharacterCountConfig;
+  fullscreen?: boolean | Record<string, unknown>;
 }
 
 export interface TiptapPluginConfig {
@@ -108,6 +132,20 @@ export const PRESET_FEATURE_KEYS: Array<keyof TiptapPresetConfig> = [
   'textColor',
   'highlightColor',
   'mediaLibrary',
+  'informationPane',
+  'accordion',
+  'conversationHistory',
+  'columns',
+  'taskList',
+  'mathematics',
+  'emoji',
+  'slashCommands',
+  'pageBreak',
+  'tableOfContents',
+  'speechToText',
+  'textToSpeech',
+  'characterCount',
+  'fullscreen',
 ];
 
 // Fallback for unconfigured fields — deliberately minimal to prompt developers to configure

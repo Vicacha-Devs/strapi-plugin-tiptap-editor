@@ -15,9 +15,21 @@ import { useTable } from '../extensions/Table';
 import { useTextAlign } from '../extensions/TextAlign';
 import { useTextColor } from '../extensions/TextColor';
 import { useHighlightColor } from '../extensions/HighlightColor';
+import { useInformationPane } from '../extensions/InformationPane';
+import { useStructuredBlocks } from '../extensions/StructuredBlocks';
+import { useMathematics } from '../extensions/Mathematics';
+import { useEmojiPicker } from '../extensions/EmojiPicker';
+import { useSlashCommand } from '../extensions/SlashCommand';
+import { useSpeechTools } from '../extensions/SpeechTools';
+import { useEditorModes } from './EditorFooterAndModes';
 import { usePresetConfig } from '../hooks/usePresetConfig';
 import { buildExtensions } from '../utils/buildExtensions';
-import { TiptapPresetConfig, MINIMAL_PRESET_CONFIG, getFeatureOptions } from '../../../shared/types';
+import {
+  TiptapPresetConfig,
+  MINIMAL_PRESET_CONFIG,
+  getFeatureOptions,
+  isFeatureEnabled,
+} from '../../../shared/types';
 import type { ToolbarItem } from './ResponsiveToolbar';
 
 // ─── Inner editor ────────────────────────────────────────────────────────────
@@ -27,6 +39,7 @@ import type { ToolbarItem } from './ResponsiveToolbar';
 type InnerEditorProps = TiptapInputProps & {
   config: TiptapPresetConfig;
   presetName: string | undefined;
+  characterLimit?: number;
 };
 
 /**
@@ -37,11 +50,11 @@ type InnerEditorProps = TiptapInputProps & {
 const isToolbarItem = (item: ToolbarItem | false | undefined): item is ToolbarItem => Boolean(item);
 
 const InnerEditor = forwardRef<HTMLDivElement, InnerEditorProps>(
-  ({ config, presetName, ...props }, forwardedRef) => {
+  ({ config, presetName, characterLimit, ...props }, forwardedRef) => {
     // Memoize on presetName string — stable across parent re-renders
     const extensions = useMemo(() => {
-      return buildExtensions(config);
-    }, [presetName]); // eslint-disable-line react-hooks/exhaustive-deps
+      return buildExtensions(config, { characterLimit });
+    }, [presetName, characterLimit]); // eslint-disable-line react-hooks/exhaustive-deps
 
     const { editor, field } = useTiptapEditor(props.name, '', extensions);
 
@@ -55,6 +68,26 @@ const InnerEditor = forwardRef<HTMLDivElement, InnerEditorProps>(
     const textAlign = useTextAlign(editor, { disabled: props.disabled });
     const textColor = useTextColor(editor, { disabled: props.disabled, config: config.textColor });
     const highlightColor = useHighlightColor(editor, { disabled: props.disabled, config: config.highlightColor });
+
+    const informationPane = useInformationPane(editor, { disabled: props.disabled });
+    const structuredBlocks = useStructuredBlocks(editor, { disabled: props.disabled });
+    const mathematics = useMathematics(editor, { disabled: props.disabled });
+    const emoji = useEmojiPicker(editor, { disabled: props.disabled });
+    const slashCommand = useSlashCommand(editor, { disabled: props.disabled, config });
+    const speech = useSpeechTools(editor, { disabled: props.disabled });
+
+    const charCountEnabled =
+      config.characterCount === undefined || isFeatureEnabled(config.characterCount);
+    const charCountOpts = charCountEnabled
+      ? getFeatureOptions(config.characterCount, { limit: null, wordsPerMinute: 200 })
+      : null;
+    const editorModes = useEditorModes(editor, {
+      disabled: props.disabled,
+      characterLimit:
+        characterLimit && characterLimit > 0 ? characterLimit : (charCountOpts?.limit ?? null),
+      wordsPerMinute: charCountOpts?.wordsPerMinute,
+      showCharacterCount: charCountEnabled || Boolean(characterLimit && characterLimit > 0),
+    });
 
     const toolbarItemCandidates: Array<ToolbarItem | false | undefined> = [
       config.heading && {
@@ -124,6 +157,61 @@ const InnerEditor = forwardRef<HTMLDivElement, InnerEditorProps>(
         id: 'insertSpacer',
         content: <Spacer margin={1} />,
       },
+      isFeatureEnabled(config.emoji) && { id: 'emoji', content: emoji.emojiButton },
+      isFeatureEnabled(config.informationPane) && {
+        id: 'informationPane',
+        content: informationPane.informationPaneButton,
+      },
+      isFeatureEnabled(config.taskList) && {
+        id: 'taskList',
+        content: structuredBlocks.taskListButton,
+      },
+      isFeatureEnabled(config.conversationHistory) && {
+        id: 'conversationHistory',
+        content: structuredBlocks.conversationHistoryButton,
+      },
+      isFeatureEnabled(config.accordion) && {
+        id: 'accordion',
+        content: structuredBlocks.accordionButton,
+      },
+      isFeatureEnabled(config.columns) && {
+        id: 'columns',
+        content: structuredBlocks.columnsButton,
+      },
+      isFeatureEnabled(config.mathematics) && {
+        id: 'mathematics',
+        content: (
+          <>
+            {mathematics.mathematicsButton}
+            {mathematics.mathematicsDialog}
+          </>
+        ),
+      },
+      isFeatureEnabled(config.pageBreak) && {
+        id: 'pageBreak',
+        content: structuredBlocks.pageBreakButton,
+      },
+      isFeatureEnabled(config.tableOfContents) && {
+        id: 'tableOfContents',
+        content: structuredBlocks.tableOfContentsButton,
+      },
+      isFeatureEnabled(config.slashCommands) && {
+        id: 'slashCommands',
+        content: slashCommand.slashCommandButton,
+      },
+      (isFeatureEnabled(config.emoji) ||
+        isFeatureEnabled(config.informationPane) ||
+        isFeatureEnabled(config.taskList) ||
+        isFeatureEnabled(config.conversationHistory) ||
+        isFeatureEnabled(config.accordion) ||
+        isFeatureEnabled(config.columns) ||
+        isFeatureEnabled(config.mathematics) ||
+        isFeatureEnabled(config.pageBreak) ||
+        isFeatureEnabled(config.tableOfContents) ||
+        isFeatureEnabled(config.slashCommands)) && {
+        id: 'blocksSpacer',
+        content: <Spacer margin={1} />,
+      },
       config.table && {
         id: 'table',
         content: (
@@ -134,6 +222,27 @@ const InnerEditor = forwardRef<HTMLDivElement, InnerEditorProps>(
             {table.addRowButton}
             {table.removeRowButton}
             {table.tableDialog}
+          </>
+        ),
+      },
+      (isFeatureEnabled(config.speechToText) || isFeatureEnabled(config.textToSpeech)) && {
+        id: 'tableSpacer',
+        content: <Spacer margin={1} />,
+      },
+      isFeatureEnabled(config.speechToText) && {
+        id: 'speechToText',
+        content: speech.speechToTextButton,
+      },
+      isFeatureEnabled(config.textToSpeech) && {
+        id: 'textToSpeech',
+        content: speech.textToSpeechButton,
+      },
+      isFeatureEnabled(config.fullscreen) && {
+        id: 'fullscreen',
+        content: (
+          <>
+            {editorModes.previewButton}
+            {editorModes.fullscreenButton}
           </>
         ),
       },
@@ -162,6 +271,13 @@ const InnerEditor = forwardRef<HTMLDivElement, InnerEditorProps>(
           {...props}
           ref={forwardedRef}
           noPresetConfigured={!presetName}
+          isFullscreen={editorModes.isFullscreen}
+          footer={
+            <>
+              {editorModes.characterCountFooter}
+              {speech.speechLiveRegion}
+            </>
+          }
         >
           <ResponsiveToolbar items={toolbarItems} />
         </BaseTiptapInput>
@@ -174,13 +290,14 @@ const InnerEditor = forwardRef<HTMLDivElement, InnerEditorProps>(
 // Handles async preset fetching; renders loading state until config is ready.
 
 type RichTextInputProps = TiptapInputProps & {
-  attribute?: { options?: { preset?: string } };
+  attribute?: { options?: { preset?: string; characterLimit?: number } };
 };
 
 const RichTextInput = forwardRef<HTMLDivElement, RichTextInputProps>((props, forwardedRef) => {
   const { formatMessage } = useIntl();
   const rawPresetName = props.attribute?.options?.preset;
   const normalizedPresetName = rawPresetName?.trim() || undefined;
+  const characterLimit = props.attribute?.options?.characterLimit;
 
   const { config, isLoading } = usePresetConfig(normalizedPresetName);
 
@@ -197,6 +314,7 @@ const RichTextInput = forwardRef<HTMLDivElement, RichTextInputProps>((props, for
       ref={forwardedRef}
       config={config ?? MINIMAL_PRESET_CONFIG}
       presetName={normalizedPresetName}
+      characterLimit={characterLimit}
       {...props}
     />
   );

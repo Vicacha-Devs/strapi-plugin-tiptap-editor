@@ -13,11 +13,13 @@ type TiptapInputProps = InputProps & {
   field: FieldValue;
   children?: React.ReactNode;
   noPresetConfigured?: boolean;
+  isFullscreen?: boolean;
+  footer?: React.ReactNode;
 };
 
 const BaseTiptapInput = forwardRef<HTMLDivElement, TiptapInputProps>(
   (
-    { hint, disabled = false, labelAction, label, name, required = false, editor, field, children, noPresetConfigured },
+    { hint, disabled = false, labelAction, label, name, required = false, editor, field, children, noPresetConfigured, isFullscreen = false, footer },
     forwardedRef
   ) => {
     const { formatMessage } = useIntl();
@@ -30,7 +32,7 @@ const BaseTiptapInput = forwardRef<HTMLDivElement, TiptapInputProps>(
 
         <TiptapInputStyles>
           <Box
-            className={`tiptap-editor-wrapper ${field.error ? 'has-error' : ''} ${disabled ? 'is-disabled' : ''}`}
+            className={`tiptap-editor-wrapper ${field.error ? 'has-error' : ''} ${disabled ? 'is-disabled' : ''} ${isFullscreen ? 'is-fullscreen' : ''}`}
             hasRadius
             borderColor={borderColor}
             background={background}
@@ -66,6 +68,7 @@ const BaseTiptapInput = forwardRef<HTMLDivElement, TiptapInputProps>(
             >
               <EditorContent editor={editor} disabled={disabled} ref={forwardedRef} />
             </Box>
+            {footer}
           </Box>
         </TiptapInputStyles>
 

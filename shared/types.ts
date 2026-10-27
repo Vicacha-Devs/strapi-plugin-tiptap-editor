@@ -54,6 +54,14 @@ export type InformationPaneConfig = {
   variants?: Array<'info' | 'warning' | 'success' | 'danger' | 'neutral' | 'tip'>;
 };
 
+export type TextColorConfig = {
+  customColorPicker?: boolean | { enabled?: boolean };
+};
+
+export type HighlightColorConfig = {
+  customColorPicker?: boolean | { enabled?: boolean };
+};
+
 // ─── Theme types ─────────────────────────────────────────────────────────────
 
 export type ThemeColorEntry = {
@@ -98,8 +106,8 @@ export interface TiptapPresetConfig {
   textAlign?: boolean | TextAlignConfig;
   superscript?: boolean | Record<string, unknown>;
   subscript?: boolean | Record<string, unknown>;
-  textColor?: boolean;
-  highlightColor?: boolean;
+  textColor?: boolean | TextColorConfig;
+  highlightColor?: boolean | HighlightColorConfig;
   mediaLibrary?: boolean | Record<string, unknown>;
   // Edifice IO & Advanced Typography
   fontFamily?: boolean | FontFamilyConfig;

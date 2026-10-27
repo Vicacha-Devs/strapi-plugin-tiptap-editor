@@ -41,10 +41,16 @@ function parseJSONContent(value: string | JSONContent | null | undefined, defaul
   }
 }
 
+export interface UseTiptapEditorOptions {
+  /** Called with the latest ProseMirror JSON after every editor update. */
+  onDocUpdate?: (json: JSONContent) => void;
+}
+
 export function useTiptapEditor(
   name: string,
   defaultValue: string = '',
-  extensions: Extensions = []
+  extensions: Extensions = [],
+  options?: UseTiptapEditorOptions
 ) {
   const field = useField(name);
 
@@ -54,6 +60,7 @@ export function useTiptapEditor(
     onUpdate: ({ editor }) => {
       const json = editor.getJSON();
       field.onChange(name, JSON.stringify(json));
+      options?.onDocUpdate?.(json);
     },
   });
 

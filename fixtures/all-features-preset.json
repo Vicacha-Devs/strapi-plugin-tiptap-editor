@@ -36,7 +36,20 @@
       "speechToText": true,
       "textToSpeech": true,
       "characterCount": true,
-      "fullscreen": true
+      "fullscreen": true,
+      "video": true,
+      "audio": true,
+      "attachment": true,
+      "iframe": true,
+      "linker": true,
+      "fontFamily": true,
+      "fontSize": true,
+      "lineHeight": true,
+      "clearFormatting": true,
+      "typography": true,
+      "leadParagraph": true,
+      "language": true,
+      "abbr": true
     }
   }
 }

@@ -3,7 +3,7 @@
   "content": [
     {
       "type": "heading",
-      "attrs": { "level": 1, "tag": "h1", "textAlign": "left" },
+      "attrs": { "level": 1, "tag": "h1", "id": "lorem-ipsum-dolor-sit-amet", "textAlign": "left" },
       "content": [{ "type": "text", "text": "Lorem Ipsum Dolor Sit Amet" }]
     },
     {
@@ -311,7 +311,12 @@
           "content": [
             {
               "type": "tableHeader",
-              "attrs": { "colspan": 1, "rowspan": 1, "colwidth": null },
+              "attrs": {
+                "colspan": 1,
+                "rowspan": 1,
+                "colwidth": null,
+                "backgroundColor": "#eaf5ff"
+              },
               "content": [
                 {
                   "type": "paragraph",
@@ -464,7 +469,7 @@
     },
     {
       "type": "heading",
-      "attrs": { "level": 2, "tag": "h2", "textAlign": "left" },
+      "attrs": { "level": 2, "tag": "h2", "id": "hard-break", "textAlign": "left" },
       "content": [{ "type": "text", "text": "Hard Break" }]
     },
     {
@@ -478,7 +483,7 @@
     },
     {
       "type": "heading",
-      "attrs": { "level": 2, "tag": "h2", "textAlign": "left" },
+      "attrs": { "level": 2, "tag": "h2", "id": "text-highlight-colors", "textAlign": "left" },
       "content": [{ "type": "text", "text": "Text & Highlight Colors" }]
     },
     {
@@ -548,7 +553,7 @@
     },
     {
       "type": "heading",
-      "attrs": { "level": 2, "tag": "h2", "textAlign": "left" },
+      "attrs": { "level": 2, "tag": "h2", "id": "combined-formatting", "textAlign": "left" },
       "content": [{ "type": "text", "text": "Combined Formatting" }]
     },
     {
@@ -796,6 +801,70 @@
       "type": "pageBreak"
     },
     {
+      "type": "video",
+      "attrs": {
+        "src": "https://example.com/demo-video.mp4",
+        "title": "Demo Video",
+        "caption": "Video caption",
+        "embedType": "file",
+        "data-asset-id": 201,
+        "data-document-id": "doc-video-201",
+        "data-align": "center",
+        "width": 640,
+        "height": 360
+      }
+    },
+    {
+      "type": "video",
+      "attrs": {
+        "src": "https://www.youtube-nocookie.com/embed/dQw4w9WgXcQ",
+        "title": "Embedded YouTube Video",
+        "caption": "YouTube Embed",
+        "embedType": "embed",
+        "data-asset-id": null,
+        "data-document-id": null,
+        "data-align": "center",
+        "width": 640,
+        "height": 360
+      }
+    },
+    {
+      "type": "audio",
+      "attrs": {
+        "src": "https://example.com/demo-audio.webm",
+        "title": "Voice Note",
+        "caption": "Recorded in browser",
+        "mime": "audio/webm",
+        "data-asset-id": 202,
+        "data-document-id": "doc-audio-202",
+        "data-align": "left"
+      }
+    },
+    {
+      "type": "attachment",
+      "attrs": {
+        "href": "https://example.com/handbook.pdf",
+        "src": "https://example.com/handbook.pdf",
+        "title": "Company Handbook",
+        "filename": "handbook.pdf",
+        "mime": "application/pdf",
+        "size": 1048576,
+        "ext": ".pdf",
+        "data-asset-id": 203,
+        "data-document-id": "doc-file-203"
+      }
+    },
+    {
+      "type": "iframe",
+      "attrs": {
+        "src": "https://www.youtube.com/embed/dQw4w9WgXcQ",
+        "title": "Embedded Video",
+        "width": 640,
+        "height": 400,
+        "data-align": "center"
+      }
+    },
+    {
       "type": "paragraph",
       "content": [
         {
@@ -808,6 +877,50 @@
             "latex": "E = mc^2",
             "displayMode": "inline"
           }
+        }
+      ]
+    },
+    {
+      "type": "paragraph",
+      "content": [
+        { "type": "text", "text": "Reference to internal Strapi entry: " },
+        {
+          "type": "linker",
+          "attrs": {
+            "collectionName": "api::article.article",
+            "documentId": "doc-article-99",
+            "label": "Architecture Guide",
+            "href": "strapi://api::article.article/doc-article-99",
+            "status": "published"
+          }
+        }
+      ]
+    },
+    {
+      "type": "leadParagraph",
+      "content": [
+        { "type": "text", "text": "This is a lead paragraph with semantic Marks: " },
+        {
+          "type": "text",
+          "marks": [{ "type": "abbr", "attrs": { "title": "Web Content Accessibility Guidelines" } }],
+          "text": "WCAG"
+        },
+        { "type": "text", "text": " and " },
+        {
+          "type": "text",
+          "marks": [{ "type": "language", "attrs": { "lang": "fr", "dir": "ltr" } }],
+          "text": "Bonjour le monde"
+        },
+        { "type": "text", "text": " and custom typography " },
+        {
+          "type": "text",
+          "marks": [
+            {
+              "type": "textStyle",
+              "attrs": { "fontFamily": "Georgia, serif", "fontSize": "18px", "lineHeight": "1.75" }
+            }
+          ],
+          "text": "styled serif text"
         }
       ]
     }

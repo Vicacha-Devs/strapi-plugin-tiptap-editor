@@ -15,11 +15,31 @@ type TiptapInputProps = InputProps & {
   noPresetConfigured?: boolean;
   isFullscreen?: boolean;
   footer?: React.ReactNode;
+  toolbarRef?: React.RefObject<HTMLDivElement | null>;
+  onToolbarKeyDown?: (event: React.KeyboardEvent<HTMLDivElement>) => void;
 };
 
+/**
+ * Base layout wrapper for the Tiptap rich text editor input, toolbar, content area, and footer.
+ */
 const BaseTiptapInput = forwardRef<HTMLDivElement, TiptapInputProps>(
   (
-    { hint, disabled = false, labelAction, label, name, required = false, editor, field, children, noPresetConfigured, isFullscreen = false, footer },
+    {
+      hint,
+      disabled = false,
+      labelAction,
+      label,
+      name,
+      required = false,
+      editor,
+      field,
+      children,
+      noPresetConfigured,
+      toolbarRef,
+      onToolbarKeyDown,
+      isFullscreen = false,
+      footer,
+    },
     forwardedRef
   ) => {
     const { formatMessage } = useIntl();
@@ -53,7 +73,19 @@ const BaseTiptapInput = forwardRef<HTMLDivElement, TiptapInputProps>(
                 </Status>
               </Box>
             )}
-            <Box className="editor-toolbar" paddingLeft={1} paddingRight={1} paddingBottom={2}>
+            <Box
+              className="editor-toolbar"
+              role="toolbar"
+              aria-label={formatMessage({
+                id: 'tiptap-editor.toolbar.ariaLabel',
+                defaultMessage: 'Rich text formatting toolbar',
+              })}
+              ref={toolbarRef}
+              onKeyDown={onToolbarKeyDown}
+              paddingLeft={1}
+              paddingRight={1}
+              paddingBottom={2}
+            >
               <Flex gap={1} wrap="wrap">
                 {children}
               </Flex>

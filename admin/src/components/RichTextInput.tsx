@@ -15,6 +15,7 @@ import { useTable } from '../extensions/Table';
 import { useTextAlign } from '../extensions/TextAlign';
 import { useTextColor } from '../extensions/TextColor';
 import { useHighlightColor } from '../extensions/HighlightColor';
+import { useKeyboardNavigation } from '../hooks/useKeyboardNavigation';
 import { usePresetConfig } from '../hooks/usePresetConfig';
 import { buildExtensions } from '../utils/buildExtensions';
 import { TiptapPresetConfig, MINIMAL_PRESET_CONFIG, getFeatureOptions } from '../../../shared/types';
@@ -55,6 +56,7 @@ const InnerEditor = forwardRef<HTMLDivElement, InnerEditorProps>(
     const textAlign = useTextAlign(editor, { disabled: props.disabled });
     const textColor = useTextColor(editor, { disabled: props.disabled, config: config.textColor });
     const highlightColor = useHighlightColor(editor, { disabled: props.disabled, config: config.highlightColor });
+    const { toolbarRef, handleToolbarKeyDown } = useKeyboardNavigation(editor);
 
     const toolbarItemCandidates: Array<ToolbarItem | false | undefined> = [
       config.heading && {
@@ -104,21 +106,13 @@ const InnerEditor = forwardRef<HTMLDivElement, InnerEditorProps>(
       config.blockquote && { id: 'blockquote', content: starterKit.blockquoteButton },
       config.link && {
         id: 'link',
-        content: (
-          <>
-            {link.linkButton}
-            {link.linkDialog}
-          </>
-        ),
+        content: link.linkButton,
+        overlay: link.linkDialog,
       },
       config.mediaLibrary && {
         id: 'mediaLibrary',
-        content: (
-          <>
-            {image.imageButton}
-            {image.imageDialog}
-          </>
-        ),
+        content: image.imageButton,
+        overlay: image.imageDialog,
       },
       (config.code || config.blockquote || config.link || config.mediaLibrary) && {
         id: 'insertSpacer',
@@ -133,9 +127,9 @@ const InnerEditor = forwardRef<HTMLDivElement, InnerEditorProps>(
             {table.removeColumnButton}
             {table.addRowButton}
             {table.removeRowButton}
-            {table.tableDialog}
           </>
         ),
+        overlay: table.tableDialog,
       },
     ];
 
@@ -162,6 +156,8 @@ const InnerEditor = forwardRef<HTMLDivElement, InnerEditorProps>(
           {...props}
           ref={forwardedRef}
           noPresetConfigured={!presetName}
+          toolbarRef={toolbarRef}
+          onToolbarKeyDown={handleToolbarKeyDown}
         >
           <ResponsiveToolbar items={toolbarItems} />
         </BaseTiptapInput>

@@ -7,6 +7,7 @@ export type HeadingLevel = 1 | 2 | 3 | 4 | 5 | 6;
 export type LinkConfig = {
   openOnClick?: boolean;
   HTMLAttributes?: Record<string, string>;
+  allowInternalLinks?: boolean;
 };
 
 export type TableConfig = {
@@ -20,6 +21,11 @@ export type TextAlignConfig = {
 
 export type HeadingConfig = {
   levels?: HeadingLevel[];
+};
+
+export type IframeConfig = {
+  allowedDomains?: string[];
+  allowFullscreen?: boolean;
 };
 
 export type TextColorConfig = {
@@ -77,6 +83,11 @@ export interface TiptapPresetConfig {
   textColor?: boolean | TextColorConfig;
   highlightColor?: boolean | HighlightColorConfig;
   mediaLibrary?: boolean | Record<string, unknown>;
+  video?: boolean | Record<string, unknown>;
+  audio?: boolean | Record<string, unknown>;
+  attachment?: boolean | Record<string, unknown>;
+  iframe?: boolean | IframeConfig;
+  linker?: boolean | Record<string, unknown>;
 }
 
 export interface TiptapPluginConfig {
@@ -108,6 +119,11 @@ export const PRESET_FEATURE_KEYS: Array<keyof TiptapPresetConfig> = [
   'textColor',
   'highlightColor',
   'mediaLibrary',
+  'video',
+  'audio',
+  'attachment',
+  'iframe',
+  'linker',
 ];
 
 // Fallback for unconfigured fields — deliberately minimal to prompt developers to configure

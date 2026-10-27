@@ -9,8 +9,8 @@ import {
 } from '../../shared/types';
 
 describe('PRESET_FEATURE_KEYS (TYPES-03)', () => {
-  it('contains exactly 21 keys', () => {
-    expect(PRESET_FEATURE_KEYS).toHaveLength(21);
+  it('contains exactly 26 keys', () => {
+    expect(PRESET_FEATURE_KEYS).toHaveLength(26);
   });
   it('contains all expected feature names', () => {
     expect(PRESET_FEATURE_KEYS).toContain('bold');

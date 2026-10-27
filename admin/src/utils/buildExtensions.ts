@@ -11,6 +11,11 @@ import Highlight from '@tiptap/extension-highlight';
 import { BaseHeadingWithSEOTag } from '../extensions/Heading';
 import { PasteStripper } from '../extensions/PasteStripper';
 import { StrapiImage } from '../extensions/Image';
+import { StrapiVideo } from '../extensions/Video';
+import { StrapiAudio } from '../extensions/Audio';
+import { StrapiAttachment } from '../extensions/Attachment';
+import { StrapiIframe } from '../extensions/Iframe';
+import { StrapiLinker } from '../extensions/Linker';
 import { TiptapPresetConfig, isFeatureEnabled, getFeatureOptions } from '../../../shared/types';
 
 // Helper: converts a preset feature value to StarterKit's expected format
@@ -40,10 +45,20 @@ export function buildExtensions(config: TiptapPresetConfig): Extensions {
     history: starterKitFeatureValue(config.history),
     link: !isFeatureEnabled(config.link)
       ? false
-      : {
-          openOnClick: false,
-          ...getFeatureOptions(config.link, {}),
-        },
+      : (() => {
+          const { allowInternalLinks, ...rest } =
+            (getFeatureOptions(config.link, { allowInternalLinks: true }) as {
+              allowInternalLinks?: boolean;
+              [key: string]: unknown;
+            }) ?? {};
+          return {
+            openOnClick: false,
+            ...rest,
+            ...(allowInternalLinks
+              ? { protocols: [{ scheme: 'strapi', optionalSlashes: false }] }
+              : {}),
+          };
+        })(),
   };
 
   const extensions: Extensions = [StarterKit.configure(starterKitConfig)];
@@ -110,6 +125,28 @@ export function buildExtensions(config: TiptapPresetConfig): Extensions {
   } else {
     extensions.push(StrapiImage.configure({ enableContentCheck: true }));
   }
+
+  // Zero-Data-Loss multimedia & embed nodes: always registered so stored content round-trips
+  // without data loss; content checks are only relaxed when the feature is enabled in the preset.
+  extensions.push(
+    StrapiVideo.configure({ enableContentCheck: !isFeatureEnabled(config.video) }),
+    StrapiAudio.configure({ enableContentCheck: !isFeatureEnabled(config.audio) }),
+    StrapiAttachment.configure({ enableContentCheck: !isFeatureEnabled(config.attachment) })
+  );
+
+  if (isFeatureEnabled(config.iframe)) {
+    const iframeOpts = getFeatureOptions(config.iframe, { allowedDomains: [] });
+    extensions.push(
+      StrapiIframe.configure({
+        enableContentCheck: false,
+        allowedDomains: iframeOpts?.allowedDomains,
+      })
+    );
+  } else {
+    extensions.push(StrapiIframe.configure({ enableContentCheck: true }));
+  }
+
+  extensions.push(StrapiLinker.configure({ enableContentCheck: !isFeatureEnabled(config.linker) }));
 
   extensions.push(Gapcursor);
 

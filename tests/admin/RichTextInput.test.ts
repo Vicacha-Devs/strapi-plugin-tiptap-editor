@@ -118,6 +118,36 @@ vi.mock('../../admin/src/extensions/Image', () => ({
   StrapiImage: { configure: vi.fn(() => ({})) },
 }));
 
+const mockVideo = { videoButton: null, videoDialog: null };
+vi.mock('../../admin/src/extensions/Video', () => ({
+  useVideo: () => mockVideo,
+  StrapiVideo: { configure: vi.fn(() => ({})) },
+}));
+
+const mockAudio = { audioButton: null, audioDialog: null };
+vi.mock('../../admin/src/extensions/Audio', () => ({
+  useAudio: () => mockAudio,
+  StrapiAudio: { configure: vi.fn(() => ({})) },
+}));
+
+const mockAttachment = { attachmentButton: null, attachmentDialog: null };
+vi.mock('../../admin/src/extensions/Attachment', () => ({
+  useAttachment: () => mockAttachment,
+  StrapiAttachment: { configure: vi.fn(() => ({})) },
+}));
+
+const mockIframe = { iframeButton: null, iframeDialog: null };
+vi.mock('../../admin/src/extensions/Iframe', () => ({
+  useIframe: () => mockIframe,
+  StrapiIframe: { configure: vi.fn(() => ({})) },
+}));
+
+const mockLinker = { linkerButton: null, linkerDialog: null };
+vi.mock('../../admin/src/extensions/Linker', () => ({
+  useLinker: () => mockLinker,
+  StrapiLinker: { configure: vi.fn(() => ({})) },
+}));
+
 // ─── Mock components ──────────────────────────────────────────────────────────
 vi.mock('../../admin/src/components/BaseTiptapInput', () => ({
   default: 'BaseTiptapInput',

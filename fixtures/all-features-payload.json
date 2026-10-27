@@ -593,6 +593,86 @@
         },
         { "type": "text", "text": " for good measure." }
       ]
+    },
+    {
+      "type": "video",
+      "attrs": {
+        "src": "https://example.com/demo-video.mp4",
+        "title": "Demo Video",
+        "caption": "Video caption",
+        "embedType": "file",
+        "data-asset-id": 201,
+        "data-document-id": "doc-video-201",
+        "data-align": "center",
+        "width": 640,
+        "height": 360
+      }
+    },
+    {
+      "type": "video",
+      "attrs": {
+        "src": "https://www.youtube-nocookie.com/embed/dQw4w9WgXcQ",
+        "title": "Embedded YouTube Video",
+        "caption": "YouTube Embed",
+        "embedType": "embed",
+        "data-asset-id": null,
+        "data-document-id": null,
+        "data-align": "center",
+        "width": 640,
+        "height": 360
+      }
+    },
+    {
+      "type": "audio",
+      "attrs": {
+        "src": "https://example.com/demo-audio.webm",
+        "title": "Voice Note",
+        "caption": "Recorded in browser",
+        "mime": "audio/webm",
+        "data-asset-id": 202,
+        "data-document-id": "doc-audio-202",
+        "data-align": "left"
+      }
+    },
+    {
+      "type": "attachment",
+      "attrs": {
+        "href": "https://example.com/handbook.pdf",
+        "src": "https://example.com/handbook.pdf",
+        "title": "Company Handbook",
+        "filename": "handbook.pdf",
+        "mime": "application/pdf",
+        "size": 1048576,
+        "ext": ".pdf",
+        "data-asset-id": 203,
+        "data-document-id": "doc-file-203"
+      }
+    },
+    {
+      "type": "iframe",
+      "attrs": {
+        "src": "https://www.youtube.com/embed/dQw4w9WgXcQ",
+        "title": "Embedded Video",
+        "width": 640,
+        "height": 400,
+        "data-align": "center"
+      }
+    },
+    {
+      "type": "paragraph",
+      "content": [
+        { "type": "text", "text": "Reference to internal Strapi entry: " },
+        {
+          "type": "linker",
+          "attrs": {
+            "collectionName": "api::article.article",
+            "documentId": "doc-article-99",
+            "label": "Architecture Guide",
+            "href": "strapi://api::article.article/doc-article-99",
+            "status": "published"
+          }
+        }
+      ]
     }
   ]
 }

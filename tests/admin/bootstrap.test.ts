@@ -10,10 +10,12 @@ vi.mock('../../admin/src/utils/themeCache', () => ({
   getThemeCache: vi.fn(() => null),
 }));
 
-// Mock Strapi design system (used by PresetSelect)
+// Mock Strapi design system (used by PresetSelect and ToolbarButton)
 vi.mock('@strapi/design-system', () => ({
   SingleSelect: 'SingleSelect',
   SingleSelectOption: 'SingleSelectOption',
+  Tooltip: 'Tooltip',
+  IconButton: 'IconButton',
 }));
 
 // Mock @strapi/strapi/admin
@@ -26,6 +28,7 @@ vi.mock('@strapi/strapi/admin', () => ({
 vi.mock('react', () => ({
   default: {
     createElement: vi.fn(),
+    forwardRef: vi.fn((fn: any) => fn),
   },
   useState: vi.fn(() => [null, vi.fn()]),
   useEffect: vi.fn(),

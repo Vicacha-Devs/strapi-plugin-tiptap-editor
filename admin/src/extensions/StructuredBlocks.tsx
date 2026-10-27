@@ -11,20 +11,7 @@ import {
 import { Check } from '@strapi/icons';
 import { useIntl } from 'react-intl';
 import { ToolbarButton } from '../components/ToolbarButton';
-
-/**
- * Generates a URL-safe slug identifier from heading text for anchor links and Table of Contents.
- */
-const slugifyHeadingText = (text: string): string =>
-  text
-    .normalize('NFKD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .toLowerCase()
-    .trim()
-    .replace(/[^\p{L}\p{N}\s-]/gu, '')
-    .replace(/\s+/g, '-')
-    .replace(/-+/g, '-')
-    .replace(/^-|-$/g, '');
+import { slugifyHeadingText } from './Heading';
 
 // ─── 1. Accordion / Collapsible (<details> + <summary>) ─────────────────────
 
@@ -665,6 +652,7 @@ export function useStructuredBlocks(
         onClick={insertAccordion}
         icon={<span style={{ fontSize: '1.1rem', fontWeight: 700 }}>▸ Details</span>}
         active={editorState?.isAccordion ?? false}
+        toggle
         disabled={isDisabled}
         tooltip={formatMessage({
           id: 'tiptap-editor.toolbar.accordion',
@@ -677,6 +665,7 @@ export function useStructuredBlocks(
         onClick={() => insertColumns('1:1')}
         icon={<span style={{ fontSize: '1.1rem', fontWeight: 700 }}>▥ 2-Col</span>}
         active={editorState?.isColumns ?? false}
+        toggle
         disabled={isDisabled}
         tooltip={formatMessage({
           id: 'tiptap-editor.toolbar.columns',
@@ -689,6 +678,7 @@ export function useStructuredBlocks(
         onClick={insertTaskList}
         icon={<Check />}
         active={editorState?.isTaskList ?? false}
+        toggle
         disabled={isDisabled}
         tooltip={formatMessage({
           id: 'tiptap-editor.toolbar.taskList',
@@ -701,6 +691,7 @@ export function useStructuredBlocks(
         onClick={insertConversationHistory}
         icon={<span style={{ fontSize: '1.1rem', fontWeight: 700 }}>💬 Thread</span>}
         active={editorState?.isConversation ?? false}
+        toggle
         disabled={isDisabled}
         tooltip={formatMessage({
           id: 'tiptap-editor.toolbar.conversationHistory',

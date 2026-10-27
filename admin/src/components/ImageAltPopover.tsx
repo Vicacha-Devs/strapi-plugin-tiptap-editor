@@ -244,6 +244,7 @@ export function ImageNodeView({
               onClick={() => handleAlign('left')}
               icon={<TextAlignLeft />}
               active={currentAlign === 'left'}
+              toggle
               disabled={false}
               tooltip={formatMessage({
                 id: 'tiptap-editor.image.alignLeft',
@@ -255,6 +256,7 @@ export function ImageNodeView({
               onClick={() => handleAlign('center')}
               icon={<TextAlignCenter />}
               active={currentAlign === 'center'}
+              toggle
               disabled={false}
               tooltip={formatMessage({
                 id: 'tiptap-editor.image.alignCenter',
@@ -266,6 +268,7 @@ export function ImageNodeView({
               onClick={() => handleAlign('right')}
               icon={<TextAlignRight />}
               active={currentAlign === 'right'}
+              toggle
               disabled={false}
               tooltip={formatMessage({
                 id: 'tiptap-editor.image.alignRight',

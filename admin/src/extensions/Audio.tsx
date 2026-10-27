@@ -17,7 +17,7 @@ import { useIntl } from 'react-intl';
 import { ToolbarButton } from '../components/ToolbarButton';
 import { MediaLibraryWrapper, type StrapiFile } from '../components/MediaLibraryWrapper';
 import { uploadFileToStrapi } from '../utils/strapiApp';
-import { isSafeUrl } from '../../../shared/urlSafety';
+import { isSafeUrl } from '../../../shared/contentSerializer';
 
 export interface StrapiAudioOptions {
   HTMLAttributes: Record<string, unknown>;
@@ -437,6 +437,7 @@ export function useAudio(
       onClick={() => setShowAudioDialog(true)}
       icon={<Microphone />}
       active={false}
+      tint="rose"
       disabled={props.disabled || !editor || (editorState?.isInCodeBlock ?? false)}
       tooltip={formatMessage({
         id: 'tiptap-editor.toolbar.insertAudio',

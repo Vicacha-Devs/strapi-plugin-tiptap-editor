@@ -311,12 +311,7 @@
           "content": [
             {
               "type": "tableHeader",
-              "attrs": {
-                "colspan": 1,
-                "rowspan": 1,
-                "colwidth": null,
-                "backgroundColor": "#eaf5ff"
-              },
+              "attrs": { "colspan": 1, "rowspan": 1, "colwidth": null },
               "content": [
                 {
                   "type": "paragraph",
@@ -454,7 +449,12 @@
             },
             {
               "type": "tableCell",
-              "attrs": { "colspan": 1, "rowspan": 1, "colwidth": null },
+              "attrs": {
+                "colspan": 1,
+                "rowspan": 1,
+                "colwidth": null,
+                "backgroundColor": "#eaf5ff"
+              },
               "content": [
                 {
                   "type": "paragraph",
@@ -477,7 +477,9 @@
       "attrs": { "textAlign": "left" },
       "content": [
         { "type": "text", "text": "First line of text." },
+        { "type": "hardBreak" },
         { "type": "text", "text": "Second line after a hard break." },
+        { "type": "hardBreak" },
         { "type": "text", "text": "Third line after another hard break." }
       ]
     },
@@ -508,8 +510,10 @@
       "attrs": {
         "src": "https://example.com/test-image.jpg",
         "alt": "Test image alt text",
-        "title": null,
+        "title": "Test image title",
+        "caption": "Test image caption",
         "data-asset-id": 42,
+        "data-document-id": "doc-img-42",
         "data-align": "center",
         "width": 400,
         "height": 300
@@ -521,7 +525,9 @@
         "src": "https://example.com/another-image.jpg",
         "alt": null,
         "title": null,
+        "caption": null,
         "data-asset-id": null,
+        "data-document-id": null,
         "data-align": null,
         "width": null,
         "height": null
@@ -533,7 +539,9 @@
         "src": "https://example.com/right-aligned-image.jpg",
         "alt": "Right-aligned test image",
         "title": null,
+        "caption": "Right-aligned image caption",
         "data-asset-id": 99,
+        "data-document-id": "doc-img-99",
         "data-align": "right",
         "width": 250,
         "height": 180
@@ -545,7 +553,9 @@
         "src": "https://example.com/left-aligned-image.jpg",
         "alt": "Explicitly left-aligned test image",
         "title": null,
+        "caption": null,
         "data-asset-id": 100,
+        "data-document-id": "doc-img-100",
         "data-align": "left",
         "width": null,
         "height": null
@@ -600,67 +610,74 @@
       ]
     },
     {
+      "type": "leadParagraph",
+      "content": [
+        {
+          "type": "text",
+          "text": "This is a lead paragraph with semantic Marks: "
+        },
+        {
+          "type": "text",
+          "marks": [{ "type": "abbr", "attrs": { "title": "Web Content Accessibility Guidelines" } }],
+          "text": "WCAG"
+        },
+        { "type": "text", "text": " and " },
+        {
+          "type": "text",
+          "marks": [{ "type": "language", "attrs": { "lang": "fr", "dir": "ltr" } }],
+          "text": "Bonjour le monde"
+        },
+        { "type": "text", "text": " and custom typography " },
+        {
+          "type": "text",
+          "marks": [
+            {
+              "type": "textStyle",
+              "attrs": {
+                "fontFamily": "Georgia, serif",
+                "fontSize": "18px",
+                "lineHeight": "1.75"
+              }
+            }
+          ],
+          "text": "styled serif text"
+        }
+      ]
+    },
+    {
       "type": "informationPane",
-      "attrs": {
-        "variant": "info",
-        "title": "Information Notice"
-      },
+      "attrs": { "variant": "info", "title": "Information Notice" },
       "content": [
         {
           "type": "paragraph",
-          "content": [
-            {
-              "type": "text",
-              "text": "Important callout inside an Information Pane."
-            }
-          ]
+          "content": [{ "type": "text", "text": "Important callout inside an Information Pane." }]
         }
       ]
     },
     {
       "type": "conversationHistory",
-      "attrs": {
-        "author": "Editor Team",
-        "timestamp": "2026-10-09 10:00"
-      },
+      "attrs": { "author": "Editor Team", "timestamp": "2026-10-09 10:00" },
       "content": [
         {
           "type": "paragraph",
-          "content": [
-            {
-              "type": "text",
-              "text": "Logged discussion note in conversation history."
-            }
-          ]
+          "content": [{ "type": "text", "text": "Logged discussion note in conversation history." }]
         }
       ]
     },
     {
       "type": "details",
-      "attrs": {
-        "open": true
-      },
+      "attrs": { "open": true },
       "content": [
         {
           "type": "detailsSummary",
-          "content": [
-            {
-              "type": "text",
-              "text": "Expandable Accordion Section"
-            }
-          ]
+          "content": [{ "type": "text", "text": "Expandable Accordion Section" }]
         },
         {
           "type": "detailsContent",
           "content": [
             {
               "type": "paragraph",
-              "content": [
-                {
-                  "type": "text",
-                  "text": "Hidden details content revealed on click."
-                }
-              ]
+              "content": [{ "type": "text", "text": "Hidden details content revealed on click." }]
             }
           ]
         }
@@ -668,21 +685,14 @@
     },
     {
       "type": "layoutContainer",
-      "attrs": {
-        "columns": "1:1"
-      },
+      "attrs": { "columns": "1:1" },
       "content": [
         {
           "type": "layoutColumn",
           "content": [
             {
               "type": "paragraph",
-              "content": [
-                {
-                  "type": "text",
-                  "text": "Left column content."
-                }
-              ]
+              "content": [{ "type": "text", "text": "Left column content." }]
             }
           ]
         },
@@ -691,12 +701,7 @@
           "content": [
             {
               "type": "paragraph",
-              "content": [
-                {
-                  "type": "text",
-                  "text": "Right column content."
-                }
-              ]
+              "content": [{ "type": "text", "text": "Right column content." }]
             }
           ]
         }
@@ -704,21 +709,14 @@
     },
     {
       "type": "layoutContainer",
-      "attrs": {
-        "columns": "1:1:1"
-      },
+      "attrs": { "columns": "1:1:1" },
       "content": [
         {
           "type": "layoutColumn",
           "content": [
             {
               "type": "paragraph",
-              "content": [
-                {
-                  "type": "text",
-                  "text": "Column 1 content."
-                }
-              ]
+              "content": [{ "type": "text", "text": "Column 1 content." }]
             }
           ]
         },
@@ -727,12 +725,7 @@
           "content": [
             {
               "type": "paragraph",
-              "content": [
-                {
-                  "type": "text",
-                  "text": "Column 2 content."
-                }
-              ]
+              "content": [{ "type": "text", "text": "Column 2 content." }]
             }
           ]
         },
@@ -741,12 +734,7 @@
           "content": [
             {
               "type": "paragraph",
-              "content": [
-                {
-                  "type": "text",
-                  "text": "Column 3 content."
-                }
-              ]
+              "content": [{ "type": "text", "text": "Column 3 content." }]
             }
           ]
         }
@@ -757,48 +745,32 @@
       "content": [
         {
           "type": "taskItem",
-          "attrs": {
-            "checked": true
-          },
+          "attrs": { "checked": true },
           "content": [
             {
               "type": "paragraph",
-              "content": [
-                {
-                  "type": "text",
-                  "text": "Completed checklist task"
-                }
-              ]
+              "content": [{ "type": "text", "text": "Completed checklist task" }]
             }
           ]
         },
         {
           "type": "taskItem",
-          "attrs": {
-            "checked": false
-          },
+          "attrs": { "checked": false },
           "content": [
             {
               "type": "paragraph",
-              "content": [
-                {
-                  "type": "text",
-                  "text": "Pending checklist task"
-                }
-              ]
+              "content": [{ "type": "text", "text": "Pending checklist task" }]
             }
           ]
         }
       ]
     },
     {
-      "type": "tableOfContents",
-      "attrs": {
-        "headings": []
-      }
-    },
-    {
-      "type": "pageBreak"
+      "type": "paragraph",
+      "content": [
+        { "type": "text", "text": "Energy: " },
+        { "type": "mathematics", "attrs": { "latex": "E = mc^2", "displayMode": "inline" } }
+      ]
     },
     {
       "type": "video",
@@ -867,22 +839,6 @@
     {
       "type": "paragraph",
       "content": [
-        {
-          "type": "text",
-          "text": "Energy: "
-        },
-        {
-          "type": "mathematics",
-          "attrs": {
-            "latex": "E = mc^2",
-            "displayMode": "inline"
-          }
-        }
-      ]
-    },
-    {
-      "type": "paragraph",
-      "content": [
         { "type": "text", "text": "Reference to internal Strapi entry: " },
         {
           "type": "linker",
@@ -897,32 +853,12 @@
       ]
     },
     {
-      "type": "leadParagraph",
-      "content": [
-        { "type": "text", "text": "This is a lead paragraph with semantic Marks: " },
-        {
-          "type": "text",
-          "marks": [{ "type": "abbr", "attrs": { "title": "Web Content Accessibility Guidelines" } }],
-          "text": "WCAG"
-        },
-        { "type": "text", "text": " and " },
-        {
-          "type": "text",
-          "marks": [{ "type": "language", "attrs": { "lang": "fr", "dir": "ltr" } }],
-          "text": "Bonjour le monde"
-        },
-        { "type": "text", "text": " and custom typography " },
-        {
-          "type": "text",
-          "marks": [
-            {
-              "type": "textStyle",
-              "attrs": { "fontFamily": "Georgia, serif", "fontSize": "18px", "lineHeight": "1.75" }
-            }
-          ],
-          "text": "styled serif text"
-        }
-      ]
+      "type": "tableOfContents",
+      "attrs": { "headings": [] }
+    },
+    {
+      "type": "pageBreak"
     }
   ]
 }
+

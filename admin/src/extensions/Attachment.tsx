@@ -7,7 +7,7 @@ import { Trash, Paperclip } from '@strapi/icons';
 import { useIntl } from 'react-intl';
 import { ToolbarButton } from '../components/ToolbarButton';
 import { MediaLibraryWrapper, type StrapiFile } from '../components/MediaLibraryWrapper';
-import { isSafeUrl } from '../../../shared/urlSafety';
+import { isSafeUrl } from '../../../shared/contentSerializer';
 
 export interface StrapiAttachmentOptions {
   HTMLAttributes: Record<string, unknown>;
@@ -247,6 +247,7 @@ export function useAttachment(
       onClick={() => setShowMediaLibrary(true)}
       icon={<Paperclip />}
       active={false}
+      tint="amber"
       disabled={props.disabled || !editor || (editorState?.isInCodeBlock ?? false)}
       tooltip={formatMessage({
         id: 'tiptap-editor.toolbar.insertAttachment',

@@ -12,11 +12,14 @@ import { TiptapPresetConfig, getFeatureOptions, isFeatureEnabled } from '../../.
 function HighlightColorIcon({ underColor }: { underColor: string }) {
   return (
     <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true">
-      <rect x="2" y="1" width="12" height="12" rx="2" fill={underColor} />
-      <text x="8" y="11" fontFamily="serif" fontSize="12" fontWeight="bold" fill="currentColor" textAnchor="middle">
-        A
-      </text>
-      <rect x="2" y="13" width="12" height="2" fill={underColor} rx="1" />
+      <path
+        d="M9.8 1.8L13.2 5.2L6.6 11.8L3.2 11.8L3.2 8.4L9.8 1.8Z"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.4"
+        strokeLinejoin="round"
+      />
+      <rect x="2" y="13.2" width="12" height="2.2" fill={underColor} rx="1" />
     </svg>
   );
 }
@@ -100,20 +103,23 @@ export function useHighlightColor(editor: Editor | null, props: { disabled?: boo
   }, []);
 
   const activeColor = editorState?.activeColor;
-  const underColor = activeColor ?? '#999999';
+  const underColor = activeColor ?? '#facc15';
+
+  const triggerButton = (
+    <ToolbarButton
+      onClick={() => (showPicker ? handleInteractOutside() : openPicker())}
+      icon={<HighlightColorIcon underColor={underColor} />}
+      active={showPicker}
+      disabled={props.disabled || !editor}
+      tooltip="Highlight color"
+    />
+  );
 
   return {
+    highlightColorTrigger: triggerButton,
     highlightColorButton: (
       <Popover.Root open={showPicker} onOpenChange={handleOpenChange}>
-        <Popover.Anchor>
-          <ToolbarButton
-            onClick={() => (showPicker ? handleInteractOutside() : openPicker())}
-            icon={<HighlightColorIcon underColor={underColor} />}
-            active={showPicker}
-            disabled={props.disabled || !editor}
-            tooltip="Highlight color"
-          />
-        </Popover.Anchor>
+        <Popover.Anchor>{triggerButton}</Popover.Anchor>
         <Popover.Content
           side="bottom"
           align="start"

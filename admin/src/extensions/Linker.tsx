@@ -16,10 +16,8 @@ import { Link as LinkIcon, Trash } from '@strapi/icons';
 import { useIntl } from 'react-intl';
 import { ToolbarButton } from '../components/ToolbarButton';
 import { PLUGIN_ID } from '../../../shared/pluginId';
-import { isSafeUrl } from '../../../shared/urlSafety';
-
-const formatStrapiLinkUri = (collectionName: string, documentId: string): string =>
-  `strapi://${collectionName.trim()}/${documentId.trim()}`;
+import { formatStrapiLinkUri } from '../../../shared/relations';
+import { isSafeUrl } from '../../../shared/contentSerializer';
 
 export interface StrapiLinkerOptions {
   HTMLAttributes: Record<string, unknown>;

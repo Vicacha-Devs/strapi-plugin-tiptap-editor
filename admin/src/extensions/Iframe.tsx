@@ -18,7 +18,7 @@ import { ToolbarButton } from '../components/ToolbarButton';
 import { TextAlignLeft } from '../icons/TextAlignLeft';
 import { TextAlignCenter } from '../icons/TextAlignCenter';
 import { TextAlignRight } from '../icons/TextAlignRight';
-import { isSafeIframeUrl } from '../../../shared/urlSafety';
+import { isSafeIframeUrl } from '../../../shared/contentSerializer';
 
 export const DEFAULT_ALLOWED_IFRAME_DOMAINS = [
   'youtube.com',
@@ -174,6 +174,7 @@ export function IframeNodeView(props: NodeViewProps) {
                 onClick={() => handleAlign('left')}
                 icon={<TextAlignLeft />}
                 active={currentAlign === 'left'}
+                toggle
                 tooltip={formatMessage({
                   id: 'tiptap-editor.iframe.alignLeft',
                   defaultMessage: 'Align left',
@@ -183,6 +184,7 @@ export function IframeNodeView(props: NodeViewProps) {
                 onClick={() => handleAlign('center')}
                 icon={<TextAlignCenter />}
                 active={currentAlign === 'center'}
+                toggle
                 tooltip={formatMessage({
                   id: 'tiptap-editor.iframe.alignCenter',
                   defaultMessage: 'Align center',
@@ -192,6 +194,7 @@ export function IframeNodeView(props: NodeViewProps) {
                 onClick={() => handleAlign('right')}
                 icon={<TextAlignRight />}
                 active={currentAlign === 'right'}
+                toggle
                 tooltip={formatMessage({
                   id: 'tiptap-editor.iframe.alignRight',
                   defaultMessage: 'Align right',

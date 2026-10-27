@@ -14,6 +14,8 @@ import {
   type TiptapCustomExtensionRegistration,
   type CustomExtensionToolbarProps,
   type CustomExtensionDialogProps,
+  type CustomSlashCommandItem,
+  type CustomSlashCommandHelpers,
 } from './utils/customExtensionRegistry';
 
 import { richTextField } from './fields/richTextField';
@@ -30,6 +32,8 @@ export {
   type TiptapCustomExtensionRegistration,
   type CustomExtensionToolbarProps,
   type CustomExtensionDialogProps,
+  type CustomSlashCommandItem,
+  type CustomSlashCommandHelpers,
 };
 
 export default {

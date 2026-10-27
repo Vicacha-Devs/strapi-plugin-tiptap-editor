@@ -18,7 +18,7 @@ import { TextAlignLeft } from '../icons/TextAlignLeft';
 import { TextAlignCenter } from '../icons/TextAlignCenter';
 import { TextAlignRight } from '../icons/TextAlignRight';
 import { MediaLibraryWrapper, type StrapiFile } from '../components/MediaLibraryWrapper';
-import { isSafeIframeUrl, isSafeUrl } from '../../../shared/urlSafety';
+import { isSafeIframeUrl, isSafeUrl } from '../../../shared/contentSerializer';
 
 const VIDEO_EMBED_HOSTS = ['youtube-nocookie.com', 'player.vimeo.com'];
 const isSafeVideoEmbedSrc = (src: string) => isSafeIframeUrl(src, VIDEO_EMBED_HOSTS);
@@ -209,6 +209,7 @@ export function VideoNodeView({ node, updateAttributes, deleteNode, selected }: 
                 onClick={() => handleAlign('left')}
                 icon={<TextAlignLeft />}
                 active={currentAlign === 'left'}
+                toggle
                 tooltip={formatMessage({
                   id: 'tiptap-editor.video.alignLeft',
                   defaultMessage: 'Align left',
@@ -218,6 +219,7 @@ export function VideoNodeView({ node, updateAttributes, deleteNode, selected }: 
                 onClick={() => handleAlign('center')}
                 icon={<TextAlignCenter />}
                 active={currentAlign === 'center'}
+                toggle
                 tooltip={formatMessage({
                   id: 'tiptap-editor.video.alignCenter',
                   defaultMessage: 'Align center',
@@ -227,6 +229,7 @@ export function VideoNodeView({ node, updateAttributes, deleteNode, selected }: 
                 onClick={() => handleAlign('right')}
                 icon={<TextAlignRight />}
                 active={currentAlign === 'right'}
+                toggle
                 tooltip={formatMessage({
                   id: 'tiptap-editor.video.alignRight',
                   defaultMessage: 'Align right',
@@ -445,6 +448,7 @@ export function useVideo(
       }}
       icon={<Play />}
       active={false}
+      tint="purple"
       disabled={props.disabled || !editor || (editorState?.isInCodeBlock ?? false)}
       tooltip={formatMessage({
         id: 'tiptap-editor.toolbar.insertVideo',

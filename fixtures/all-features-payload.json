@@ -311,12 +311,7 @@
           "content": [
             {
               "type": "tableHeader",
-              "attrs": {
-                "colspan": 1,
-                "rowspan": 1,
-                "colwidth": null,
-                "backgroundColor": "#eaf5ff"
-              },
+              "attrs": { "colspan": 1, "rowspan": 1, "colwidth": null },
               "content": [
                 {
                   "type": "paragraph",

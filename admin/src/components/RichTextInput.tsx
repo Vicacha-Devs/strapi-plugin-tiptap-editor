@@ -425,8 +425,10 @@ const InnerEditor = forwardRef<HTMLDivElement, InnerEditorProps>(
         id: 'textAlign',
         content: textAlign.textAlignDropdown ?? (
           <>
-            {semanticMarks.abbrButton}
-            {semanticMarks.abbrDialog}
+            {textAlign.textAlignLeftButton}
+            {textAlign.textAlignCenterButton}
+            {textAlign.textAlignRightButton}
+            {textAlign.textAlignJustifyButton}
           </>
         ),
         measureContent: textAlign.textAlignTrigger,
@@ -646,7 +648,6 @@ const InnerEditor = forwardRef<HTMLDivElement, InnerEditorProps>(
         ),
         overflowOnly: true,
       },
-      ...customExtensionToolbarItems,
     ];
 
     const rawToolbarItems = toolbarItemCandidates.filter(isToolbarItem);

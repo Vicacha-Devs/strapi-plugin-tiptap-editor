@@ -105,5 +105,8 @@
   "bugs": {
     "url": "https://github.com/notum-cz/strapi-plugin-tiptap-editor/issues"
   },
-  "homepage": "https://github.com/notum-cz/strapi-plugin-tiptap-editor#readme"
+  "homepage": "https://github.com/notum-cz/strapi-plugin-tiptap-editor#readme",
+  "engines": {
+    "node": "^20.19.0 || ^22.13.0 || >=24.0.0"
+  }
 }

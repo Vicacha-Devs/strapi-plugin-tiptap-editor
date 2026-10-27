@@ -137,3 +137,12 @@ yarn-error.log
 
 coverage
 .planning/
+
+############################
+# CodeGraph
+############################
+
+.codegraph/
+
+# Archify scratch directory
+.archify/

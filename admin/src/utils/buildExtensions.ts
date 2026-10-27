@@ -3,10 +3,10 @@ import StarterKit from '@tiptap/starter-kit';
 import Superscript from '@tiptap/extension-superscript';
 import Subscript from '@tiptap/extension-subscript';
 import Underline from '@tiptap/extension-underline';
-import { TableKit } from '@tiptap/extension-table';
+import { TableKit, TableCell, TableHeader } from '@tiptap/extension-table';
 import TextAlign from '@tiptap/extension-text-align';
 import { Gapcursor } from '@tiptap/extensions';
-import { TextStyle, Color } from '@tiptap/extension-text-style';
+import { TextStyle, Color, FontFamily, FontSize, LineHeight } from '@tiptap/extension-text-style';
 import Highlight from '@tiptap/extension-highlight';
 import { BaseHeadingWithSEOTag } from '../extensions/Heading';
 import { PasteStripper } from '../extensions/PasteStripper';
@@ -15,7 +15,51 @@ import {
   isCustomExtensionEnabledForPreset,
 } from './customExtensionRegistry';
 import { StrapiImage } from '../extensions/Image';
+import { SmartTypographyExtension } from '../extensions/TypographyControls';
+import { LeadParagraph, LanguageMark, AbbrMark } from '../extensions/SemanticMarks';
 import { TiptapPresetConfig, isFeatureEnabled, getFeatureOptions } from '../../../shared/types';
+
+// Custom TableCell & TableHeader with backgroundColor support
+const SAFE_CSS_COLOR =
+  /^(#[0-9a-f]{3,8}|(?:rgb|hsl)a?\([\d\s.,%/-]+\)|var\(--[\w-]+\)|[a-z]+)$/i;
+
+const toSafeColor = (raw: unknown): string | null => {
+  if (typeof raw !== 'string') return null;
+  const value = raw.trim();
+  return value && SAFE_CSS_COLOR.test(value) ? value : null;
+};
+
+const backgroundColorAttribute = {
+  default: null,
+  parseHTML: (el: HTMLElement) =>
+    toSafeColor(el.getAttribute('data-background-color') || el.style?.backgroundColor),
+  renderHTML: (attrs: Record<string, unknown>) => {
+    const color = toSafeColor(attrs.backgroundColor);
+    if (!color) return {};
+    return {
+      'data-background-color': color,
+      style: `background-color: ${color}`,
+    };
+  },
+};
+
+const CustomTableCell = TableCell.extend({
+  addAttributes() {
+    return {
+      ...(this as any).parent?.(),
+      backgroundColor: backgroundColorAttribute,
+    };
+  },
+});
+
+const CustomTableHeader = TableHeader.extend({
+  addAttributes() {
+    return {
+      ...(this as any).parent?.(),
+      backgroundColor: backgroundColorAttribute,
+    };
+  },
+});
 
 // Helper: converts a preset feature value to StarterKit's expected format
 // false = disable the sub-extension, {} = enable with defaults
@@ -55,9 +99,15 @@ export function buildExtensions(config: TiptapPresetConfig): Extensions {
   if (isFeatureEnabled(config.heading)) {
     const headingConfig = getFeatureOptions(config.heading, {
       levels: [1, 2, 3, 4, 5, 6] as const,
+      autoSlugId: true,
     });
     const levels = headingConfig?.levels || [1, 2, 3, 4, 5, 6];
-    extensions.push(BaseHeadingWithSEOTag.configure({ levels }));
+    extensions.push(
+      BaseHeadingWithSEOTag.configure({
+        levels,
+        autoSlugId: (headingConfig as { autoSlugId?: boolean })?.autoSlugId ?? true,
+      } as any)
+    );
   }
 
   if (isFeatureEnabled(config.underline)) {
@@ -79,7 +129,11 @@ export function buildExtensions(config: TiptapPresetConfig): Extensions {
           resizable: true,
           ...getFeatureOptions(config.table, {}),
         },
-      })
+        tableCell: false,
+        tableHeader: false,
+      }),
+      CustomTableCell,
+      CustomTableHeader
     );
   }
 
@@ -97,7 +151,11 @@ export function buildExtensions(config: TiptapPresetConfig): Extensions {
   }
 
   const needsTextStyle =
-    isFeatureEnabled(config.textColor) || isFeatureEnabled(config.highlightColor);
+    isFeatureEnabled(config.textColor) ||
+    isFeatureEnabled(config.highlightColor) ||
+    isFeatureEnabled(config.fontFamily) ||
+    isFeatureEnabled(config.fontSize) ||
+    isFeatureEnabled(config.lineHeight);
   if (needsTextStyle) {
     extensions.push(TextStyle);
     extensions.push(PasteStripper);
@@ -108,11 +166,27 @@ export function buildExtensions(config: TiptapPresetConfig): Extensions {
   if (isFeatureEnabled(config.highlightColor)) {
     extensions.push(Highlight.configure({ multicolor: true }));
   }
+  if (isFeatureEnabled(config.fontFamily)) {
+    extensions.push(FontFamily);
+  }
+  if (isFeatureEnabled(config.fontSize)) {
+    extensions.push(FontSize);
+  }
+  if (isFeatureEnabled(config.lineHeight)) {
+    extensions.push(LineHeight);
+  }
   if (isFeatureEnabled(config.mediaLibrary)) {
     const mediaOpts = getFeatureOptions(config.mediaLibrary, {});
     extensions.push(StrapiImage.configure(mediaOpts ?? {}));
   } else {
     extensions.push(StrapiImage.configure({ enableContentCheck: true }));
+  }
+
+  // Schema-only: always registered so stored semantic marks round-trip without data loss
+  extensions.push(LeadParagraph, LanguageMark, AbbrMark);
+
+  if (isFeatureEnabled(config.typography)) {
+    extensions.push(SmartTypographyExtension);
   }
 
   extensions.push(Gapcursor);

@@ -111,6 +111,24 @@ vi.mock('../../admin/src/extensions/TextAlign', () => ({
   useTextAlign: () => mockTextAlign,
 }));
 
+vi.mock('../../admin/src/extensions/TypographyControls', () => ({
+  useTypographyControls: () => ({
+    fontFamilySelect: null,
+    fontSizeSelect: null,
+    lineHeightSelect: null,
+    clearFormattingButton: null,
+  }),
+}));
+vi.mock('../../admin/src/extensions/SemanticMarks', () => ({
+  useSemanticMarks: () => ({
+    leadParagraphButton: null,
+    abbrButton: null,
+    abbrDialog: null,
+    languageButton: null,
+    languageDialog: null,
+  }),
+}));
+
 // ─── Mock color extension hooks ───────────────────────────────────────────────
 const mockUseTextColor = vi.fn(() => ({ textColorButton: null }));
 const mockUseHighlightColor = vi.fn(() => ({ highlightColorButton: null }));

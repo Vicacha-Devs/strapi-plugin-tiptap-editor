@@ -3,7 +3,7 @@
   "content": [
     {
       "type": "heading",
-      "attrs": { "level": 1, "tag": "h1", "textAlign": "left" },
+      "attrs": { "level": 1, "tag": "h1", "id": "lorem-ipsum-dolor-sit-amet", "textAlign": "left" },
       "content": [{ "type": "text", "text": "Lorem Ipsum Dolor Sit Amet" }]
     },
     {
@@ -311,7 +311,12 @@
           "content": [
             {
               "type": "tableHeader",
-              "attrs": { "colspan": 1, "rowspan": 1, "colwidth": null },
+              "attrs": {
+                "colspan": 1,
+                "rowspan": 1,
+                "colwidth": null,
+                "backgroundColor": "#eaf5ff"
+              },
               "content": [
                 {
                   "type": "paragraph",
@@ -464,7 +469,7 @@
     },
     {
       "type": "heading",
-      "attrs": { "level": 2, "tag": "h2", "textAlign": "left" },
+      "attrs": { "level": 2, "tag": "h2", "id": "hard-break", "textAlign": "left" },
       "content": [{ "type": "text", "text": "Hard Break" }]
     },
     {
@@ -478,7 +483,7 @@
     },
     {
       "type": "heading",
-      "attrs": { "level": 2, "tag": "h2", "textAlign": "left" },
+      "attrs": { "level": 2, "tag": "h2", "id": "text-highlight-colors", "textAlign": "left" },
       "content": [{ "type": "text", "text": "Text & Highlight Colors" }]
     },
     {
@@ -548,7 +553,7 @@
     },
     {
       "type": "heading",
-      "attrs": { "level": 2, "tag": "h2", "textAlign": "left" },
+      "attrs": { "level": 2, "tag": "h2", "id": "combined-formatting", "textAlign": "left" },
       "content": [{ "type": "text", "text": "Combined Formatting" }]
     },
     {
@@ -592,6 +597,34 @@
           "text": "bold link"
         },
         { "type": "text", "text": " for good measure." }
+      ]
+    },
+    {
+      "type": "leadParagraph",
+      "content": [
+        { "type": "text", "text": "This is a lead paragraph with semantic Marks: " },
+        {
+          "type": "text",
+          "marks": [{ "type": "abbr", "attrs": { "title": "Web Content Accessibility Guidelines" } }],
+          "text": "WCAG"
+        },
+        { "type": "text", "text": " and " },
+        {
+          "type": "text",
+          "marks": [{ "type": "language", "attrs": { "lang": "fr", "dir": "ltr" } }],
+          "text": "Bonjour le monde"
+        },
+        { "type": "text", "text": " and custom typography " },
+        {
+          "type": "text",
+          "marks": [
+            {
+              "type": "textStyle",
+              "attrs": { "fontFamily": "Georgia, serif", "fontSize": "18px", "lineHeight": "1.75" }
+            }
+          ],
+          "text": "styled serif text"
+        }
       ]
     }
   ]

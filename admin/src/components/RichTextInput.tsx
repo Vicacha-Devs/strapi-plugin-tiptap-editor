@@ -15,9 +15,18 @@ import { useTable } from '../extensions/Table';
 import { useTextAlign } from '../extensions/TextAlign';
 import { useTextColor } from '../extensions/TextColor';
 import { useHighlightColor } from '../extensions/HighlightColor';
+import { useTypographyControls } from '../extensions/TypographyControls';
+import { useSemanticMarks } from '../extensions/SemanticMarks';
 import { usePresetConfig } from '../hooks/usePresetConfig';
 import { buildExtensions } from '../utils/buildExtensions';
-import { TiptapPresetConfig, MINIMAL_PRESET_CONFIG, getFeatureOptions } from '../../../shared/types';
+import {
+  TiptapPresetConfig,
+  MINIMAL_PRESET_CONFIG,
+  getFeatureOptions,
+  type FontFamilyConfig,
+  type FontSizeConfig,
+  type LineHeightConfig,
+} from '../../../shared/types';
 import type { ToolbarItem } from './ResponsiveToolbar';
 
 // ─── Inner editor ────────────────────────────────────────────────────────────
@@ -56,6 +65,14 @@ const InnerEditor = forwardRef<HTMLDivElement, InnerEditorProps>(
     const textColor = useTextColor(editor, { disabled: props.disabled, config: config.textColor });
     const highlightColor = useHighlightColor(editor, { disabled: props.disabled, config: config.highlightColor });
 
+    const typography = useTypographyControls(editor, {
+      disabled: props.disabled,
+      fonts: getFeatureOptions(config.fontFamily, {} as FontFamilyConfig)?.fonts,
+      sizes: getFeatureOptions(config.fontSize, {} as FontSizeConfig)?.sizes,
+      heights: getFeatureOptions(config.lineHeight, {} as LineHeightConfig)?.heights,
+    });
+    const semanticMarks = useSemanticMarks(editor, { disabled: props.disabled });
+
     const toolbarItemCandidates: Array<ToolbarItem | false | undefined> = [
       config.heading && {
         id: 'heading',
@@ -65,6 +82,13 @@ const InnerEditor = forwardRef<HTMLDivElement, InnerEditorProps>(
             {heading.headingTagSelect}
           </>
         ),
+      },
+      config.fontFamily && { id: 'fontFamily', content: typography.fontFamilySelect },
+      config.fontSize && { id: 'fontSize', content: typography.fontSizeSelect },
+      config.lineHeight && { id: 'lineHeight', content: typography.lineHeightSelect },
+      (config.fontFamily || config.fontSize || config.lineHeight) && {
+        id: 'typographySpacer',
+        content: <Spacer margin={1} />,
       },
       config.bold && { id: 'bold', content: starterKit.boldButton },
       config.italic && { id: 'italic', content: starterKit.italicButton },
@@ -82,16 +106,33 @@ const InnerEditor = forwardRef<HTMLDivElement, InnerEditorProps>(
         id: 'textDecorationSpacer',
         content: <Spacer margin={1} />,
       },
-      config.textAlign && {
-        id: 'textAlign',
+      config.clearFormatting && { id: 'clearFormatting', content: typography.clearFormattingButton },
+      config.leadParagraph && { id: 'leadParagraph', content: semanticMarks.leadParagraphButton },
+      config.abbr && {
+        id: 'abbr',
         content: (
           <>
-            {textAlign.textAlignLeftButton}
-            {textAlign.textAlignCenterButton}
-            {textAlign.textAlignRightButton}
-            {textAlign.textAlignJustifyButton}
+            {semanticMarks.abbrButton}
+            {semanticMarks.abbrDialog}
           </>
         ),
+      },
+      config.language && {
+        id: 'language',
+        content: (
+          <>
+            {semanticMarks.languageButton}
+            {semanticMarks.languageDialog}
+          </>
+        ),
+      },
+      (config.clearFormatting || config.leadParagraph || config.abbr || config.language) && {
+        id: 'semanticSpacer',
+        content: <Spacer margin={1} />,
+      },
+      config.textAlign && {
+        id: 'textAlign',
+        content: textAlign.textAlignDropdown,
       },
       config.textAlign && { id: 'textAlignSpacer', content: <Spacer margin={1} /> },
       config.bulletList && { id: 'bullet', content: starterKit.bulletButton },

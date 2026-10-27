@@ -22,7 +22,15 @@
       "subscript": true,
       "textColor": { "customColorPicker": true },
       "highlightColor": { "customColorPicker": true },
-      "mediaLibrary": true
+      "mediaLibrary": true,
+      "fontFamily": true,
+      "fontSize": true,
+      "lineHeight": true,
+      "clearFormatting": true,
+      "typography": true,
+      "leadParagraph": true,
+      "language": true,
+      "abbr": true
     }
   }
 }

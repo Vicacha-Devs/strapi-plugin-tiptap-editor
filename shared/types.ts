@@ -20,6 +20,19 @@ export type TextAlignConfig = {
 
 export type HeadingConfig = {
   levels?: HeadingLevel[];
+  autoSlugId?: boolean;
+};
+
+export type FontFamilyConfig = {
+  fonts?: Array<{ label: string; value: string }>;
+};
+
+export type FontSizeConfig = {
+  sizes?: string[];
+};
+
+export type LineHeightConfig = {
+  heights?: string[];
 };
 
 export type TextColorConfig = {
@@ -77,6 +90,14 @@ export interface TiptapPresetConfig {
   textColor?: boolean | TextColorConfig;
   highlightColor?: boolean | HighlightColorConfig;
   mediaLibrary?: boolean | Record<string, unknown>;
+  fontFamily?: boolean | FontFamilyConfig;
+  fontSize?: boolean | FontSizeConfig;
+  lineHeight?: boolean | LineHeightConfig;
+  clearFormatting?: boolean | Record<string, unknown>;
+  typography?: boolean | Record<string, unknown>;
+  leadParagraph?: boolean | Record<string, unknown>;
+  language?: boolean | Record<string, unknown>;
+  abbr?: boolean | Record<string, unknown>;
 }
 
 export interface TiptapPluginConfig {
@@ -108,6 +129,14 @@ export const PRESET_FEATURE_KEYS: Array<keyof TiptapPresetConfig> = [
   'textColor',
   'highlightColor',
   'mediaLibrary',
+  'fontFamily',
+  'fontSize',
+  'lineHeight',
+  'clearFormatting',
+  'typography',
+  'leadParagraph',
+  'language',
+  'abbr',
 ];
 
 // Fallback for unconfigured fields — deliberately minimal to prompt developers to configure

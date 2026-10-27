@@ -10,7 +10,7 @@ const isPlainObject = (value: unknown): value is Record<string, unknown> => {
   return prototype === Object.prototype || prototype === null;
 };
 
-const FEATURE_KEYS = new Set(PRESET_FEATURE_KEYS);
+const FEATURE_KEYS = new Set<string>([...PRESET_FEATURE_KEYS, 'customExtensions']);
 
 const THEME_KEYS = new Set<string>(['colors', 'css', 'stylesheet']);
 
@@ -21,9 +21,7 @@ const isValidColorValue = (value: string): boolean => COLOR_VALUE_RE.test(value.
 
 const getInvalidKeys = (presetConfig: unknown): string[] => {
   if (!isPlainObject(presetConfig)) return [];
-  return Object.keys(presetConfig).filter(
-    (key) => !FEATURE_KEYS.has(key as keyof TiptapPresetConfig)
-  );
+  return Object.keys(presetConfig).filter((key) => !FEATURE_KEYS.has(key));
 };
 
 const config = {

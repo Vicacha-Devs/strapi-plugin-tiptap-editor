@@ -136,6 +136,15 @@ vi.mock('../../admin/src/components/ResponsiveToolbar', () => ({
   ResponsiveToolbar: 'ResponsiveToolbar',
 }));
 
+const mockToolbarRef = { current: null };
+const mockHandleToolbarKeyDown = vi.fn();
+vi.mock('../../admin/src/hooks/useKeyboardNavigation', () => ({
+  useKeyboardNavigation: () => ({
+    toolbarRef: mockToolbarRef,
+    handleToolbarKeyDown: mockHandleToolbarKeyDown,
+  }),
+}));
+
 // ─── Mock @strapi/design-system ───────────────────────────────────────────────
 vi.mock('@strapi/design-system', () => ({
   Box: 'Box',
@@ -324,6 +333,27 @@ describe('RichTextInput', () => {
     expect(itemIds).toContain('link');
     expect(itemIds).toContain('mediaLibrary');
     expect(itemIds).toContain('table');
+  });
+
+  it('wires toolbar keyboard navigation into BaseTiptapInput', () => {
+    mockUsePresetConfig.mockReturnValue({ config: MINIMAL_PRESET_CONFIG, isLoading: false });
+    const result = RichTextInput({ name: 'content' } as any, null) as any;
+    const base = findElements(result, 'BaseTiptapInput')[0];
+    expect(base.props.toolbarRef).toBe(mockToolbarRef);
+    expect(base.props.onToolbarKeyDown).toBe(mockHandleToolbarKeyDown);
+  });
+
+  it('exposes dialogs as toolbar overlays instead of toolbar content', () => {
+    mockLink.linkDialog = 'LinkDialog' as any;
+    mockImage.imageDialog = 'ImageDialog' as any;
+    const config = { ...MINIMAL_PRESET_CONFIG, link: true, mediaLibrary: true };
+    mockUsePresetConfig.mockReturnValue({ config, isLoading: false });
+    const result = RichTextInput({ name: 'content' } as any, null) as any;
+    const items = findElements(result, 'ResponsiveToolbar')[0].props.items;
+    expect(items.find((i: any) => i.id === 'link').overlay).toBe('LinkDialog');
+    expect(items.find((i: any) => i.id === 'mediaLibrary').overlay).toBe('ImageDialog');
+    mockLink.linkDialog = null;
+    mockImage.imageDialog = null;
   });
 
   it('adds toolbar items and dialog overlays for registered custom extensions', () => {

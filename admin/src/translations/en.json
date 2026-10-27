@@ -55,5 +55,6 @@
   "tiptap-editor.more": "More",
   "tiptap-editor.color.remove": "Remove color",
   "tiptap-editor.color.theme": "Theme colors",
-  "tiptap-editor.color.custom": "Custom color"
+  "tiptap-editor.color.custom": "Custom color",
+  "tiptap-editor.toolbar.ariaLabel": "Rich text formatting toolbar"
 }

@@ -1,3 +1,4 @@
+import { Node, Mark, Extension, mergeAttributes } from '@tiptap/core';
 import type { StrapiApp } from '@strapi/strapi/admin';
 import { PLUGIN_ID } from '../../shared/pluginId';
 import { Initializer } from './components/Initializer';
@@ -21,6 +22,10 @@ import {
 import { richTextField } from './fields/richTextField';
 
 export {
+  Node,
+  Mark,
+  Extension,
+  mergeAttributes,
   registerTiptapExtension,
   unregisterTiptapExtension,
   getRegisteredTiptapExtensions,

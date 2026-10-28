@@ -476,9 +476,10 @@ Because `MediaLibraryWrapper` is exported from `@notum-cz/strapi-plugin-tiptap-e
 ```tsx
 // src/admin/app.tsx
 import React, { useState } from 'react';
-import { Node, mergeAttributes } from '@tiptap/core';
 import { Images } from '@strapi/icons';
 import {
+  Node,
+  mergeAttributes,
   registerTiptapExtension,
   MediaLibraryWrapper,
   type CustomExtensionDialogProps,
@@ -493,6 +494,8 @@ const BeforeAfterNode = Node.create({
     return {
       beforeUrl: { default: '' },
       afterUrl: { default: '' },
+      beforeAlt: { default: 'Before' },
+      afterAlt: { default: 'After' },
       caption: { default: '' },
     };
   },
@@ -503,11 +506,17 @@ const BeforeAfterNode = Node.create({
     return [
       'figure',
       mergeAttributes(HTMLAttributes, {
+        'data-tiptap-type': 'beforeAfterSlider',
         'data-before-after': 'true',
+        'data-before-url': HTMLAttributes.beforeUrl,
+        'data-after-url': HTMLAttributes.afterUrl,
+        'data-before-alt': HTMLAttributes.beforeAlt,
+        'data-after-alt': HTMLAttributes.afterAlt,
+        'data-caption': HTMLAttributes.caption,
         class: 'before-after-slider',
       }),
-      ['img', { src: HTMLAttributes.beforeUrl, alt: 'Before' }],
-      ['img', { src: HTMLAttributes.afterUrl, alt: 'After' }],
+      ['img', { src: HTMLAttributes.beforeUrl, alt: HTMLAttributes.beforeAlt || 'Before' }],
+      ['img', { src: HTMLAttributes.afterUrl, alt: HTMLAttributes.afterAlt || 'After' }],
       ['figcaption', {}, HTMLAttributes.caption || ''],
     ];
   },

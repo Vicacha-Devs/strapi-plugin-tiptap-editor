@@ -1,5 +1,8 @@
 import { SVGProps } from 'react';
 
+/**
+ * Center text alignment icon component.
+ */
 export function TextAlignCenter(props: SVGProps<SVGSVGElement>) {
   return (
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="16" height="16" fill="currentColor" {...props}>
@@ -7,3 +10,5 @@ export function TextAlignCenter(props: SVGProps<SVGSVGElement>) {
     </svg>
   );
 }
+
+export default TextAlignCenter;

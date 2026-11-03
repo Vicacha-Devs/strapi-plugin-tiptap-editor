@@ -2,6 +2,7 @@ import { Editor } from '@tiptap/core';
 import { useEditorState } from '@tiptap/react';
 import { useEffect, useRef, useState } from 'react';
 import { Popover } from '@strapi/design-system';
+import { useIntl } from 'react-intl';
 import { ToolbarButton } from '../components/ToolbarButton';
 import { ColorPickerPopover } from '../components/ColorPickerPopover';
 import { useThemeConfig } from '../hooks/useThemeConfig';
@@ -23,6 +24,7 @@ function TextColorIcon({ underColor }: { underColor: string }) {
 // ─── Hook ─────────────────────────────────────────────────────────────────────
 
 export function useTextColor(editor: Editor | null, props: { disabled?: boolean; config?: TiptapPresetConfig['textColor'] } = {}) {
+  const { formatMessage } = useIntl();
   const customColorPickerEnabled = isFeatureEnabled(getFeatureOptions(props.config, {})?.customColorPicker);
   const themeConfig = useThemeConfig();
   const colors = themeConfig?.colors ?? [];
@@ -101,18 +103,24 @@ export function useTextColor(editor: Editor | null, props: { disabled?: boolean;
   const activeColor = editorState?.activeColor;
   const underColor = activeColor ?? '#999999';
 
+  const triggerButton = (
+    <ToolbarButton
+      onClick={() => (showPicker ? handleInteractOutside() : openPicker())}
+      icon={<TextColorIcon underColor={underColor} />}
+      active={showPicker}
+      disabled={props.disabled || !editor}
+      tooltip={formatMessage({
+        id: 'tiptap-editor.toolbar.textColor',
+        defaultMessage: 'Text color',
+      })}
+    />
+  );
+
   return {
+    textColorTrigger: triggerButton,
     textColorButton: (
       <Popover.Root open={showPicker} onOpenChange={handleOpenChange}>
-        <Popover.Anchor>
-          <ToolbarButton
-            onClick={() => (showPicker ? handleInteractOutside() : openPicker())}
-            icon={<TextColorIcon underColor={underColor} />}
-            active={showPicker}
-            disabled={props.disabled || !editor}
-            tooltip="Text color"
-          />
-        </Popover.Anchor>
+        <Popover.Anchor>{triggerButton}</Popover.Anchor>
         <Popover.Content
           side="bottom"
           align="start"

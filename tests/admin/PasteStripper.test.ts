@@ -67,4 +67,32 @@ describe('PasteStripper', () => {
     const strip = (PasteStripper.config as any).transformPastedHTML;
     expect(strip('')).toBe('');
   });
+
+  it('strips single-quoted, unquoted, and case-insensitive STYLE attributes on external paste', () => {
+    const strip = (PasteStripper.config as any).transformPastedHTML;
+    expect(strip("<span STYLE='color: red'>a</span>")).toBe('<span>a</span>');
+    expect(strip('<span style=color:red>b</span>')).toBe('<span>b</span>');
+    expect(strip('<p\n  Style="font-size: 20px">c</p>')).toBe('<p>c</p>');
+  });
+
+  it('preserves safe Tiptap styles on internal ProseMirror paste (data-pm-slice) while stripping dangerous CSS', () => {
+    const strip = (PasteStripper.config as any).transformPastedHTML;
+    const internalHtml =
+      '<div data-pm-slice="0 0 []"><p style="text-align: center; position: fixed; top: 0"><span style="color: #ff0000; font-size: 18px; line-height: 1.5; font-family: Georgia, serif; background-image: url(https://evil.example/track)">Styled</span><mark style=\'background-color: rgb(255, 230, 0); z-index: 9999\'>Hi</mark><span style="position: absolute">Plain</span></p></div>';
+    const output = strip(internalHtml);
+    expect(output).toBe(
+      '<div data-pm-slice="0 0 []"><p style="text-align: center"><span style="color: #ff0000; font-size: 18px; line-height: 1.5; font-family: Georgia, serif">Styled</span><mark style="background-color: rgb(255, 230, 0)">Hi</mark><span>Plain</span></p></div>'
+    );
+  });
+
+  it('processes large runs of non-matching whitespace in linear time without backtracking', () => {
+    const strip = (PasteStripper.config as any).transformPastedHTML;
+    const prefix = ' '.repeat(50_000);
+    const start = performance.now();
+    const output = strip(`${prefix}<p style="color: red">ok</p>`);
+    const elapsedMs = performance.now() - start;
+
+    expect(output).toBe(`${prefix}<p>ok</p>`);
+    expect(elapsedMs).toBeLessThan(100);
+  });
 });

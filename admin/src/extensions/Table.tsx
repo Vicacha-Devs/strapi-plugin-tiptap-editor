@@ -6,6 +6,10 @@ import { useState } from 'react';
 import { ToolbarButton } from '../components/ToolbarButton';
 import { useIntl } from 'react-intl';
 
+/**
+ * React hook providing toolbar buttons and dialog for inserting and manipulating tables
+ * (row/column insertion & deletion and cell merging/splitting).
+ */
 export function useTable(
   editor: Editor | null,
   props: { disabled?: boolean } = { disabled: false }
@@ -22,6 +26,8 @@ export function useTable(
           canDeleteColumn: false,
           canAddRow: false,
           canDeleteRow: false,
+          canMergeCells: false,
+          canSplitCell: false,
         };
       }
       const ed = ctx.editor;
@@ -36,6 +42,8 @@ export function useTable(
         canDeleteColumn: canPerformTableAction('deleteColumn'),
         canAddRow: canPerformTableAction('addRowAfter'),
         canDeleteRow: canPerformTableAction('deleteRow'),
+        canMergeCells: canPerformTableAction('mergeCells'),
+        canSplitCell: canPerformTableAction('splitCell'),
       };
     },
   });
@@ -57,6 +65,8 @@ export function useTable(
   const removeColumn = () => editor?.chain().focus().deleteColumn().run();
   const addRow = () => editor?.chain().focus().addRowAfter().run();
   const removeRow = () => editor?.chain().focus().deleteRow().run();
+  const mergeCells = () => editor?.chain().focus().mergeCells().run();
+  const splitCell = () => editor?.chain().focus().splitCell().run();
 
   return {
     tableButton: (
@@ -113,6 +123,30 @@ export function useTable(
         tooltip={formatMessage({
           id: 'tiptap-editor.toolbar.removeRow',
           defaultMessage: 'Remove row',
+        })}
+      />
+    ),
+    mergeCellsButton: (
+      <ToolbarButton
+        onClick={mergeCells}
+        icon={<>Merge</>}
+        active={false}
+        hidden={props.disabled || !editor || !editorState?.canMergeCells}
+        tooltip={formatMessage({
+          id: 'tiptap-editor.toolbar.mergeCells',
+          defaultMessage: 'Merge selected cells',
+        })}
+      />
+    ),
+    splitCellButton: (
+      <ToolbarButton
+        onClick={splitCell}
+        icon={<>Split</>}
+        active={false}
+        hidden={props.disabled || !editor || !editorState?.canSplitCell}
+        tooltip={formatMessage({
+          id: 'tiptap-editor.toolbar.splitCell',
+          defaultMessage: 'Split merged cell',
         })}
       />
     ),

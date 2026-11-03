@@ -34,6 +34,15 @@ jobs:
       - name: Install dependencies
         run: yarn install --frozen-lockfile
 
+      - name: Typecheck Shared
+        run: yarn test:ts:shared
+
+      - name: Typecheck Admin (Frontend)
+        run: yarn test:ts:front
+
+      - name: Typecheck Server (Backend)
+        run: yarn test:ts:back
+
       - name: Build plugin
         run: yarn build
 

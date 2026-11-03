@@ -35,4 +35,9 @@ describe('strapi-admin exports', () => {
   it('exposes the colour picker so host forms can offer the theme palette', () => {
     expect(typeof admin.ColorPickerPopover).toBe('function');
   });
+
+  it('exports clearRichTextComponents and buttonComponent', () => {
+    expect(typeof admin.clearRichTextComponents).toBe('function');
+    expect(admin.buttonComponent?.name).toBe('button');
+  });
 });

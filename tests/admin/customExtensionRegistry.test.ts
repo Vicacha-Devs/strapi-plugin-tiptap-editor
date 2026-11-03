@@ -43,6 +43,7 @@ import {
   registerTiptapExtension,
   unregisterTiptapExtension,
 } from '../../admin/src/utils/customExtensionRegistry';
+import { buildExtensions } from '../../admin/src/utils/buildExtensions';
 import { MINIMAL_PRESET_CONFIG } from '../../shared/src/types';
 
 describe('customExtensionRegistry', () => {
@@ -105,5 +106,39 @@ describe('customExtensionRegistry', () => {
 
     expect(isCustomExtensionEnabledForPreset(enabledByDefault, overriddenConfig)).toBe(false);
     expect(isCustomExtensionEnabledForPreset(disabledByDefault, overriddenConfig)).toBe(true);
+  });
+
+  it('includes enabled custom extensions in buildExtensions(config)', () => {
+    const QuranAyahExtension = Extension.create({ name: 'quranAyahCustomNode' });
+    const PrayerTimeExtension = Extension.create({ name: 'prayerTimeCustomNode' });
+
+    registerTiptapExtension({
+      id: 'quran-ayah',
+      label: 'Quran Ayah',
+      extensions: QuranAyahExtension,
+    });
+
+    registerTiptapExtension({
+      id: 'prayer-time',
+      label: 'Prayer Time Widget',
+      defaultEnabled: false,
+      extensions: () => [PrayerTimeExtension],
+    });
+
+    const defaultBuilt = buildExtensions(MINIMAL_PRESET_CONFIG);
+    const defaultNames = defaultBuilt.map((ext) => ext.name);
+    expect(defaultNames).toContain('quranAyahCustomNode');
+    expect(defaultNames).not.toContain('prayerTimeCustomNode');
+
+    const customPresetBuilt = buildExtensions({
+      ...MINIMAL_PRESET_CONFIG,
+      customExtensions: {
+        'quran-ayah': false,
+        'prayer-time': true,
+      },
+    });
+    const customNames = customPresetBuilt.map((ext) => ext.name);
+    expect(customNames).not.toContain('quranAyahCustomNode');
+    expect(customNames).toContain('prayerTimeCustomNode');
   });
 });

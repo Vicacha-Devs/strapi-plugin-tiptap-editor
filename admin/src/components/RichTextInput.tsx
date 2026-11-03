@@ -1,39 +1,75 @@
-import { forwardRef, useMemo } from 'react';
+import { forwardRef, useEffect, useMemo, useRef, useState } from 'react';
 import { useIntl } from 'react-intl';
+import {
+  getFetchClient,
+  unstable_useContentManagerContext,
+  useField,
+} from '@strapi/strapi/admin';
 import { Box } from '@strapi/design-system';
 import BaseTiptapInput from './BaseTiptapInput';
 import { EditorErrorBoundary } from './EditorErrorBoundary';
 import { Spacer } from './Spacer';
 import { TiptapInputProps, useTiptapEditor } from '../utils/tiptapUtils';
-import { ResponsiveToolbar } from './ResponsiveToolbar';
+import { ResponsiveToolbar, type ToolbarItem } from './ResponsiveToolbar';
 import { useStarterKit } from '../extensions/StarterKit';
 import { useRichTextComponents } from '../extensions/Components';
 import { useLink } from '../extensions/Link';
 import { useHeading } from '../extensions/Heading';
 import { useImage } from '../extensions/Image';
+import { useVideo } from '../extensions/Video';
+import { useAudio } from '../extensions/Audio';
+import { useAttachment } from '../extensions/Attachment';
+import { useIframe } from '../extensions/Iframe';
+import { useLinker } from '../extensions/Linker';
 import { useScript } from '../extensions/Script';
 import { useTable } from '../extensions/Table';
 import { useTableCellBackground } from '../extensions/TableCellBackground';
 import { useTextAlign } from '../extensions/TextAlign';
 import { useTextColor } from '../extensions/TextColor';
 import { useHighlightColor } from '../extensions/HighlightColor';
+import { useTypographyControls } from '../extensions/TypographyControls';
+import { useSemanticMarks } from '../extensions/SemanticMarks';
+import { useInformationPane } from '../extensions/InformationPane';
+import { useStructuredBlocks } from '../extensions/StructuredBlocks';
+import { useMathematics } from '../extensions/Mathematics';
+import { useEmojiPicker } from '../extensions/EmojiPicker';
+import { useSlashCommand } from '../extensions/SlashCommand';
+import { useSpeechTools } from '../extensions/SpeechTools';
+import { useEditorModes } from './EditorFooterAndModes';
+import { ToolbarButton } from './ToolbarButton';
+import {
+  getRegisteredTiptapExtensions,
+  isCustomExtensionEnabledForPreset,
+} from '../utils/customExtensionRegistry';
 import { usePresetConfig } from '../hooks/usePresetConfig';
+import { useKeyboardNavigation } from '../hooks/useKeyboardNavigation';
+import { useRelationalSync } from '../hooks/useRelationalSync';
 import { buildExtensions } from '../utils/buildExtensions';
 import {
   TableConfig,
   TiptapPresetConfig,
   MINIMAL_PRESET_CONFIG,
+  DEFAULT_RUNTIME_SETTINGS,
   getFeatureOptions,
+  isFeatureEnabled,
+  type FontFamilyConfig,
+  type FontSizeConfig,
+  type LineHeightConfig,
+  type TiptapOutputFormat,
+  type TiptapRuntimeSettings,
 } from '../../../shared/src/types';
-import type { ToolbarItem } from './ResponsiveToolbar';
 
 // ─── Inner editor ────────────────────────────────────────────────────────────
-// Mounted only AFTER preset config is resolved, so useEditor receives the
-// correct extensions on first render and never needs to swap them.
+// Mounted only AFTER preset config and runtime settings are resolved, so
+// useEditor receives the correct extensions and outputFormat on first render.
 
 type InnerEditorProps = TiptapInputProps & {
   config: TiptapPresetConfig;
   presetName: string | undefined;
+  outputFormat?: TiptapOutputFormat;
+  relationalSyncEnabled?: boolean;
+  characterLimit?: number;
+  placeholder?: string;
 };
 
 /**
@@ -43,24 +79,159 @@ type InnerEditorProps = TiptapInputProps & {
  */
 const isToolbarItem = (item: ToolbarItem | false | undefined): item is ToolbarItem => Boolean(item);
 
+/**
+ * Inner TipTap editor component rendered once the preset configuration and runtime settings are loaded.
+ */
 const InnerEditor = forwardRef<HTMLDivElement, InnerEditorProps>(
-  ({ config, presetName, ...props }, forwardedRef) => {
-    // Memoize on presetName string — stable across parent re-renders
+  (
+    {
+      config,
+      presetName,
+      outputFormat,
+      relationalSyncEnabled,
+      characterLimit,
+      placeholder,
+      ...props
+    },
+    forwardedRef
+  ) => {
+    const { contentType, components } = unstable_useContentManagerContext() as {
+      contentType?: { attributes?: Record<string, Record<string, unknown>> };
+      components?: Record<string, { attributes?: Record<string, Record<string, unknown>> }>;
+    };
+    const schemaAttributes = contentType?.attributes;
+    const linksFieldName = `${props.name}Links`;
+    const linksFieldSchema = schemaAttributes?.[linksFieldName];
+    const linksFieldIsRepeatable = Boolean(linksFieldSchema?.repeatable);
+    const linksField = useField<
+      Record<string, unknown> | Array<Record<string, unknown>> | null
+    >(linksFieldName);
+
+    const { availableFields, targetUidToAttribute, linksComponentUid } = useMemo(() => {
+      const fields = schemaAttributes ? Object.keys(schemaAttributes) : undefined;
+      const componentUid =
+        (typeof linksFieldSchema?.component === 'string' && linksFieldSchema.component) ||
+        'links.links';
+      const compAttrs = components?.[componentUid]?.attributes;
+      const uidMap: Record<string, string> = {};
+      if (compAttrs) {
+        for (const [attrName, attrDef] of Object.entries(compAttrs)) {
+          const targetUid = attrDef?.target ?? attrDef?.targetModel;
+          if (attrDef?.type === 'relation' && typeof targetUid === 'string') {
+            uidMap[targetUid] = attrName;
+          }
+        }
+      }
+      return {
+        availableFields: fields,
+        targetUidToAttribute: uidMap,
+        linksComponentUid: componentUid,
+      };
+    }, [schemaAttributes, components, linksFieldSchema?.component]);
+
+    // Memoize on [config, characterLimit, placeholder] with a fixed-length dependency array
     const extensions = useMemo(() => {
+      if (characterLimit !== undefined || placeholder !== undefined) {
+        return buildExtensions(config, { characterLimit, placeholder });
+      }
       return buildExtensions(config);
-    }, [presetName]); // eslint-disable-line react-hooks/exhaustive-deps
+    }, [config, characterLimit, placeholder]); // eslint-disable-line react-hooks/exhaustive-deps
+
+    const onFormChangeRef = useRef<((fieldName: string, value: unknown) => void) | undefined>(
+      undefined
+    );
+
+    const { syncRelationsFromDoc, seedSignature } = useRelationalSync(props.name, {
+      enabled: relationalSyncEnabled ?? DEFAULT_RUNTIME_SETTINGS.enableRelationalSync,
+      availableFields,
+      targetUidToAttribute,
+      linksComponentUid,
+      linksFieldIsRepeatable,
+      initialDocument: (props as { value?: unknown }).value,
+      onSyncField: (fieldName, value) => {
+        const currentLinksValue = linksField?.value;
+        let nextValue = value;
+        if (fieldName === linksFieldName && value !== null && typeof value === 'object') {
+          if (linksFieldIsRepeatable && Array.isArray(value)) {
+            const currentArr = Array.isArray(currentLinksValue) ? currentLinksValue : [];
+            const firstExisting =
+              currentArr[0] && typeof currentArr[0] === 'object' && !Array.isArray(currentArr[0])
+                ? currentArr[0]
+                : {};
+            const firstIncoming =
+              value[0] && typeof value[0] === 'object' && !Array.isArray(value[0])
+                ? (value[0] as Record<string, unknown>)
+                : {};
+            nextValue = [{ ...firstExisting, ...firstIncoming }, ...currentArr.slice(1)];
+          } else if (!linksFieldIsRepeatable && !Array.isArray(value)) {
+            nextValue = {
+              ...(currentLinksValue &&
+              typeof currentLinksValue === 'object' &&
+              !Array.isArray(currentLinksValue)
+                ? currentLinksValue
+                : {}),
+              ...value,
+            };
+          }
+        }
+
+        onFormChangeRef.current?.(fieldName, nextValue);
+      },
+    });
+
+    const charCountEnabled =
+      config?.characterCount === undefined || isFeatureEnabled(config?.characterCount);
+    const charCountOpts = charCountEnabled
+      ? getFeatureOptions(config.characterCount, {
+          limit: characterLimit,
+          wordsPerMinute: 200,
+        })
+      : null;
 
     const { editor, field, removedContent, contentError } = useTiptapEditor(
       props.name,
       '',
-      extensions
+      extensions,
+      {
+        outputFormat: outputFormat ?? DEFAULT_RUNTIME_SETTINGS.defaultOutputFormat,
+        wordsPerMinute: charCountOpts?.wordsPerMinute,
+        onDocUpdate: syncRelationsFromDoc,
+        disabled: props.disabled,
+      }
     );
+
+    onFormChangeRef.current = field?.onChange as
+      | ((fieldName: string, value: unknown) => void)
+      | undefined;
+
+    useEffect(() => {
+      if (editor && typeof (editor as { getJSON?: () => unknown }).getJSON === 'function') {
+        seedSignature?.((editor as { getJSON: () => unknown }).getJSON());
+      }
+    }, [editor, seedSignature, field?.initialValue]);
+
+    useEffect(() => {
+      onFormChangeRef.current = field?.onChange as
+        | ((fieldName: string, value: unknown) => void)
+        | undefined;
+    }, [field?.onChange]);
+
+    const { toolbarRef, handleToolbarKeyDown } = useKeyboardNavigation(editor);
 
     const starterKit = useStarterKit(editor, { disabled: props.disabled });
     const headingOptions = getFeatureOptions(config.heading, { levels: [1, 2, 3, 4, 5, 6] });
     const heading = useHeading(editor, { disabled: props.disabled, levels: headingOptions?.levels });
     const link = useLink(editor, { disabled: props.disabled });
     const image = useImage(editor, { disabled: props.disabled });
+    const video = useVideo(editor, { disabled: props.disabled });
+    const audio = useAudio(editor, { disabled: props.disabled });
+    const attachment = useAttachment(editor, { disabled: props.disabled });
+    const iframeOpts = getFeatureOptions(config.iframe, { allowedDomains: [] as string[] });
+    const iframe = useIframe(editor, {
+      disabled: props.disabled,
+      allowedDomains: iframeOpts?.allowedDomains,
+    });
+    const linker = useLinker(editor, { disabled: props.disabled });
     const script = useScript(editor, { disabled: props.disabled });
     const table = useTable(editor, { disabled: props.disabled });
     const tableOptions = getFeatureOptions<TableConfig>(config.table, {});
@@ -68,10 +239,132 @@ const InnerEditor = forwardRef<HTMLDivElement, InnerEditorProps>(
     const textAlign = useTextAlign(editor, { disabled: props.disabled });
     const textColor = useTextColor(editor, { disabled: props.disabled, config: config.textColor });
     const highlightColor = useHighlightColor(editor, { disabled: props.disabled, config: config.highlightColor });
-    const components = useRichTextComponents(editor, { config, disabled: props.disabled });
+    const richTextComponents = useRichTextComponents(editor, { config, disabled: props.disabled });
+    const typography = useTypographyControls(editor, {
+      disabled: props.disabled,
+      fonts: getFeatureOptions(config.fontFamily, {} as FontFamilyConfig)?.fonts,
+      sizes: getFeatureOptions(config.fontSize, {} as FontSizeConfig)?.sizes,
+      heights: getFeatureOptions(config.lineHeight, {} as LineHeightConfig)?.heights,
+    });
+    const semanticMarks = useSemanticMarks(editor, { disabled: props.disabled });
+    const informationPane = useInformationPane(editor, { disabled: props.disabled });
+    const [openCustomDialogId, setOpenCustomDialogId] = useState<string | null>(null);
+    const structuredBlocks = useStructuredBlocks(editor, { disabled: props.disabled });
+    const mathematics = useMathematics(editor, { disabled: props.disabled });
+    const emoji = useEmojiPicker(editor, { disabled: props.disabled });
+    const slashCommand = useSlashCommand(editor, {
+      disabled: props.disabled,
+      config,
+      onOpenCustomDialog: (extId: string) => setOpenCustomDialogId(extId),
+    });
+    const speech = useSpeechTools(editor, { disabled: props.disabled });
+
+    const editorModes = useEditorModes(editor, {
+      disabled: props.disabled,
+      characterLimit:
+        characterLimit && characterLimit > 0 ? characterLimit : (charCountOpts?.limit ?? null),
+      wordsPerMinute: charCountOpts?.wordsPerMinute,
+      showCharacterCount:
+        charCountEnabled || Boolean(characterLimit && characterLimit > 0),
+    });
+
+    const customExtensionToolbarItems: ToolbarItem[] = getRegisteredTiptapExtensions()
+      .filter(
+        (ext) =>
+          isCustomExtensionEnabledForPreset(ext, config) &&
+          Boolean(ext.ToolbarComponent || ext.toolbarButton || ext.DialogComponent)
+      )
+      .map((ext) => {
+        const isDialogOpen = openCustomDialogId === ext.id;
+        const handleOpenDialog = () => setOpenCustomDialogId(ext.id);
+        const handleCloseDialog = () => setOpenCustomDialogId(null);
+
+        let contentNode: React.ReactNode = null;
+        if (ext.ToolbarComponent) {
+          const CustomToolbarComp = ext.ToolbarComponent;
+          contentNode = (
+            <CustomToolbarComp
+              editor={editor}
+              disabled={props.disabled}
+              config={config}
+              isDialogOpen={isDialogOpen}
+              onOpenDialog={handleOpenDialog}
+              onCloseDialog={handleCloseDialog}
+            />
+          );
+        } else if (ext.toolbarButton) {
+          contentNode = (
+            <ToolbarButton
+              onClick={() => {
+                if (ext.toolbarButton?.onClick) {
+                  ext.toolbarButton.onClick(editor, { openDialog: handleOpenDialog });
+                } else {
+                  handleOpenDialog();
+                }
+              }}
+              icon={ext.toolbarButton.icon}
+              ariaLabel={ext.toolbarButton.label}
+              tooltip={ext.toolbarButton.tooltip || ext.toolbarButton.label}
+              active={
+                ext.toolbarButton.isActive ? ext.toolbarButton.isActive(editor) : isDialogOpen
+              }
+              disabled={!editor || props.disabled}
+            />
+          );
+        }
+
+        const overlayNode = ext.DialogComponent ? (
+          <ext.DialogComponent
+            editor={editor}
+            open={isDialogOpen}
+            onClose={handleCloseDialog}
+            config={config}
+          />
+        ) : undefined;
+
+        return {
+          id: `custom-${ext.id}`,
+          content: contentNode,
+          measureContent: contentNode ? (
+            <div style={{ width: '32px', height: '32px' }} />
+          ) : undefined,
+          overlay: overlayNode,
+          overflowOnly: ext.overflowOnly ?? false,
+        };
+      });
 
     const toolbarItemCandidates: Array<ToolbarItem | false | undefined> = [
-      config.heading && {
+      // ─── 1. Primary Edifice Group: Pastel Media Action Pills ────────────────
+      isFeatureEnabled(config?.mediaLibrary) && {
+        id: 'mediaLibrary',
+        content: image.imageButton,
+        overlay: image.imageDialog,
+      },
+      isFeatureEnabled(config?.video) && {
+        id: 'video',
+        content: video.videoButton,
+        overlay: video.videoDialog,
+      },
+      isFeatureEnabled(config?.audio) && {
+        id: 'audio',
+        content: audio.audioButton,
+        overlay: audio.audioDialog,
+      },
+      isFeatureEnabled(config?.attachment) && {
+        id: 'attachment',
+        content: attachment.attachmentButton,
+        overlay: attachment.attachmentDialog,
+      },
+      (isFeatureEnabled(config?.mediaLibrary) ||
+        isFeatureEnabled(config?.video) ||
+        isFeatureEnabled(config?.audio) ||
+        isFeatureEnabled(config?.attachment)) && {
+        id: 'insertSpacer',
+        content: <Spacer margin={1} />,
+      },
+
+      // ─── 2. Primary Edifice Group: Typography & Colors (T ▾, TT ▾, A, Marker) ─
+      isFeatureEnabled(config?.heading) && {
         id: 'heading',
         content: (
           <>
@@ -79,26 +372,74 @@ const InnerEditor = forwardRef<HTMLDivElement, InnerEditorProps>(
             {heading.headingTagSelect}
           </>
         ),
+        measureContent: heading.headingTrigger,
       },
-      config.bold && { id: 'bold', content: starterKit.boldButton },
-      config.italic && { id: 'italic', content: starterKit.italicButton },
-      config.underline && { id: 'underline', content: starterKit.underlineButton },
-      (config.bold || config.italic || config.underline) && {
+      isFeatureEnabled(config?.fontSize) && {
+        id: 'fontSize',
+        content: typography.fontSizeSelect,
+        measureContent: typography.fontSizeTrigger,
+      },
+      isFeatureEnabled(config?.textColor) && {
+        id: 'textColor',
+        content: textColor.textColorButton,
+        measureContent: textColor.textColorTrigger,
+      },
+      isFeatureEnabled(config?.highlightColor) && {
+        id: 'highlightColor',
+        content: highlightColor.highlightColorButton,
+        measureContent: highlightColor.highlightColorTrigger,
+      },
+      (isFeatureEnabled(config?.heading) ||
+        isFeatureEnabled(config?.fontSize) ||
+        isFeatureEnabled(config?.textColor) ||
+        isFeatureEnabled(config?.highlightColor)) && {
+        id: 'headingSpacer',
+        content: <Spacer margin={1} />,
+      },
+
+      // ─── 3. Primary Edifice Group: Basic Formatting (B, I, U) ───────────────
+      isFeatureEnabled(config?.bold) && { id: 'bold', content: starterKit.boldButton },
+      isFeatureEnabled(config?.italic) && { id: 'italic', content: starterKit.italicButton },
+      isFeatureEnabled(config?.underline) && {
+        id: 'underline',
+        content: starterKit.underlineButton,
+      },
+      (isFeatureEnabled(config?.bold) ||
+        isFeatureEnabled(config?.italic) ||
+        isFeatureEnabled(config?.underline)) && {
         id: 'basicTextSpacer',
         content: <Spacer margin={1} />,
       },
-      config.strike && { id: 'strike', content: starterKit.strikeButton },
-      config.superscript && { id: 'superscript', content: script.superscriptButton },
-      config.subscript && { id: 'subscript', content: script.subscriptButton },
-      config.textColor && { id: 'textColor', content: textColor.textColorButton },
-      config.highlightColor && { id: 'highlightColor', content: highlightColor.highlightColorButton },
-      (config.strike || config.superscript || config.subscript || config.textColor || config.highlightColor) && {
-        id: 'textDecorationSpacer',
+
+      // ─── 4. Primary Edifice Group: Emoji & Links ────────────────────────────
+      isFeatureEnabled(config?.emoji) && {
+        id: 'emoji',
+        content: emoji.emojiButton,
+        measureContent: emoji.emojiTrigger,
+      },
+      isFeatureEnabled(config?.link) && {
+        id: 'link',
+        content: link.linkButton,
+        overlay: link.linkDialog,
+      },
+      isFeatureEnabled(config?.linker) && {
+        id: 'linker',
+        content: linker.linkerButton,
+        overlay: linker.linkerDialog,
+      },
+      (isFeatureEnabled(config?.emoji) ||
+        isFeatureEnabled(config?.link) ||
+        isFeatureEnabled(config?.linker)) && {
+        id: 'linksSpacer',
         content: <Spacer margin={1} />,
       },
-      config.textAlign && {
+
+      // ─── 5. Primary Edifice Group: Lists & Compact Alignment ────────────────
+      isFeatureEnabled(config?.bulletList) && { id: 'bullet', content: starterKit.bulletButton },
+      isFeatureEnabled(config?.orderedList) && { id: 'ordered', content: starterKit.orderedButton },
+      isFeatureEnabled(config?.textAlign) && {
         id: 'textAlign',
-        content: (
+        content: textAlign.textAlignDropdown ?? (
           <>
             {textAlign.textAlignLeftButton}
             {textAlign.textAlignCenterButton}
@@ -106,39 +447,174 @@ const InnerEditor = forwardRef<HTMLDivElement, InnerEditorProps>(
             {textAlign.textAlignJustifyButton}
           </>
         ),
+        measureContent: textAlign.textAlignTrigger,
       },
-      config.textAlign && { id: 'textAlignSpacer', content: <Spacer margin={1} /> },
-      config.bulletList && { id: 'bullet', content: starterKit.bulletButton },
-      config.orderedList && { id: 'ordered', content: starterKit.orderedButton },
-      (config.bulletList || config.orderedList) && {
+      (isFeatureEnabled(config?.bulletList) ||
+        isFeatureEnabled(config?.orderedList) ||
+        isFeatureEnabled(config?.textAlign)) && {
         id: 'listSpacer',
         content: <Spacer margin={1} />,
       },
-      config.code && { id: 'code', content: starterKit.codeButton },
-      config.blockquote && { id: 'blockquote', content: starterKit.blockquoteButton },
-      config.link && {
-        id: 'link',
-        content: (
-          <>
-            {link.linkButton}
-            {link.linkDialog}
-          </>
-        ),
+
+      // ─── 6. "Plus ▾" Overflow Groups: Extended Marks & Typography ───────────
+      isFeatureEnabled(config?.strike) && {
+        id: 'strike',
+        content: starterKit.strikeButton,
+        overflowOnly: true,
       },
-      config.mediaLibrary && {
-        id: 'mediaLibrary',
-        content: (
-          <>
-            {image.imageButton}
-            {image.imageDialog}
-          </>
-        ),
+      isFeatureEnabled(config?.superscript) && {
+        id: 'superscript',
+        content: script.superscriptButton,
+        overflowOnly: true,
       },
-      (config.code || config.blockquote || config.link || config.mediaLibrary) && {
-        id: 'insertSpacer',
+      isFeatureEnabled(config?.subscript) && {
+        id: 'subscript',
+        content: script.subscriptButton,
+        overflowOnly: true,
+      },
+      isFeatureEnabled(config?.clearFormatting) && {
+        id: 'clearFormatting',
+        content: typography.clearFormattingButton,
+        overflowOnly: true,
+      },
+      isFeatureEnabled(config?.leadParagraph) && {
+        id: 'leadParagraph',
+        content: semanticMarks.leadParagraphButton,
+        overflowOnly: true,
+      },
+      isFeatureEnabled(config?.fontFamily) && {
+        id: 'fontFamily',
+        content: typography.fontFamilySelect,
+        overflowOnly: true,
+      },
+      isFeatureEnabled(config?.lineHeight) && {
+        id: 'lineHeight',
+        content: typography.lineHeightSelect,
+        overflowOnly: true,
+      },
+      isFeatureEnabled(config?.abbr) && {
+        id: 'abbr',
+        content: semanticMarks.abbrButton,
+        overlay: semanticMarks.abbrDialog,
+        overflowOnly: true,
+      },
+      isFeatureEnabled(config?.language) && {
+        id: 'language',
+        content: semanticMarks.languageButton,
+        overlay: semanticMarks.languageDialog,
+        overflowOnly: true,
+      },
+      (isFeatureEnabled(config?.strike) ||
+        isFeatureEnabled(config?.superscript) ||
+        isFeatureEnabled(config?.subscript) ||
+        isFeatureEnabled(config?.clearFormatting) ||
+        isFeatureEnabled(config?.leadParagraph) ||
+        isFeatureEnabled(config?.fontFamily) ||
+        isFeatureEnabled(config?.lineHeight) ||
+        isFeatureEnabled(config?.abbr) ||
+        isFeatureEnabled(config?.language)) && {
+        id: 'textDecorationSpacer',
         content: <Spacer margin={1} />,
+        overflowOnly: true,
       },
-      config.table && {
+
+      // ─── 7. "Plus ▾" Overflow Groups: Callouts, Code & Checklists ───────────
+      isFeatureEnabled(config?.taskList) && {
+        id: 'taskList',
+        content: structuredBlocks.taskListButton,
+        overflowOnly: true,
+      },
+      isFeatureEnabled(config?.code) && {
+        id: 'code',
+        content: starterKit.codeButton,
+        overflowOnly: true,
+      },
+      isFeatureEnabled(config?.blockquote) && {
+        id: 'blockquote',
+        content: starterKit.blockquoteButton,
+        overflowOnly: true,
+      },
+      isFeatureEnabled(config?.informationPane) && {
+        id: 'informationPane',
+        content: informationPane.informationPaneButton,
+        overflowOnly: true,
+      },
+      isFeatureEnabled(config?.conversationHistory) && {
+        id: 'conversationHistory',
+        content: structuredBlocks.conversationHistoryButton,
+        overflowOnly: true,
+      },
+      (isFeatureEnabled(config?.taskList) ||
+        isFeatureEnabled(config?.code) ||
+        isFeatureEnabled(config?.blockquote) ||
+        isFeatureEnabled(config?.informationPane) ||
+        isFeatureEnabled(config?.conversationHistory)) && {
+        id: 'calloutSpacer',
+        content: <Spacer margin={1} />,
+        overflowOnly: true,
+      },
+
+      // ─── 8. "Plus ▾" Overflow Groups: Structured Layout & Embeds ────────────
+      isFeatureEnabled(config?.accordion) && {
+        id: 'accordion',
+        content: structuredBlocks.accordionButton,
+        overflowOnly: true,
+      },
+      isFeatureEnabled(config?.columns) && {
+        id: 'columns',
+        content: structuredBlocks.columnsButton,
+        overflowOnly: true,
+      },
+      isFeatureEnabled(config?.mathematics) && {
+        id: 'mathematics',
+        content: mathematics.mathematicsButton,
+        overlay: mathematics.mathematicsDialog,
+        overflowOnly: true,
+      },
+      isFeatureEnabled(config?.pageBreak) && {
+        id: 'pageBreak',
+        content: structuredBlocks.pageBreakButton,
+        overflowOnly: true,
+      },
+      isFeatureEnabled(config?.tableOfContents) && {
+        id: 'tableOfContents',
+        content: structuredBlocks.tableOfContentsButton,
+        overflowOnly: true,
+      },
+      isFeatureEnabled(config?.slashCommands) && {
+        id: 'slashCommands',
+        content: slashCommand.slashCommandButton,
+        measureContent: slashCommand.slashCommandTrigger,
+        overflowOnly: true,
+      },
+      isFeatureEnabled(config?.iframe) && {
+        id: 'iframe',
+        content: iframe.iframeButton,
+        overlay: iframe.iframeDialog,
+        overflowOnly: true,
+      },
+      (isFeatureEnabled(config?.accordion) ||
+        isFeatureEnabled(config?.columns) ||
+        isFeatureEnabled(config?.mathematics) ||
+        isFeatureEnabled(config?.pageBreak) ||
+        isFeatureEnabled(config?.tableOfContents) ||
+        isFeatureEnabled(config?.slashCommands) ||
+        isFeatureEnabled(config?.iframe)) && {
+        id: 'structureSpacer',
+        content: <Spacer margin={1} />,
+        overflowOnly: true,
+      },
+
+      // ─── 8b. Registered Custom Extensions ───────────────────────────────────
+      ...customExtensionToolbarItems,
+      customExtensionToolbarItems.length > 0 && {
+        id: 'customExtensionsSpacer',
+        content: <Spacer margin={1} />,
+        overflowOnly: customExtensionToolbarItems.every((item) => item.overflowOnly),
+      },
+
+      // ─── 9. "Plus ▾" Overflow Groups: Tables ────────────────────────────────
+      isFeatureEnabled(config?.table) && {
         id: 'table',
         content: (
           <>
@@ -147,14 +623,59 @@ const InnerEditor = forwardRef<HTMLDivElement, InnerEditorProps>(
             {table.removeColumnButton}
             {table.addRowButton}
             {table.removeRowButton}
-            {tableOptions?.cellBackground && cellBackground.cellBackgroundButton}
-            {table.tableDialog}
+            {(tableOptions?.cellBackground || tableOptions?.allowCellBackgroundColor) &&
+              cellBackground.cellBackgroundButton}
+            {table.mergeCellsButton}
+            {table.splitCellButton}
           </>
         ),
+        overlay: table.tableDialog,
+        overflowOnly: true,
+      },
+      isFeatureEnabled(config?.table) && {
+        id: 'tableSpacer',
+        content: <Spacer margin={1} />,
+        overflowOnly: true,
+      },
+
+      // ─── 10. "Plus ▾" Overflow Groups: Speech & Editor Modes ────────────────
+      isFeatureEnabled(config?.speechToText) && {
+        id: 'speechToText',
+        content: speech.speechToTextButton,
+        overflowOnly: true,
+      },
+      isFeatureEnabled(config?.textToSpeech) && {
+        id: 'textToSpeech',
+        content: speech.textToSpeechButton,
+        overflowOnly: true,
+      },
+      (isFeatureEnabled(config?.speechToText) || isFeatureEnabled(config?.textToSpeech)) && {
+        id: 'speechSpacer',
+        content: <Spacer margin={1} />,
+        overflowOnly: true,
+      },
+      isFeatureEnabled(config?.fullscreen) && {
+        id: 'fullscreen',
+        content: (
+          <>
+            {editorModes.previewButton}
+            {editorModes.sourceButton}
+            {editorModes.fullscreenButton}
+          </>
+        ),
+        overflowOnly: true,
+      },
+      isFeatureEnabled(config?.fullscreen) && {
+        id: 'fullscreenSpacer',
+        content: <Spacer margin={1} />,
+        overflowOnly: true,
+      },
+      // Dialog renders outside the toolbar so it survives the overflow popover closing
+      Boolean(richTextComponents.componentsMenu) && {
+        id: 'components',
+        content: richTextComponents.componentsMenu,
       },
       config.table && { id: 'tableSpacer', content: <Spacer margin={1} /> },
-      // Dialog renders outside the toolbar so it survives the overflow popover closing
-      Boolean(components.componentsMenu) && { id: 'components', content: components.componentsMenu },
     ];
 
     const rawToolbarItems = toolbarItemCandidates.filter(isToolbarItem);
@@ -182,9 +703,19 @@ const InnerEditor = forwardRef<HTMLDivElement, InnerEditorProps>(
           noPresetConfigured={!presetName}
           removedContent={removedContent}
           contentError={contentError}
+          isFullscreen={editorModes.isFullscreen}
+          toolbarRef={toolbarRef}
+          onToolbarKeyDown={handleToolbarKeyDown}
+          footer={
+            <>
+              {editorModes.inspectorDrawer}
+              {editorModes.characterCountFooter}
+              {speech.speechLiveRegion}
+            </>
+          }
         >
           <ResponsiveToolbar items={toolbarItems} />
-          {components.componentDialog}
+          {richTextComponents.componentDialog}
         </BaseTiptapInput>
       </EditorErrorBoundary>
     );
@@ -195,17 +726,115 @@ const InnerEditor = forwardRef<HTMLDivElement, InnerEditorProps>(
 // Handles async preset fetching; renders loading state until config is ready.
 
 type RichTextInputProps = TiptapInputProps & {
-  attribute?: { options?: { preset?: string } };
+  value?: unknown;
+  attribute?: {
+    options?: {
+      preset?: string;
+      outputFormat?: TiptapOutputFormat;
+      characterLimit?: number;
+      placeholder?: string;
+    };
+  };
 };
 
+export function isStoredProseMirrorJson(value: unknown): boolean {
+  if (value !== null && typeof value === 'object' && !Array.isArray(value)) {
+    return (value as { type?: unknown }).type === 'doc';
+  }
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    if (trimmed.startsWith('{') && trimmed.endsWith('}')) {
+      try {
+        const parsed = JSON.parse(trimmed) as { type?: unknown } | null;
+        return Boolean(
+          parsed && typeof parsed === 'object' && !Array.isArray(parsed) && parsed.type === 'doc'
+        );
+      } catch {
+        return false;
+      }
+    }
+  }
+  return false;
+}
+
+/**
+ * Top-level Strapi custom field wrapper that resolves the field's preset configuration
+ * and runtime settings before mounting the inner TipTap editor.
+ */
 const RichTextInput = forwardRef<HTMLDivElement, RichTextInputProps>((props, forwardedRef) => {
   const { formatMessage } = useIntl();
   const rawPresetName = props.attribute?.options?.preset;
   const normalizedPresetName = rawPresetName?.trim() || undefined;
+  const outputFormat = props.attribute?.options?.outputFormat;
+  const characterLimit = props.attribute?.options?.characterLimit;
+  const placeholder =
+    props.attribute?.options?.placeholder ??
+    (typeof (props as { placeholder?: unknown }).placeholder === 'string'
+      ? (props as { placeholder?: string }).placeholder
+      : undefined);
 
-  const { config, isLoading } = usePresetConfig(normalizedPresetName);
+  const [runtimeSettings, setRuntimeSettings] = useState<TiptapRuntimeSettings>(
+    DEFAULT_RUNTIME_SETTINGS
+  );
+  const [isSettingsLoading, setIsSettingsLoading] = useState<boolean>(true);
+  const [settingsLoadFailed, setSettingsLoadFailed] = useState<boolean>(false);
+  const effectivePresetName = normalizedPresetName ?? runtimeSettings.defaultPreset;
+  const { config, isLoading } = usePresetConfig(
+    isSettingsLoading && !normalizedPresetName ? undefined : effectivePresetName
+  );
 
-  if (isLoading) {
+  useEffect(() => {
+    let mounted = true;
+    Promise.resolve()
+      .then(() => {
+        if (typeof getFetchClient !== 'function') return undefined;
+        return getFetchClient().get('/tiptap-editor/settings');
+      })
+      .then(
+        (
+          res:
+            | {
+                data?: {
+                  defaultPreset?: string;
+                  enableRelationalSync?: boolean;
+                  defaultOutputFormat?: TiptapOutputFormat;
+                };
+              }
+            | undefined
+        ) => {
+          if (!mounted) return;
+          setRuntimeSettings({
+            ...DEFAULT_RUNTIME_SETTINGS,
+            ...(typeof res?.data?.defaultPreset === 'string' &&
+            res.data.defaultPreset.trim().length > 0
+              ? { defaultPreset: res.data.defaultPreset.trim() }
+              : {}),
+            ...(typeof res?.data?.enableRelationalSync === 'boolean'
+              ? { enableRelationalSync: res.data.enableRelationalSync }
+              : {}),
+            ...(res?.data?.defaultOutputFormat === 'json' ||
+            res?.data?.defaultOutputFormat === 'html' ||
+            res?.data?.defaultOutputFormat === 'markdown'
+              ? { defaultOutputFormat: res.data.defaultOutputFormat }
+              : {}),
+          });
+          setSettingsLoadFailed(false);
+          setIsSettingsLoading(false);
+        }
+      )
+      .catch(() => {
+        if (mounted) {
+          setRuntimeSettings(DEFAULT_RUNTIME_SETTINGS);
+          setSettingsLoadFailed(true);
+          setIsSettingsLoading(false);
+        }
+      });
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  if (isLoading || isSettingsLoading) {
     return (
       <Box padding={4}>
         {formatMessage({ id: 'tiptap-editor.loading', defaultMessage: 'Loading editor...' })}
@@ -213,12 +842,28 @@ const RichTextInput = forwardRef<HTMLDivElement, RichTextInputProps>((props, for
     );
   }
 
+  const storedLooksJson = isStoredProseMirrorJson(props.value);
+  const storedString = typeof props.value === 'string' ? props.value.trim() : '';
+  const inferredFormat: TiptapOutputFormat | undefined =
+    !settingsLoadFailed || !storedString
+      ? undefined
+      : storedString.startsWith('<')
+        ? 'html'
+        : 'markdown';
+  const resolvedFormat =
+    outputFormat ??
+    (storedLooksJson ? 'json' : (inferredFormat ?? runtimeSettings.defaultOutputFormat));
+
   return (
     <InnerEditor
+      {...props}
       ref={forwardedRef}
       config={config ?? MINIMAL_PRESET_CONFIG}
-      presetName={normalizedPresetName}
-      {...props}
+      presetName={effectivePresetName}
+      outputFormat={resolvedFormat}
+      relationalSyncEnabled={runtimeSettings.enableRelationalSync}
+      characterLimit={characterLimit}
+      placeholder={placeholder}
     />
   );
 });

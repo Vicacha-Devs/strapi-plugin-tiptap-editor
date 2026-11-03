@@ -30,6 +30,27 @@ import { calculateReadingTimeMinutes } from '../../admin/src/components/EditorFo
 const names = (exts: Array<{ name?: string }>) => exts.map((ext) => ext?.name).filter(Boolean);
 
 describe('structured blocks & productivity tools', () => {
+  it('registers structured block schemas even in MINIMAL_PRESET_CONFIG (Zero-Data-Loss)', () => {
+    const extNames = names(buildExtensions(MINIMAL_PRESET_CONFIG) as Array<{ name?: string }>);
+    for (const name of [
+      'informationPane',
+      'mathematics',
+      'details',
+      'detailsSummary',
+      'detailsContent',
+      'conversationHistory',
+      'layoutContainer',
+      'layoutColumn',
+      'taskList',
+      'taskItem',
+      'pageBreak',
+      'tableOfContents',
+      'characterCount',
+    ]) {
+      expect(extNames).toContain(name);
+    }
+  });
+
   it('omits characterCount when explicitly disabled and no characterLimit is given', () => {
     const disabled = names(
       buildExtensions({ ...MINIMAL_PRESET_CONFIG, characterCount: false }) as Array<{ name?: string }>
@@ -43,6 +64,21 @@ describe('structured blocks & productivity tools', () => {
       } as never) as Array<{ name?: string }>
     );
     expect(objDisabled).not.toContain('characterCount');
+  });
+
+  it('keeps characterCount when a field-level characterLimit is provided', () => {
+    const extNames = names(
+      buildExtensions({ ...MINIMAL_PRESET_CONFIG, characterCount: false }, { characterLimit: 100 }) as Array<{
+        name?: string;
+      }>
+    );
+    expect(extNames).toContain('characterCount');
+  });
+
+  it('adds the emoji shortcode extension only when emoji is enabled', () => {
+    const on = buildExtensions({ ...MINIMAL_PRESET_CONFIG, emoji: true }).length;
+    const off = buildExtensions({ ...MINIMAL_PRESET_CONFIG }).length;
+    expect(on).toBe(off + 1);
   });
 
   it('exposes the new preset feature keys', () => {

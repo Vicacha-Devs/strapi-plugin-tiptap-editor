@@ -11,6 +11,21 @@ type InitializerProps = {
 
 const THEME_STYLE_ID = 'tiptap-theme-styles';
 
+export function isSafeStylesheetUrl(raw: string): boolean {
+  if (typeof raw !== 'string') return false;
+  const trimmed = raw.trim();
+  if (!trimmed || /[\u0000-\u001F\s]/.test(trimmed)) return false;
+  if (/^https:\/\//i.test(trimmed)) {
+    try {
+      const parsed = new URL(trimmed);
+      return parsed.protocol === 'https:';
+    } catch {
+      return false;
+    }
+  }
+  return trimmed.startsWith('/') && !trimmed.startsWith('//') && !trimmed.startsWith('/\\');
+}
+
 function reconcileThemeStyles(theme: { stylesheet?: string; css?: string }): Promise<void> {
   const existing = document.getElementById(THEME_STYLE_ID);
 
@@ -36,9 +51,16 @@ function reconcileThemeStyles(theme: { stylesheet?: string; css?: string }): Pro
   }
 
   // External stylesheet via <link> tag
+  const safeStylesheet = stylesheet!.trim();
+  if (!isSafeStylesheetUrl(safeStylesheet)) {
+    existing?.remove();
+    console.warn('[TiptapEditor] Invalid or unsafe stylesheet URL:', stylesheet);
+    return Promise.resolve();
+  }
+
   let resolved: string;
   try {
-    resolved = new URL(stylesheet!, document.baseURI).href;
+    resolved = new URL(safeStylesheet, document.baseURI).href;
   } catch {
     console.warn('[TiptapEditor] Invalid stylesheet URL:', stylesheet);
     return Promise.resolve();
@@ -58,7 +80,7 @@ function reconcileThemeStyles(theme: { stylesheet?: string; css?: string }): Pro
     const link = document.createElement('link');
     link.id = THEME_STYLE_ID;
     link.rel = 'stylesheet';
-    link.href = stylesheet!;
+    link.href = safeStylesheet;
     link.onload = () => resolve();
     link.onerror = () => {
       console.warn('[TiptapEditor] Failed to load theme stylesheet:', stylesheet);

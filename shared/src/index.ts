@@ -4,3 +4,5 @@ export * from './pluginId';
 export * from './components';
 export * from './table';
 export * from './sanitize';
+export * from './relations';
+export * from './contentSerializer';

@@ -18,6 +18,24 @@ export const RESERVED_NODE_NAMES: ReadonlySet<string> = new Set([
   'tableRow',
   'tableCell',
   'tableHeader',
+  'video',
+  'audio',
+  'attachment',
+  'iframe',
+  'linker',
+  'informationPane',
+  'mathematics',
+  'leadParagraph',
+  'details',
+  'detailsSummary',
+  'detailsContent',
+  'conversationHistory',
+  'layoutContainer',
+  'layoutColumn',
+  'taskList',
+  'taskItem',
+  'pageBreak',
+  'tableOfContents',
   // Marks share the schema's namespace with nodes.
   'link',
   'bold',
@@ -29,6 +47,8 @@ export const RESERVED_NODE_NAMES: ReadonlySet<string> = new Set([
   'textStyle',
   'superscript',
   'subscript',
+  'language',
+  'abbr',
 ]);
 
 export const isReservedNodeName = (name: string): boolean => RESERVED_NODE_NAMES.has(name);

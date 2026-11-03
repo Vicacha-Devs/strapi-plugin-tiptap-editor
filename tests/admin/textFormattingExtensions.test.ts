@@ -61,6 +61,27 @@ describe('text formatting extensions', () => {
     }
   });
 
+  it('always registers FontFamily, FontSize and LineHeight so stored styles round-trip', () => {
+    expect(names({})).toEqual(
+      expect.arrayContaining(['textStyle', 'fontFamily', 'fontSize', 'lineHeight'])
+    );
+  });
+
+  it('always registers the semantic marks so stored content round-trips', () => {
+    expect(names({})).toEqual(
+      expect.arrayContaining(['leadParagraph', 'language', 'abbr'])
+    );
+  });
+
+  it('passes autoSlugId to the heading extension', () => {
+    const find = (config: Record<string, unknown>) =>
+      buildExtensions(config as any).find((ext: any) => ext.name === 'heading') as any;
+    expect(find({ heading: { levels: [2, 3] } }).options.autoSlugId).toBe(true);
+    const off = find({ heading: { levels: [2], autoSlugId: false } });
+    expect(off.options.autoSlugId).toBe(false);
+    expect(off.config.addProseMirrorPlugins.call(off)).toEqual([]);
+  });
+
   it('drops unsafe table cell background colors', () => {
     const extensions = buildExtensions({ table: true } as any);
     for (const name of ['tableCell', 'tableHeader']) {

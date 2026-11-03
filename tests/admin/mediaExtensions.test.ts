@@ -71,6 +71,29 @@ import { isSafeUrl, isSafeIframeUrl } from '../../shared/src/urlSafety';
 
 describe('media & embed extensions', () => {
   describe('buildExtensions zero-data-loss media nodes', () => {
+    const names = (config: Record<string, unknown>) =>
+      buildExtensions(config as any).map((ext: any) => ext.name);
+
+    it('always registers video, audio, attachment, iframe and linker schemas', () => {
+      const registered = names({ bold: true });
+      for (const name of ['video', 'audio', 'attachment', 'iframe', 'linker']) {
+        expect(registered).toContain(name);
+      }
+    });
+
+    it('registers the same schemas when the features are enabled', () => {
+      const registered = names({
+        video: true,
+        audio: true,
+        attachment: true,
+        iframe: { allowedDomains: ['example.com'] },
+        linker: true,
+      });
+      for (const name of ['video', 'audio', 'attachment', 'iframe', 'linker']) {
+        expect(registered).toContain(name);
+      }
+    });
+
     it('adds the strapi protocol to links unless allowInternalLinks is false', () => {
       expect(() => buildExtensions({ link: true } as any)).not.toThrow();
       expect(() => buildExtensions({ link: { allowInternalLinks: false } } as any)).not.toThrow();

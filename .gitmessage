@@ -1,0 +1,30 @@
+# <type>(<scope>): <short summary in imperative mood>
+# |<----                Keep header under 72 characters               ---->|
+
+# Explain WHY this change is being made and any Tiptap / Strapi v5 context:
+# |<----                  Wrap body lines at 100 chars                ---->|
+
+# Footer (optional):
+# Closes #123
+# BREAKING CHANGE: <description of breaking change and migration steps>
+
+# --- COMMIT CONVENTIONS (strapi-plugin-tiptap-editor) ---
+# Allowed <type> values:
+#   feat     - New Tiptap extension, toolbar control, preset, or serialization mode
+#   fix      - Bug fix in editor state, Strapi media library integration, RTL, or a11y
+#   docs     - README or configuration documentation update
+#   style    - Toolbar/BubbleMenu styling or Strapi Design System v2 theme adjustments
+#   refactor - Code restructuring without changing public behavior
+#   perf     - Editor rendering, debounce, or bundle size optimization
+#   test     - Adding or updating Vitest unit tests (admin or server)
+#   build    - @strapi/sdk-plugin build, peerDependencies, or TypeScript config
+#   ci       - GitHub Actions workflow or release configuration
+#   chore    - Maintenance tasks
+#
+# Common <scope> values:
+#   editor, toolbar, bubble-menu, slash-command, media, tables, callout,
+#   rtl, i18n, serializer, presets, server, a11y, types, deps
+#
+# Examples:
+#   feat(slash-command): add keyboard-accessible callout block insertion
+#   fix(serializer): preserve empty paragraph nodes in markdown round-trip

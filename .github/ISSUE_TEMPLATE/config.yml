@@ -1,0 +1,5 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Tiptap v3 Documentation
+    url: https://tiptap.dev/docs/editor/getting-started/overview
+    about: Official Tiptap Editor documentation.

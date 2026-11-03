@@ -1,6 +1,7 @@
 import React from 'react';
 import { Button, Dialog, Field, TextInput } from '@strapi/design-system';
 import { useIntl } from 'react-intl';
+import { isSafeUrl } from '../../../shared/src/urlSafety';
 
 export type LinkDialogPayload = { url: string };
 
@@ -10,7 +11,7 @@ interface LinkDialogProps {
   mode: 'add' | 'edit';
   onClose: () => void;
   onSave: (payload: LinkDialogPayload) => void;
-  onRemove: () => void;
+  onRemove?: () => void;
 }
 
 // Dialog for adding or editing/removing a link.
@@ -24,18 +25,45 @@ export const LinkDialog: React.FC<LinkDialogProps> = ({
 }) => {
   const { formatMessage } = useIntl();
   const [value, setValue] = React.useState(url || '');
+  const [error, setError] = React.useState<string | null>(null);
 
   React.useEffect(() => {
     if (open) {
       setValue(url || '');
+      setError(null);
     }
   }, [open, url, mode]);
 
   const handleSave = () => {
-    onSave({ url: value.trim() });
+    const trimmed = value.trim();
+    if (trimmed === '') {
+      if (mode === 'edit' && onRemove) {
+        setError(null);
+        onSave({ url: '' });
+        return;
+      }
+      setError(
+        formatMessage({
+          id: 'tiptap-editor.link.invalidUrl',
+          defaultMessage: 'Enter a valid, safe URL',
+        })
+      );
+      return;
+    }
+    if (!isSafeUrl(trimmed)) {
+      setError(
+        formatMessage({
+          id: 'tiptap-editor.link.invalidUrl',
+          defaultMessage: 'Enter a valid, safe URL',
+        })
+      );
+      return;
+    }
+    setError(null);
+    onSave({ url: trimmed });
   };
 
-  const isSaveDisabled = mode === 'add' ? value.trim() === '' : false; // allow empty to remove when editing
+  const isSaveDisabled = mode === 'add' || !onRemove ? value.trim() === '' : false; // allow empty to remove when editing
 
   return (
     <Dialog.Root
@@ -51,14 +79,18 @@ export const LinkDialog: React.FC<LinkDialogProps> = ({
             : formatMessage({ id: 'tiptap-editor.link.editLink', defaultMessage: 'Edit link' })
           }</Dialog.Header>
           <Dialog.Body>
-            <Field.Root width="100%">
+            <Field.Root width="100%" name="link-url" error={error || undefined}>
               <Field.Label>{formatMessage({ id: 'tiptap-editor.link.urlLabel', defaultMessage: 'URL' })}</Field.Label>
               <TextInput
                 name="link-url"
                 placeholder={formatMessage({ id: 'tiptap-editor.link.urlPlaceholder', defaultMessage: 'https://example.com' })}
                 value={value}
-                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setValue(e.target.value)}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
+                  setValue(e.target.value);
+                  if (error) setError(null);
+                }}
               />
+              <Field.Error />
             </Field.Root>
           </Dialog.Body>
           <Dialog.Footer>
@@ -67,21 +99,19 @@ export const LinkDialog: React.FC<LinkDialogProps> = ({
                 {formatMessage({ id: 'tiptap-editor.link.cancel', defaultMessage: 'Cancel' })}
               </Button>
             </Dialog.Cancel>
-            {mode === 'edit' && (
+            {mode === 'edit' && onRemove && (
               <Button variant="danger-light" fullWidth onClick={onRemove}>
                 {formatMessage({ id: 'tiptap-editor.link.removeLink', defaultMessage: 'Remove link' })}
               </Button>
             )}
-            <Dialog.Action>
-              <Button
-                fullWidth
-                variant="success-light"
-                onClick={handleSave}
-                disabled={isSaveDisabled}
-              >
-                {formatMessage({ id: 'tiptap-editor.link.save', defaultMessage: 'Save' })}
-              </Button>
-            </Dialog.Action>
+            <Button
+              fullWidth
+              variant="success-light"
+              onClick={handleSave}
+              disabled={isSaveDisabled}
+            >
+              {formatMessage({ id: 'tiptap-editor.link.save', defaultMessage: 'Save' })}
+            </Button>
           </Dialog.Footer>
         </Dialog.Content>
       )}

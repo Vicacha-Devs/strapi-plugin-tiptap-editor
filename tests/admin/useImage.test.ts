@@ -11,11 +11,34 @@ vi.mock('react-intl', () => ({
   useIntl: vi.fn(() => ({ formatMessage: (msg: { defaultMessage: string }) => msg.defaultMessage })),
 }));
 vi.mock('@strapi/design-system', () => ({
+  Box: 'div',
+  Flex: 'div',
+  Typography: 'span',
+  Field: { Root: 'div', Label: 'label' },
+  Dialog: {
+    Root: 'div',
+    Content: 'div',
+    Header: 'div',
+    Body: 'div',
+    Footer: 'div',
+    Cancel: 'div',
+    Action: 'div',
+  },
+  SingleSelect: 'select',
+  SingleSelectOption: 'option',
+  Tooltip: 'div',
+  Button: 'button',
   Popover: { Root: 'div', Anchor: 'div', Content: 'div' },
   TextInput: 'input',
   IconButton: 'button',
 }));
-vi.mock('@strapi/icons', () => ({ Trash: 'span', Image: 'span', Cross: 'span' }));
+vi.mock('@strapi/icons', () => ({
+  Trash: 'span',
+  Image: 'span',
+  Cross: 'span',
+  ArrowClockwise: 'span',
+  Pencil: 'span',
+}));
 vi.mock('../../admin/src/components/ToolbarButton', () => ({ ToolbarButton: 'button' }));
 
 describe('useImage hook (IMG-01, IMG-02)', () => {

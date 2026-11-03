@@ -39,7 +39,10 @@ export function PresetSelect({ value, onChange, name }: PresetSelectProps) {
     >
       {presets.map((presetName) => (
         <SingleSelectOption key={presetName} value={presetName}>
-          {presetName}
+          {formatMessage({
+            id: `tiptap-editor.settings.presetName.${presetName}`,
+            defaultMessage: presetName.charAt(0).toUpperCase() + presetName.slice(1),
+          })}
         </SingleSelectOption>
       ))}
     </SingleSelect>

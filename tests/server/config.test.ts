@@ -219,4 +219,73 @@ describe('config validator — components', () => {
       config.validator({ presets: { rich: { components: { paragraph: true } } } })
     ).toThrowError(/"paragraph" is a reserved node name/);
   });
+
+  it('rejects reserved prototype keys in presets and components', () => {
+    expect(() =>
+      config.validator(JSON.parse('{"presets":{"__proto__":{"bold":true}}}'))
+    ).toThrowError(/reserved key/);
+    expect(() =>
+      config.validator({ presets: { constructor: { bold: true } } })
+    ).toThrowError(/reserved key/);
+    expect(() =>
+      config.validator({ presets: { rich: { components: { constructor: true } } } })
+    ).toThrowError(/reserved key/);
+  });
+});
+
+describe('config validator — security hardening & top-level keys', () => {
+  it('rejects CSS injection inside var() color values', () => {
+    expect(() =>
+      config.validator({
+        theme: { colors: [{ label: 'Injected', color: 'var(--x; position:fixed)' }] },
+      })
+    ).toThrow(/invalid color/i);
+  });
+
+  it('accepts https:// and single-slash stylesheet paths while rejecting javascript:, data:, and protocol-relative URLs', () => {
+    expect(() =>
+      config.validator({ theme: { stylesheet: '/styles/editor.css' } })
+    ).not.toThrow();
+    expect(() =>
+      config.validator({ theme: { stylesheet: 'https://cdn.example.com/editor.css' } })
+    ).not.toThrow();
+
+    expect(() =>
+      config.validator({ theme: { stylesheet: 'javascript:alert(1)' } })
+    ).toThrow(/theme\.stylesheet/);
+    expect(() =>
+      config.validator({ theme: { stylesheet: 'data:text/css,body{display:none}' } })
+    ).toThrow(/theme\.stylesheet/);
+    expect(() =>
+      config.validator({ theme: { stylesheet: '//evil.example.com/editor.css' } })
+    ).toThrow(/theme\.stylesheet/);
+    expect(() =>
+      config.validator({ theme: { stylesheet: '/\\evil.example.com/editor.css' } })
+    ).toThrow(/theme\.stylesheet/);
+  });
+
+  it('validates optional settings and fieldBindings top-level keys', () => {
+    expect(() =>
+      config.validator({
+        presets: { rich: { bold: true } },
+        settings: { defaultPreset: 'rich', enableRelationalSync: true },
+        fieldBindings: [
+          { uid: 'api::article.article', field: 'body', preset: 'rich' },
+        ],
+      })
+    ).not.toThrow();
+
+    expect(() => config.validator({ settings: 'invalid' })).toThrow(
+      /config\.settings must be a plain object/
+    );
+    expect(() => config.validator({ fieldBindings: 'invalid' })).toThrow(
+      /config\.fieldBindings must be an array/
+    );
+    expect(() =>
+      config.validator({ fieldBindings: [{ uid: '__proto__', field: 'body' }] })
+    ).toThrow(/uid must be a non-empty non-reserved string/);
+    expect(() =>
+      config.validator({ fieldBindings: [{ uid: 'api::article.article', field: 'constructor' }] })
+    ).toThrow(/field must be a non-empty non-reserved string/);
+  });
 });

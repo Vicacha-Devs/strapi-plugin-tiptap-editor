@@ -1,7 +1,10 @@
+import { Node, Mark, Extension, mergeAttributes } from '@tiptap/core';
 import type { StrapiApp } from '@strapi/strapi/admin';
 import { PLUGIN_ID } from '../../shared/src/pluginId';
 import { Initializer } from './components/Initializer';
 import { PresetSelect } from './components/PresetSelect';
+import { MediaLibraryWrapper, type StrapiFile } from './components/MediaLibraryWrapper';
+import { ToolbarButton } from './components/ToolbarButton';
 import { captureApp } from './utils/strapiApp';
 import { buttonComponent } from './builtins/button';
 import {
@@ -9,8 +12,40 @@ import {
   listRichTextComponents,
   registerRichTextComponent,
 } from './registry/richTextComponents';
+import {
+  registerTiptapExtension,
+  unregisterTiptapExtension,
+  getRegisteredTiptapExtensions,
+  clearRegisteredTiptapExtensions,
+  isCustomExtensionEnabledForPreset,
+  type TiptapCustomExtensionRegistration,
+  type CustomExtensionToolbarProps,
+  type CustomExtensionDialogProps,
+  type CustomSlashCommandItem,
+  type CustomSlashCommandHelpers,
+} from './utils/customExtensionRegistry';
 
 import { richTextField } from './fields/richTextField';
+
+export {
+  Node,
+  Mark,
+  Extension,
+  mergeAttributes,
+  registerTiptapExtension,
+  unregisterTiptapExtension,
+  getRegisteredTiptapExtensions,
+  clearRegisteredTiptapExtensions,
+  isCustomExtensionEnabledForPreset,
+  MediaLibraryWrapper,
+  ToolbarButton,
+  type StrapiFile,
+  type TiptapCustomExtensionRegistration,
+  type CustomExtensionToolbarProps,
+  type CustomExtensionDialogProps,
+  type CustomSlashCommandItem,
+  type CustomSlashCommandHelpers,
+};
 
 export default {
   register(app: StrapiApp) {
@@ -28,12 +63,34 @@ export default {
           define: defineRichTextComponent,
           list: listRichTextComponents,
         },
+        registerExtension: registerTiptapExtension,
+        unregisterExtension: unregisterTiptapExtension,
+        getRegisteredExtensions: getRegisteredTiptapExtensions,
+        clearRegisteredExtensions: clearRegisteredTiptapExtensions,
       },
     });
 
     app.customFields.register(
       richTextField as unknown as Parameters<typeof app.customFields.register>[0]
     );
+
+    if (typeof (app as Record<string, any>).addSettingsLink === 'function') {
+      app.addSettingsLink('global', {
+        intlLabel: {
+          id: `${PLUGIN_ID}.settings.title`,
+          defaultMessage: 'Tiptap Editor',
+        },
+        id: `${PLUGIN_ID}-settings`,
+        to: PLUGIN_ID,
+        Component: () => import('./pages/SettingsPage'),
+        permissions: [
+          {
+            action: `plugin::${PLUGIN_ID}.settings.update`,
+            subject: null,
+          },
+        ],
+      });
+    }
   },
 
   async bootstrap(app: StrapiApp) {
@@ -63,6 +120,7 @@ export default {
 };
 
 export {
+  clearRichTextComponents,
   defineRichTextComponent,
   getRichTextComponent,
   listRichTextComponents,
@@ -77,6 +135,6 @@ export type {
   RichTextComponentHelpers,
   RichTextComponentPreviewProps,
 } from './registry/types';
-export type { ButtonAttrs } from './builtins/button';
+export { buttonComponent, type ButtonAttrs } from './builtins/button';
 export { ColorPickerPopover } from './components/ColorPickerPopover';
 export type { ThemeColorEntry } from '../../shared/src/types';

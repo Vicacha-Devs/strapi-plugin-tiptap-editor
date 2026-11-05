@@ -46,4 +46,67 @@ describe('theme routes (THEME-03)', () => {
     expect(themeRoute).toBeDefined();
     expect(themeRoute.handler).toBe('theme.find');
   });
+
+  it('enforces admin::hasPermissions policy on PUT /settings', () => {
+    const routeList = (routes as any)['settings-routes'].routes as any[];
+    const putSettingsRoute = routeList.find(
+      (r) => r.method === 'PUT' && r.path === '/settings'
+    );
+    expect(putSettingsRoute).toBeDefined();
+    expect(putSettingsRoute.config.policies).toEqual([
+      {
+        name: 'admin::hasPermissions',
+        config: {
+          actions: ['plugin::tiptap-editor.settings.update'],
+        },
+      },
+    ]);
+  });
+
+  it('enforces admin::hasPermissions policy on GET /link-preview', () => {
+    const routeList = (routes as any)['media-routes'].routes as any[];
+    const linkPreviewRoute = routeList.find(
+      (r) => r.method === 'GET' && r.path === '/link-preview'
+    );
+    expect(linkPreviewRoute).toBeDefined();
+    expect(linkPreviewRoute.config.policies).toEqual([
+      {
+        name: 'admin::hasPermissions',
+        config: {
+          actions: ['plugin::tiptap-editor.explorer.read'],
+        },
+      },
+    ]);
+  });
+
+  it('enforces admin::hasPermissions policy on POST /upload-by-url', () => {
+    const routeList = (routes as any)['media-routes'].routes as any[];
+    const uploadByUrlRoute = routeList.find(
+      (r) => r.method === 'POST' && r.path === '/upload-by-url'
+    );
+    expect(uploadByUrlRoute).toBeDefined();
+    expect(uploadByUrlRoute.config.policies).toEqual([
+      {
+        name: 'admin::hasPermissions',
+        config: {
+          actions: ['plugin::upload.assets.create'],
+        },
+      },
+    ]);
+  });
+
+  it('enforces admin::hasPermissions policy on search-routes', () => {
+    const routeList = (routes as any)['search-routes'].routes as any[];
+    expect(routeList).toHaveLength(3);
+    for (const route of routeList) {
+      expect(route.config.policies).toEqual([
+        {
+          name: 'admin::hasPermissions',
+          config: {
+            actions: ['plugin::tiptap-editor.explorer.read'],
+          },
+        },
+      ]);
+    }
+  });
 });

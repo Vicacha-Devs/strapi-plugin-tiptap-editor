@@ -4,16 +4,32 @@ import { MINIMAL_PRESET_CONFIG } from '../../shared/src/types';
 // ─── Mock React ───────────────────────────────────────────────────────────────
 let capturedUseMemoFactory: (() => any) | null = null;
 let capturedUseMemoDeps: any[] | null = null;
+let mockIsSettingsLoading = false;
+let mockSettingsLoadFailed = false;
 
 vi.mock('react', async () => {
   const actual = await vi.importActual<typeof import('react')>('react');
   return {
     ...actual,
+    useState: (init: any) => [
+      init === true
+        ? mockIsSettingsLoading
+        : init === false
+          ? mockSettingsLoadFailed
+          : typeof init === 'function'
+            ? init()
+            : init,
+      vi.fn(),
+    ],
+    useEffect: (fn: () => void) => {
+      fn();
+    },
     useMemo: (fn: () => any, deps: any[]) => {
       capturedUseMemoFactory = fn;
       capturedUseMemoDeps = deps;
       return fn();
     },
+    useRef: (init: any) => ({ current: init }),
     forwardRef: (fn: any) => fn,
     createElement: (type: any, props: any, ...children: any[]) => ({
       type,
@@ -48,7 +64,12 @@ vi.mock('../../admin/src/utils/buildExtensions', () => ({
 // ─── Mock useTiptapEditor ─────────────────────────────────────────────────────
 const mockEditor = { id: 'mock-editor' };
 const mockField = { value: '', error: undefined, onChange: vi.fn(), initialValue: '' };
-const mockUseTiptapEditor = vi.fn(() => ({ editor: mockEditor, field: mockField }));
+const mockUseTiptapEditor = vi.fn(() => ({
+  editor: mockEditor,
+  field: mockField,
+  removedContent: null,
+  contentError: false,
+}));
 vi.mock('../../admin/src/utils/tiptapUtils', () => ({
   useTiptapEditor: (...args: any[]) => mockUseTiptapEditor(...args),
 }));
@@ -73,6 +94,8 @@ const mockTable = {
   removeColumnButton: null,
   addRowButton: null,
   removeRowButton: null,
+  mergeCellsButton: null,
+  splitCellButton: null,
   tableDialog: null,
 };
 const mockTextAlign = {
@@ -128,6 +151,124 @@ const mockUseRichTextComponents = vi.fn(() => ({
 }));
 vi.mock('../../admin/src/extensions/Components', () => ({
   useRichTextComponents: (...args: any[]) => mockUseRichTextComponents(...args),
+}));
+
+vi.mock('../../admin/src/extensions/Video', () => ({
+  useVideo: () => ({ videoButton: null, videoDialog: null }),
+  StrapiVideo: { configure: vi.fn(() => ({})) },
+}));
+
+vi.mock('../../admin/src/extensions/Audio', () => ({
+  useAudio: () => ({ audioButton: null, audioDialog: null }),
+  StrapiAudio: { configure: vi.fn(() => ({})) },
+}));
+
+vi.mock('../../admin/src/extensions/Attachment', () => ({
+  useAttachment: () => ({ attachmentButton: null, attachmentDialog: null }),
+  StrapiAttachment: { configure: vi.fn(() => ({})) },
+}));
+
+vi.mock('../../admin/src/extensions/Iframe', () => ({
+  useIframe: () => ({ iframeButton: null, iframeDialog: null }),
+  StrapiIframe: { configure: vi.fn(() => ({})) },
+}));
+
+vi.mock('../../admin/src/extensions/Linker', () => ({
+  useLinker: () => ({ linkerButton: null, linkerDialog: null }),
+  StrapiLinker: { configure: vi.fn(() => ({})) },
+}));
+
+vi.mock('../../admin/src/extensions/TypographyControls', () => ({
+  useTypographyControls: () => ({
+    fontFamilySelect: null,
+    fontSizeSelect: null,
+    lineHeightSelect: null,
+    clearFormattingButton: null,
+  }),
+}));
+
+vi.mock('../../admin/src/extensions/SemanticMarks', () => ({
+  useSemanticMarks: () => ({
+    leadParagraphButton: null,
+    abbrButton: null,
+    abbrDialog: null,
+    languageButton: null,
+    languageDialog: null,
+  }),
+}));
+
+vi.mock('../../admin/src/extensions/InformationPane', () => ({
+  useInformationPane: () => ({
+    informationPaneButton: null,
+  }),
+}));
+
+vi.mock('../../admin/src/extensions/StructuredBlocks', () => ({
+  useStructuredBlocks: () => ({
+    accordionButton: null,
+    columnsButton: null,
+    taskListButton: null,
+    conversationHistoryButton: null,
+    pageBreakButton: null,
+    tableOfContentsButton: null,
+  }),
+}));
+
+vi.mock('../../admin/src/extensions/Mathematics', () => ({
+  useMathematics: () => ({ mathematicsButton: null, mathematicsDialog: null }),
+}));
+
+vi.mock('../../admin/src/extensions/EmojiPicker', () => ({
+  useEmojiPicker: () => ({ emojiTrigger: 'EmojiTrigger', emojiButton: 'EmojiButton' }),
+}));
+
+vi.mock('../../admin/src/extensions/SlashCommand', () => ({
+  useSlashCommand: () => ({
+    slashCommandTrigger: 'SlashCommandTrigger',
+    slashCommandButton: 'SlashCommandButton',
+  }),
+}));
+
+vi.mock('../../admin/src/extensions/SpeechTools', () => ({
+  useSpeechTools: () => ({
+    speechToTextButton: null,
+    textToSpeechButton: null,
+    speechLiveRegion: null,
+  }),
+}));
+
+vi.mock('../../admin/src/components/EditorFooterAndModes', () => ({
+  useEditorModes: () => ({
+    isFullscreen: false,
+    fullscreenButton: null,
+    previewButton: null,
+    sourceButton: null,
+    inspectorDrawer: null,
+    characterCountFooter: null,
+  }),
+}));
+
+vi.mock('../../admin/src/hooks/useKeyboardNavigation', () => ({
+  useKeyboardNavigation: () => ({
+    toolbarRef: { current: null },
+    handleToolbarKeyDown: vi.fn(),
+  }),
+}));
+
+const mockUseContentManagerContext = vi.fn(() => ({ contentType: undefined as any }));
+const mockUseField = vi.fn(() => ({ value: undefined as any, onChange: vi.fn() }));
+vi.mock('@strapi/strapi/admin', () => ({
+  unstable_useContentManagerContext: () => mockUseContentManagerContext(),
+  useField: () => mockUseField(),
+  getFetchClient: vi.fn(() => ({ get: vi.fn(() => Promise.resolve({ data: {} })) })),
+}));
+
+const mockUseRelationalSync = vi.fn(() => ({
+  syncRelationsFromDoc: vi.fn(),
+  seedSignature: vi.fn(),
+}));
+vi.mock('../../admin/src/hooks/useRelationalSync', () => ({
+  useRelationalSync: (...args: any[]) => mockUseRelationalSync(...args),
 }));
 
 // ─── Mock components ──────────────────────────────────────────────────────────
@@ -198,6 +339,7 @@ describe('RichTextInput', () => {
     vi.clearAllMocks();
     capturedUseMemoFactory = null;
     capturedUseMemoDeps = null;
+    mockIsSettingsLoading = false;
 
     // Default: not loading, has config
     mockUsePresetConfig.mockReturnValue({ config: MINIMAL_PRESET_CONFIG, isLoading: false });
@@ -220,16 +362,16 @@ describe('RichTextInput', () => {
     expect(mockUsePresetConfig).toHaveBeenCalledWith('blog');
   });
 
-  it('passes undefined to usePresetConfig when no attribute.options.preset (backward compat)', () => {
+  it('falls back to runtimeSettings.defaultPreset when no attribute.options.preset is set', () => {
     const props = { name: 'content' };
     RichTextInput(props as any, null);
-    expect(mockUsePresetConfig).toHaveBeenCalledWith(undefined);
+    expect(mockUsePresetConfig).toHaveBeenCalledWith('default');
   });
 
-  it('passes undefined to usePresetConfig when attribute has no options', () => {
+  it('falls back to runtimeSettings.defaultPreset when attribute has no options', () => {
     const props = { name: 'content', attribute: {} };
     RichTextInput(props as any, null);
-    expect(mockUsePresetConfig).toHaveBeenCalledWith(undefined);
+    expect(mockUsePresetConfig).toHaveBeenCalledWith('default');
   });
 
   it('returns a Box element (loading state) when isLoading is true — not EditorErrorBoundary', () => {
@@ -243,12 +385,21 @@ describe('RichTextInput', () => {
     expect(result.type).not.toBe('EditorErrorBoundary');
   });
 
-  it('passes noPresetConfigured=true to BaseTiptapInput when presetName is undefined', () => {
+  it('returns a Box element (loading state) while runtime settings are loading before mounting InnerEditor', () => {
+    mockIsSettingsLoading = true;
+    const props = { name: 'content' };
+    const result = RichTextInput(props as any, null) as any;
+    expect(result).not.toBeNull();
+    expect(result.type).toBe('Box');
+    expect(mockUseTiptapEditor).not.toHaveBeenCalled();
+  });
+
+  it('passes noPresetConfigured=false to BaseTiptapInput when falling back to runtimeSettings.defaultPreset', () => {
     const props = { name: 'content' };
     const result = RichTextInput(props as any, null) as any;
     const baseTiptapInputs = findElements(result, 'BaseTiptapInput');
     expect(baseTiptapInputs.length).toBeGreaterThan(0);
-    expect(baseTiptapInputs[0].props.noPresetConfigured).toBe(true);
+    expect(baseTiptapInputs[0].props.noPresetConfigured).toBe(false);
   });
 
   it('passes noPresetConfigured=false to BaseTiptapInput when presetName is defined', () => {
@@ -259,25 +410,29 @@ describe('RichTextInput', () => {
     expect(baseTiptapInputs[0].props.noPresetConfigured).toBe(false);
   });
 
-  it('memoizes extensions on presetName string (not config object)', () => {
+  it('memoizes extensions on [config, characterLimit, placeholder] with fixed dependency length', () => {
     const props = { name: 'content', attribute: { options: { preset: 'blog' } } };
     // Render through InnerEditor so useMemo runs
     shallowRender(RichTextInput(props as any, null));
-    // The useMemo dependency array should contain the presetName string, not a config object
     expect(capturedUseMemoDeps).not.toBeNull();
-    expect(capturedUseMemoDeps).toContain('blog');
-    // The deps array should NOT contain an object (the config)
-    const hasObjectDep = capturedUseMemoDeps!.some(
-      (dep) => dep !== null && typeof dep === 'object'
-    );
-    expect(hasObjectDep).toBe(false);
+    expect(capturedUseMemoDeps).toEqual([MINIMAL_PRESET_CONFIG, undefined, undefined]);
   });
 
-  it('memoizes extensions on undefined when no presetName', () => {
+  it('memoizes extensions with fixed 3-element dependency array when no presetName is provided', () => {
     const props = { name: 'content' };
     // Render through InnerEditor so useMemo runs
     shallowRender(RichTextInput(props as any, null));
-    expect(capturedUseMemoDeps).toEqual([undefined]);
+    expect(capturedUseMemoDeps).toEqual([MINIMAL_PRESET_CONFIG, undefined, undefined]);
+  });
+
+  it('forwards attribute.options.placeholder to buildExtensions even when top-level placeholder is undefined', () => {
+    const props = {
+      name: 'content',
+      placeholder: undefined,
+      attribute: { options: { preset: 'blog', placeholder: 'Write something...' } },
+    };
+    shallowRender(RichTextInput(props as any, null));
+    expect(capturedUseMemoDeps).toEqual([MINIMAL_PRESET_CONFIG, undefined, 'Write something...']);
   });
 
   it('wraps output in EditorErrorBoundary (rendered through InnerEditor)', () => {
@@ -285,6 +440,13 @@ describe('RichTextInput', () => {
     const result = RichTextInput(props as any, null) as any;
     const rendered = shallowRender(result);
     expect(rendered.type).toBe('EditorErrorBoundary');
+  });
+
+  it('calls useTextColor and useHighlightColor unconditionally (React rules of hooks)', () => {
+    const props = { name: 'content' };
+    shallowRender(RichTextInput(props as any, null));
+    expect(mockUseTextColor).toHaveBeenCalledTimes(1);
+    expect(mockUseHighlightColor).toHaveBeenCalledTimes(1);
   });
 
   it('passes toolbar items to ResponsiveToolbar based on enabled config options', () => {
@@ -304,6 +466,7 @@ describe('RichTextInput', () => {
       orderedList: true,
       code: true,
       blockquote: true,
+      slashCommands: true,
       link: true,
       mediaLibrary: true,
       table: true,
@@ -328,6 +491,7 @@ describe('RichTextInput', () => {
     expect(itemIds).toContain('ordered');
     expect(itemIds).toContain('code');
     expect(itemIds).toContain('blockquote');
+    expect(itemIds).toContain('slashCommands');
     expect(itemIds).toContain('link');
     expect(itemIds).toContain('mediaLibrary');
     expect(itemIds).toContain('table');
@@ -359,16 +523,282 @@ describe('RichTextInput', () => {
     }
   });
 
-  it('filters out feature toolbar items when feature config is falsy', () => {
-    const config = { ...MINIMAL_PRESET_CONFIG, textColor: false, highlightColor: false };
+  it('filters out feature toolbar items when feature config is falsy or { enabled: false }', () => {
+    const config = {
+      ...MINIMAL_PRESET_CONFIG,
+      heading: { enabled: false, levels: [1, 2] },
+      fontFamily: { enabled: false, fonts: ['Inter'] },
+      textColor: false,
+      highlightColor: false,
+      slashCommands: false,
+    };
     mockUsePresetConfig.mockReturnValue({ config, isLoading: false });
     const props = { name: 'content', attribute: { options: { preset: 'blog' } } };
     const result = RichTextInput(props as any, null) as any;
     const responsiveToolbars = findElements(result, 'ResponsiveToolbar');
     expect(responsiveToolbars.length).toBe(1);
     const itemIds = responsiveToolbars[0].props.items.map((i: any) => i.id);
+    expect(itemIds).not.toContain('heading');
+    expect(itemIds).not.toContain('fontFamily');
     expect(itemIds).not.toContain('textColor');
     expect(itemIds).not.toContain('highlightColor');
+    expect(itemIds).not.toContain('slashCommands');
+  });
+
+  it('resolves availableFields from unstable_useContentManagerContext and preserves undefined when unavailable', () => {
+    mockUseRelationalSync.mockClear();
+    mockUseContentManagerContext.mockReturnValueOnce({ contentType: undefined });
+    shallowRender(RichTextInput({ name: 'content' } as any, null));
+    expect(mockUseRelationalSync).toHaveBeenLastCalledWith(
+      'content',
+      expect.objectContaining({ availableFields: undefined })
+    );
+
+    mockUseContentManagerContext.mockReturnValueOnce({
+      contentType: {
+        attributes: {
+          content: { type: 'customField' },
+          contentMedia: { type: 'media' },
+          contentLinks: {
+            type: 'component',
+            component: 'shared.links',
+            repeatable: true,
+          },
+        },
+      },
+      components: {
+        'shared.links': {
+          attributes: {
+            articles: { type: 'relation', target: 'api::article.article' },
+            pages: { type: 'relation', targetModel: 'api::page.page' },
+          },
+        },
+      },
+    } as any);
+    shallowRender(RichTextInput({ name: 'content' } as any, null));
+    expect(mockUseRelationalSync).toHaveBeenLastCalledWith(
+      'content',
+      expect.objectContaining({
+        availableFields: ['content', 'contentMedia', 'contentLinks'],
+        targetUidToAttribute: {
+          'api::article.article': 'articles',
+          'api::page.page': 'pages',
+        },
+        linksFieldIsRepeatable: true,
+        linksComponentUid: 'shared.links',
+      })
+    );
+  });
+
+  it('merges existing non-repeatable Links component value when syncing relations while leaving repeatable and media fields unchanged', () => {
+    mockField.onChange.mockClear();
+    mockUseField.mockReturnValueOnce({
+      value: { id: 77, customNote: 'keep-me' },
+      onChange: vi.fn(),
+    });
+    mockUseContentManagerContext.mockReturnValueOnce({
+      contentType: {
+        attributes: {
+          content: { type: 'customField' },
+          contentMedia: { type: 'media' },
+          contentLinks: {
+            type: 'component',
+            component: 'shared.links',
+            repeatable: false,
+          },
+        },
+      },
+    } as any);
+
+    shallowRender(RichTextInput({ name: 'content' } as any, null));
+    const syncOptions = (mockUseRelationalSync.mock.lastCall as any)?.[1];
+    expect(typeof syncOptions?.onSyncField).toBe('function');
+
+    syncOptions.onSyncField('contentLinks', {
+      articles: { connect: [{ id: 2, documentId: 'doc-2' }], disconnect: [] },
+    });
+    expect(mockField.onChange).toHaveBeenLastCalledWith('contentLinks', {
+      id: 77,
+      customNote: 'keep-me',
+      articles: { connect: [{ id: 2, documentId: 'doc-2' }], disconnect: [] },
+    });
+
+    syncOptions.onSyncField('contentMedia', [{ id: 5 }]);
+    expect(mockField.onChange).toHaveBeenLastCalledWith('contentMedia', [{ id: 5 }]);
+
+    // Repeatable Links component: merge into first entry and preserve remaining entries
+    mockField.onChange.mockClear();
+    mockUseField.mockReturnValueOnce({
+      value: [
+        { id: 101, customNote: 'first-entry' },
+        { id: 102, customNote: 'second-entry' },
+      ],
+      onChange: vi.fn(),
+    });
+    mockUseContentManagerContext.mockReturnValueOnce({
+      contentType: {
+        attributes: {
+          content: { type: 'customField' },
+          contentLinks: {
+            type: 'component',
+            component: 'shared.links',
+            repeatable: true,
+          },
+        },
+      },
+    } as any);
+
+    shallowRender(RichTextInput({ name: 'content' } as any, null));
+    const repeatableSyncOptions = (mockUseRelationalSync.mock.lastCall as any)?.[1];
+    repeatableSyncOptions.onSyncField('contentLinks', [
+      { articles: { connect: [{ id: 9, documentId: 'doc-9' }], disconnect: [] } },
+    ]);
+    expect(mockField.onChange).toHaveBeenLastCalledWith('contentLinks', [
+      {
+        id: 101,
+        customNote: 'first-entry',
+        articles: { connect: [{ id: 9, documentId: 'doc-9' }], disconnect: [] },
+      },
+      { id: 102, customNote: 'second-entry' },
+    ]);
+  });
+
+  it('preserves json outputFormat for stored JSON entries when options.outputFormat is unset', () => {
+    const elWithJsonString = (RichTextInput as any)(
+      {
+        name: 'content',
+        value: '{"type":"doc","content":[{"type":"paragraph"}]}',
+        attribute: { options: {} },
+      },
+      null
+    );
+    expect(elWithJsonString.props.outputFormat).toBe('json');
+
+    const elWithJsonObject = (RichTextInput as any)(
+      {
+        name: 'content',
+        value: { type: 'doc', content: [] },
+        attribute: { options: {} },
+      },
+      null
+    );
+    expect(elWithJsonObject.props.outputFormat).toBe('json');
+
+    // When settings loading fails, infer markdown or html from non-JSON stored string
+    mockSettingsLoadFailed = true;
+    try {
+      const elWithMarkdown = (RichTextInput as any)(
+        {
+          name: 'content',
+          value: '# Heading in Markdown',
+          attribute: { options: {} },
+        },
+        null
+      );
+      expect(elWithMarkdown.props.outputFormat).toBe('markdown');
+
+      const elWithHtml = (RichTextInput as any)(
+        {
+          name: 'content',
+          value: '<p>Stored HTML paragraph</p>',
+          attribute: { options: {} },
+        },
+        null
+      );
+      expect(elWithHtml.props.outputFormat).toBe('html');
+    } finally {
+      mockSettingsLoadFailed = false;
+    }
+  });
+
+  it.each([
+    [true, false],
+    [{ resizable: true }, false],
+    [{ cellBackground: true }, true],
+    [{ allowCellBackgroundColor: true }, true],
+  ])('with table %j renders the cell background picker: %s', (table, expected) => {
+    const config = { table };
+    mockUsePresetConfig.mockReturnValue({ config, isLoading: false });
+    const props = { name: 'content', attribute: { options: { preset: 'blog' } } };
+    const result = RichTextInput(props as any, null) as any;
+    const tableItem = findElements(result, 'ResponsiveToolbar')[0].props.items.find(
+      (i: any) => i.id === 'table'
+    );
+    expect(tableItem.content.props.children.includes('CELL_BACKGROUND')).toBe(expected);
+  });
+
+  it("passes the hook's contentError flag to BaseTiptapInput", () => {
+    mockUseTiptapEditor.mockReturnValueOnce({
+      editor: mockEditor,
+      field: mockField,
+      removedContent: null,
+      contentError: true,
+    } as any);
+    const result = RichTextInput({ name: 'content' } as any, null) as any;
+    const [base] = findElements(result, 'BaseTiptapInput');
+    expect(base.props.contentError).toBe(true);
+  });
+
+  it('adds the components menu as a toolbar item and renders its dialog outside the toolbar', () => {
+    const config = { ...MINIMAL_PRESET_CONFIG, components: { button: true } };
+    mockUsePresetConfig.mockReturnValue({ config, isLoading: false });
+    const props = { name: 'content', attribute: { options: { preset: 'blog' } } };
+    const result = RichTextInput(props as any, null) as any;
+
+    const items = findElements(result, 'ResponsiveToolbar')[0].props.items;
+    expect(items.find((i: any) => i.id === 'components')?.content).toBe('MENU');
+
+    const base = findElements(result, 'BaseTiptapInput')[0];
+    expect(base.props.children).toContain('DIALOG');
+
+    expect(mockUseRichTextComponents).toHaveBeenCalledWith(mockEditor, {
+      config,
+      disabled: undefined,
+    });
+  });
+
+  it('omits the components toolbar item when no component is enabled', () => {
+    mockUseRichTextComponents.mockReturnValueOnce({ componentsMenu: null, componentDialog: null } as any);
+    mockUsePresetConfig.mockReturnValue({ config: MINIMAL_PRESET_CONFIG, isLoading: false });
+    const props = { name: 'content', attribute: { options: { preset: 'blog' } } };
+    const result = RichTextInput(props as any, null) as any;
+
+    const itemIds = findElements(result, 'ResponsiveToolbar')[0].props.items.map((i: any) => i.id);
+    expect(itemIds).not.toContain('components');
+  });
+
+  it('forwards disabled prop to useTiptapEditor options', () => {
+    mockUseTiptapEditor.mockClear();
+    shallowRender(RichTextInput({ name: 'content', disabled: true } as any, null));
+    expect(mockUseTiptapEditor).toHaveBeenCalledWith(
+      'content',
+      '',
+      expect.any(Array),
+      expect.objectContaining({ disabled: true })
+    );
+  });
+
+  it('detects pretty-printed JSON and jsonb reordered keys as stored ProseMirror JSON', () => {
+    const prettyReordered = '{\n  "content": [{"type": "paragraph"}],\n  "type": "doc"\n}';
+    const elPretty = (RichTextInput as any)(
+      {
+        name: 'content',
+        value: prettyReordered,
+        attribute: { options: {} },
+      },
+      null
+    );
+    expect(elPretty.props.outputFormat).toBe('json');
+
+    const elReorderedObj = (RichTextInput as any)(
+      {
+        name: 'content',
+        value: { content: [], type: 'doc' },
+        attribute: { options: {} },
+      },
+      null
+    );
+    expect(elReorderedObj.props.outputFormat).toBe('json');
   });
 
   it.each([

@@ -18,8 +18,9 @@ vi.mock('@tiptap/react', () => ({ useEditor: (options: any) => mockUseEditor(opt
 
 // ─── Mock Strapi's form field ─────────────────────────────────────────────────
 const onChange = vi.fn();
+let mockFieldValue: any = '';
 vi.mock('@strapi/strapi/admin', () => ({
-  useField: () => ({ value: '', onChange }),
+  useField: () => ({ value: mockFieldValue, onChange }),
 }));
 
 import StarterKit from '@tiptap/starter-kit';
@@ -30,6 +31,7 @@ const fakeEditor = { getJSON: () => ({ type: 'doc', content: [] }) };
 describe('useTiptapEditor', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockFieldValue = '';
     mockUseEditor.mockImplementation(() => fakeEditor);
   });
 
@@ -69,6 +71,69 @@ describe('useTiptapEditor', () => {
 
     useTiptapEditor('body', '', [StarterKit]);
 
-    expect(onChange).toHaveBeenCalledWith('body', JSON.stringify({ type: 'doc', content: [] }));
+    expect(onChange).toHaveBeenCalledWith('body', expect.any(String));
+    expect(JSON.parse(onChange.mock.calls[0][1])).toMatchObject({
+      type: 'doc',
+      content: [],
+      words: 0,
+      characters: 0,
+    });
+  });
+
+  it('sets editable: false and blocks field.onChange / onDocUpdate when disabled is true', () => {
+    const onDocUpdate = vi.fn();
+    let capturedOptions: any = null;
+    mockUseEditor.mockImplementation((options: any) => {
+      capturedOptions = options;
+      options.onUpdate({ editor: fakeEditor });
+      return fakeEditor;
+    });
+
+    useTiptapEditor('body', '', [StarterKit], { disabled: true, onDocUpdate });
+
+    expect(capturedOptions.editable).toBe(false);
+    expect(onChange).not.toHaveBeenCalled();
+    expect(onDocUpdate).not.toHaveBeenCalled();
+  });
+
+  it('marks non-doc JSON values as contentError instead of silently wiping to empty doc', () => {
+    const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    mockFieldValue = '{"unexpected":"shape"}';
+
+    const result = useTiptapEditor('body', '', [StarterKit], { outputFormat: 'json' });
+    spy.mockRestore();
+
+    expect(result.contentError).toBe(true);
+  });
+
+  it('refreshes mounted React NodeViews via view.setProps + createNodeViews when editable state transitions', async () => {
+    const { setEditorEditableWithNodeViews } = await import('../../admin/src/utils/tiptapUtils');
+
+    const setEditable = vi.fn(function (this: any, val: boolean) {
+      this.isEditable = val;
+    });
+    const setProps = vi.fn();
+    const createNodeViews = vi.fn();
+    const mountedEditor = {
+      isDestroyed: false,
+      isEditable: true,
+      setEditable,
+      contentComponent: {},
+      createNodeViews,
+      view: { isDestroyed: false, setProps },
+    };
+
+    // No-op when already true
+    setEditorEditableWithNodeViews(mountedEditor, true);
+    expect(setEditable).not.toHaveBeenCalled();
+
+    // Transition true -> false refreshes NodeViews
+    setEditorEditableWithNodeViews(mountedEditor, false);
+    expect(setEditable).toHaveBeenCalledWith(false, false);
+    expect(setProps).toHaveBeenCalledWith({ markViews: {}, nodeViews: {} });
+    expect(createNodeViews).toHaveBeenCalledTimes(1);
+
+    // Safe no-op on plain mock editors lacking setEditable / contentComponent
+    expect(() => setEditorEditableWithNodeViews(fakeEditor as any, false)).not.toThrow();
   });
 });

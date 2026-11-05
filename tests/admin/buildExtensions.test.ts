@@ -1,15 +1,34 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 // Mock Strapi design system and React hooks used by Heading.tsx (not needed for buildExtensions)
-vi.mock('@strapi/strapi/admin', () => ({ useFetchClient: () => ({ get: vi.fn() }) }));
+vi.mock('@strapi/strapi/admin', () => ({
+  useField: vi.fn(() => ({ value: '', onChange: vi.fn(), error: undefined })),
+  useFetchClient: vi.fn(() => ({ get: vi.fn(), post: vi.fn(), put: vi.fn() })),
+}));
 vi.mock('@strapi/design-system', () => ({
+  Box: 'Box',
+  Button: 'Button',
+  Dialog: {
+    Root: 'DialogRoot',
+    Content: 'DialogContent',
+    Header: 'DialogHeader',
+    Body: 'DialogBody',
+    Footer: 'DialogFooter',
+    Cancel: 'DialogCancel',
+    Action: 'DialogAction',
+  },
+  Field: { Root: 'FieldRoot', Label: 'FieldLabel', Hint: 'FieldHint', Error: 'FieldError' },
+  Flex: 'Flex',
+  IconButton: 'IconButton',
+  Popover: { Root: 'PopoverRoot', Anchor: 'PopoverAnchor', Trigger: 'PopoverTrigger', Content: 'PopoverContent' },
   SingleSelect: 'SingleSelect',
   SingleSelectOption: 'SingleSelectOption',
   SimpleMenu: 'SimpleMenu',
   MenuItem: 'MenuItem',
-  Flex: 'Flex',
-  IconButton: 'IconButton',
   Status: 'Status',
+  TextInput: 'TextInput',
+  Textarea: 'Textarea',
+  Tooltip: 'Tooltip',
   Typography: 'Typography',
 }));
 vi.mock('@strapi/icons', () => ({
@@ -17,6 +36,9 @@ vi.mock('@strapi/icons', () => ({
   Pencil: 'Pencil',
   Trash: 'Trash',
   Image: 'Image',
+  ArrowClockwise: 'ArrowClockwise',
+  Cross: 'Cross',
+  Link: 'Link',
 }));
 vi.mock('react-intl', () => ({
   useIntl: () => ({
@@ -43,7 +65,9 @@ import {
   defineRichTextComponent,
   registerRichTextComponent,
 } from '../../admin/src/registry/richTextComponents';
-import { TiptapPresetConfig } from '../../shared/src/types';
+import { buttonComponent } from '../../admin/src/builtins/button';
+import { FULL_PRESET_CONFIG, TiptapPresetConfig } from '../../shared/src/types';
+import { BUILT_IN_COMPONENT_SCHEMAS, RESERVED_NODE_NAMES } from '../../shared/src/components';
 
 describe('buildExtensions', () => {
   beforeEach(() => {
@@ -86,6 +110,16 @@ describe('buildExtensions', () => {
     const heading = extensions.find((ext: any) => ext.name === 'heading');
     expect(heading).toBeDefined();
     expect((heading as any).options.levels).toEqual([2, 3]);
+    expect((heading as any).options.autoSlugId).toBe(true);
+  });
+
+  it('passes autoSlugId: false to HeadingWithSEOTag and omits headingAutoId plugin when configured', () => {
+    const extensions = buildExtensions({ heading: { levels: [1, 2], autoSlugId: false } });
+    const heading = extensions.find((ext: any) => ext.name === 'heading') as any;
+    expect(heading).toBeDefined();
+    expect(heading.options.autoSlugId).toBe(false);
+    const plugins = heading.config.addProseMirrorPlugins.call(heading);
+    expect(plugins).toEqual([]);
   });
 
   it('does not include HeadingWithSEOTag when heading is false', () => {
@@ -149,10 +183,11 @@ describe('buildExtensions', () => {
 
   it('includes TableKit when table is true', () => {
     const extensions = buildExtensions({ table: true });
-    const hasTable = extensions.some(
+    const tableKit = extensions.find(
       (ext: any) => ext.name === 'tableKit'
     );
-    expect(hasTable).toBe(true);
+    expect(tableKit).toBeDefined();
+    expect((tableKit as any).options.table.resizable).toBe(true);
   });
 
   it('swaps the stock table cells for ones carrying backgroundColor, whatever cellBackground says', () => {
@@ -175,12 +210,13 @@ describe('buildExtensions', () => {
     expect(schema.nodes.tableHeader.spec.attrs).toHaveProperty('backgroundColor');
   });
 
-  it('does not include TableKit when table is false', () => {
+  it('always includes TableKit with resizable: false when table is false (Zero-Data-Loss)', () => {
     const extensions = buildExtensions({ table: false });
-    const hasTable = extensions.some(
+    const tableKit = extensions.find(
       (ext: any) => ext.name === 'tableKit'
     );
-    expect(hasTable).toBe(false);
+    expect(tableKit).toBeDefined();
+    expect((tableKit as any).options.table.resizable).toBe(false);
   });
 
   it('includes TextAlign when textAlign is true', () => {
@@ -266,7 +302,7 @@ describe('buildExtensions', () => {
     expect(names).toContain('pasteStripper');
   });
 
-  it('with all features false returns only StarterKit, Image, and Gapcursor', () => {
+  it('with all features false returns StarterKit, Image, Gapcursor, TableKit, and schema-preserving marks/nodes without PasteStripper', () => {
     const config: TiptapPresetConfig = {
       bold: false,
       italic: false,
@@ -294,14 +330,14 @@ describe('buildExtensions', () => {
 
     expect(names).toContain('starterKit');
     expect(names).toContain('gapCursor');
+    expect(names).toContain('tableKit');
+    expect(names).toContain('textStyle');
+    expect(names).toContain('color');
+    expect(names).toContain('highlight');
     expect(names).not.toContain('heading');
     expect(names).not.toContain('superscript');
     expect(names).not.toContain('subscript');
-    expect(names).not.toContain('tableKit');
     expect(names).not.toContain('textAlign');
-    expect(names).not.toContain('textStyle');
-    expect(names).not.toContain('color');
-    expect(names).not.toContain('highlight');
     expect(names).not.toContain('pasteStripper');
   });
 
@@ -336,13 +372,16 @@ describe('buildExtensions', () => {
     expect(pasteStripperCount).toBe(1);
   });
 
-  it('does not include TextStyle, Color, or Highlight when neither textColor nor highlightColor is enabled', () => {
+  it('always registers TextStyle, Color, Highlight, FontFamily, FontSize, and LineHeight for schema preservation while omitting PasteStripper when disabled', () => {
     const extensions = buildExtensions({});
     const names = extensions.map((ext: any) => ext.name);
 
-    expect(names).not.toContain('textStyle');
-    expect(names).not.toContain('color');
-    expect(names).not.toContain('highlight');
+    expect(names).toContain('textStyle');
+    expect(names).toContain('color');
+    expect(names).toContain('highlight');
+    expect(names).toContain('fontFamily');
+    expect(names).toContain('fontSize');
+    expect(names).toContain('lineHeight');
     expect(names).not.toContain('pasteStripper');
   });
 
@@ -354,20 +393,144 @@ describe('buildExtensions', () => {
     expect((highlight as any).options.multicolor).toBe(true);
   });
 
-  it('textColor only does not include Highlight', () => {
+  it('textColor only still registers Highlight schema for Zero-Data-Loss', () => {
     const extensions = buildExtensions({ textColor: true });
     const names = extensions.map((ext: any) => ext.name);
 
     expect(names).toContain('color');
-    expect(names).not.toContain('highlight');
+    expect(names).toContain('highlight');
   });
 
-  it('highlightColor only does not include Color', () => {
+  it('highlightColor only still registers Color schema for Zero-Data-Loss', () => {
     const extensions = buildExtensions({ highlightColor: true });
     const names = extensions.map((ext: any) => ext.name);
 
     expect(names).toContain('highlight');
-    expect(names).not.toContain('color');
+    expect(names).toContain('color');
+  });
+
+  it('does not include characterCount when characterCount is { enabled: false, limit: 500 } and no field characterLimit is set', () => {
+    const extensions = buildExtensions({
+      characterCount: { enabled: false, limit: 500 },
+    });
+    const names = extensions.map((ext: any) => ext.name);
+
+    expect(names).not.toContain('characterCount');
+  });
+
+  it('registers the strapi protocol on StarterKit link when allowInternalLinks is true', () => {
+    const extensions = buildExtensions({
+      link: { openOnClick: false, allowInternalLinks: true },
+    });
+    const starterKit = extensions.find((ext: any) => ext.name === 'starterKit') as any;
+    expect(starterKit).toBeDefined();
+    expect(starterKit.options.link).toEqual({
+      openOnClick: false,
+      protocols: [{ scheme: 'strapi', optionalSlashes: false }],
+    });
+  });
+
+  it('validates TableCellWithBackground and TableHeaderWithBackground backgroundColor so unsafe CSS is dropped while #eaf5ff remains valid', () => {
+    const extensions = buildExtensions({ table: true });
+    const tableCell = extensions.find((ext: any) => ext.name === 'tableCell') as any;
+    const tableHeader = extensions.find((ext: any) => ext.name === 'tableHeader') as any;
+    expect(tableCell).toBeDefined();
+    expect(tableHeader).toBeDefined();
+
+    for (const ext of [tableCell, tableHeader]) {
+      const attrs = ext.config.addAttributes.call({ parent: () => ({}) });
+      expect(attrs.backgroundColor.renderHTML({ backgroundColor: 'red; position:fixed' })).toEqual(
+        {}
+      );
+      expect(attrs.backgroundColor.renderHTML({ backgroundColor: '#eaf5ff' })).toEqual({
+        style: 'background-color: #eaf5ff',
+      });
+    }
+  });
+
+  // rich-text component nodes
+
+  it('adds a node for a registered component even when the preset does not enable it', () => {
+    registerRichTextComponent(
+      defineRichTextComponent({
+        name: 'callout',
+        label: 'Callout',
+        content: 'block+',
+        attributes: {},
+      })
+    );
+    const ext = buildExtensions({}).find((e: any) => e.name === 'callout') as any;
+    expect(ext).toBeDefined();
+    expect(ext.config.addOptions().enabled).toBe(false);
+  });
+
+  it('marks the node enabled when the preset enables it', () => {
+    registerRichTextComponent(
+      defineRichTextComponent({
+        name: 'callout',
+        label: 'Callout',
+        content: 'block+',
+        attributes: {},
+      })
+    );
+    const ext = buildExtensions({ components: { callout: { tones: ['info'] } } }).find(
+      (e: any) => e.name === 'callout'
+    ) as any;
+    expect(ext.config.addOptions()).toStrictEqual({
+      enabled: true,
+      component: { tones: ['info'] },
+    });
+  });
+
+  it('ignores enabled-but-unregistered names', () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+    expect(
+      buildExtensions({ components: { ghost: true } }).some((e: any) => e.name === 'ghost')
+    ).toBe(false);
+  });
+
+  it('registers the built-in button component from BUILT_IN_COMPONENT_SCHEMAS when enabled without warning', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    warn.mockClear();
+    registerRichTextComponent(buttonComponent);
+    const extensions = buildExtensions({ components: { button: true } });
+    expect(extensions.some((e: any) => e.name === 'button')).toBe(true);
+    expect(warn).not.toHaveBeenCalled();
+    warn.mockRestore();
+  });
+
+  it('strips unsafe protocols, isAllowedUri, validate, and on* HTMLAttributes from StarterKit link config', () => {
+    const extensions = buildExtensions({
+      link: {
+        allowInternalLinks: true,
+        protocols: ['javascript'],
+        isAllowedUri: () => true,
+        validate: () => true,
+        HTMLAttributes: {
+          class: 'safe-link',
+          onclick: 'alert(1)',
+          OnMouseOver: 'evil()',
+        },
+      } as any,
+    });
+    const starterKit = extensions.find((ext: any) => ext.name === 'starterKit') as any;
+    expect(starterKit.options.link).toEqual({
+      openOnClick: false,
+      HTMLAttributes: { class: 'safe-link' },
+      protocols: [{ scheme: 'strapi', optionalSlashes: false }],
+    });
+  });
+
+  it('ensures every node and mark in FULL_PRESET_CONFIG schema (except built-in components) is in RESERVED_NODE_NAMES', () => {
+    const schema = getSchema(buildExtensions(FULL_PRESET_CONFIG));
+    const builtInNames = new Set(BUILT_IN_COMPONENT_SCHEMAS.map((s) => s.name));
+    const allSchemaNames = [
+      ...Object.keys(schema.nodes),
+      ...Object.keys(schema.marks),
+    ].filter((name) => !builtInNames.has(name));
+
+    const missing = allSchemaNames.filter((name) => !RESERVED_NODE_NAMES.has(name));
+    expect(missing).toEqual([]);
   });
 
   // rich-text component nodes

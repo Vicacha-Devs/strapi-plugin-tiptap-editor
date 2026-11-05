@@ -90,4 +90,12 @@ describe('usePresetConfig', () => {
 
     expect(mockGet).not.toHaveBeenCalled();
   });
+
+  it('treats hook as loading when normalizedPresetName differs from loadedName', () => {
+    // Even if initial isLoading state were false (e.g. transitioning from undefined to 'custom'),
+    // loadedName is undefined !== 'custom', so result.isLoading must remain true.
+    const result = usePresetConfig('custom');
+    expect(result.isLoading).toBe(true);
+  });
 });
+

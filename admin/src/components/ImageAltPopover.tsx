@@ -10,17 +10,26 @@ import { ToolbarButton } from './ToolbarButton';
 import { TextAlignLeft } from '../icons/TextAlignLeft';
 import { TextAlignCenter } from '../icons/TextAlignCenter';
 import { TextAlignRight } from '../icons/TextAlignRight';
+import { ImageEditorModal } from './ImageEditorModal';
+import { isSafeUrl } from '../../../shared/src/urlSafety';
 
+/**
+ * Interactive NodeView for images with alignment, dimensions, alt text, title, caption,
+ * Media Library metadata sync, drag-resize handle, and HTML5 Canvas Image Studio integration.
+ */
 export function ImageNodeView({
   node,
   updateAttributes,
   deleteNode,
   selected,
   extension,
+  editor,
 }: NodeViewProps) {
   const { formatMessage } = useIntl();
   const { get } = useFetchClient();
+  const isEditable = editor?.isEditable !== false;
   const [isPopoverOpen, setIsPopoverOpen] = useState(false);
+  const [isEditorOpen, setIsEditorOpen] = useState(false);
   const [altText, setAltText] = useState<string>(node.attrs.alt ?? '');
   const [title, setTitle] = useState<string>(String(node.attrs.title ?? ''));
   const [caption, setCaption] = useState<string>(node.attrs.caption ?? '');
@@ -28,7 +37,17 @@ export function ImageNodeView({
   const isResizingRef = useRef(false);
   const resizeCleanupRef = useRef<(() => void) | null>(null);
 
-  const rawResize = (extension.options as ImageOptions).resize;
+  const imageOptions = (extension?.options ?? {}) as ImageOptions;
+  const allowBase64 = Boolean(imageOptions.allowBase64);
+  const rawSrc = node.attrs.src;
+  const safeSrc =
+    typeof rawSrc === 'string' &&
+    (allowBase64 || !/^\s*data:/i.test(rawSrc)) &&
+    isSafeUrl(rawSrc)
+      ? rawSrc
+      : '';
+
+  const rawResize = imageOptions.resize;
   const resizeEnabled =
     typeof rawResize === 'object' && !!rawResize ? rawResize.enabled : !!rawResize;
   const resizeOpts = resizeEnabled && typeof rawResize === 'object' ? rawResize : undefined;
@@ -38,12 +57,23 @@ export function ImageNodeView({
 
   const currentWidth = node.attrs.width;
   const currentHeight = node.attrs.height;
+  const numericWidth =
+    typeof currentWidth === 'number' && currentWidth > 0 ? currentWidth : null;
+  const numericHeight =
+    typeof currentHeight === 'number' && currentHeight > 0 ? currentHeight : null;
   const [widthInput, setWidthInput] = useState<string>(currentWidth ? String(currentWidth) : '');
   const [heightInput, setHeightInput] = useState<string>(
     currentHeight ? String(currentHeight) : ''
   );
 
-  // Sync local alt text state when node attrs change externally (undo/redo safety)
+  useEffect(() => {
+    if (!isEditable) {
+      setIsPopoverOpen(false);
+      setIsEditorOpen(false);
+    }
+  }, [isEditable]);
+
+  // Sync local alt, title & caption text state when node attrs change externally (undo/redo safety)
   useEffect(() => {
     setAltText(node.attrs.alt ?? '');
   }, [node.attrs.alt]);
@@ -187,6 +217,7 @@ export function ImageNodeView({
 
   const handleResizeStart = useCallback(
     (e: React.MouseEvent) => {
+      if (!isEditable) return;
       e.preventDefault();
       e.stopPropagation();
       isResizingRef.current = true;
@@ -204,7 +235,9 @@ export function ImageNodeView({
         if (img) {
           img.style.width = `${newWidth}px`;
           if (preserveAspectRatio && ratio) {
-            img.style.height = `${Math.round(newWidth / ratio)}px`;
+            const newHeight = Math.round(newWidth / ratio);
+            img.style.height = 'auto';
+            img.style.aspectRatio = `${newWidth} / ${newHeight}`;
           }
         }
       }
@@ -215,15 +248,15 @@ export function ImageNodeView({
         resizeCleanupRef.current = null;
       }
 
-      function onMouseUp() {
+      function onMouseUp(upEvent: MouseEvent) {
         cleanup();
-        if (img) {
-          updateAttributes({
-            width: Math.round(img.offsetWidth),
-            height: Math.round(img.offsetHeight),
-          });
+        const diff = upEvent.clientX - startX;
+        const finalWidth = Math.max(minWidth, startWidth + diff);
+        const attrs: Record<string, unknown> = { width: finalWidth };
+        if (preserveAspectRatio && ratio) {
+          attrs.height = Math.round(finalWidth / ratio);
         }
-        // Delay clearing so the click handler on img doesn't fire
+        updateAttributes(attrs);
         requestAnimationFrame(() => {
           isResizingRef.current = false;
         });
@@ -233,33 +266,88 @@ export function ImageNodeView({
       document.addEventListener('mouseup', onMouseUp);
       resizeCleanupRef.current = cleanup;
     },
-    [updateAttributes, preserveAspectRatio, minWidth]
+    [isEditable, updateAttributes, preserveAspectRatio, minWidth]
   );
 
   return (
-    <NodeViewWrapper data-drag-handle data-align={node.attrs['data-align'] ?? undefined}>
-      <Popover.Root open={isPopoverOpen} onOpenChange={setIsPopoverOpen}>
+    <NodeViewWrapper
+      data-drag-handle={isEditable || undefined}
+      data-align={node.attrs['data-align'] ?? undefined}
+    >
+      <Popover.Root
+        open={isEditable && isPopoverOpen}
+        onOpenChange={(nextOpen: boolean) => setIsPopoverOpen(isEditable ? nextOpen : false)}
+      >
         <Popover.Anchor>
-          <div className="image-wrapper" data-selected={selected || isPopoverOpen || undefined}>
-            <img
-              ref={imgRef}
-              src={node.attrs.src}
-              alt={node.attrs.alt ?? ''}
-              style={{
-                display: 'block',
-                maxWidth: '100%',
-                width: currentWidth ? `${currentWidth}px` : undefined,
-                height: currentHeight ? `${currentHeight}px` : 'auto',
-              }}
-              draggable={false}
-              onClick={() => {
+          <figure
+            className="image-wrapper"
+            data-selected={selected || (isEditable && isPopoverOpen) || undefined}
+            tabIndex={isEditable ? 0 : undefined}
+            role={isEditable ? 'button' : undefined}
+            aria-haspopup={isEditable ? 'dialog' : undefined}
+            aria-expanded={isEditable ? isPopoverOpen : undefined}
+            aria-label={
+              isEditable
+                ? formatMessage({
+                    id: 'tiptap-editor.image.openEditor',
+                    defaultMessage: 'Edit image (crop, rotate, caption)',
+                  })
+                : undefined
+            }
+            onClick={() => {
+              if (isEditable && !isResizingRef.current) setIsPopoverOpen(true);
+            }}
+            onKeyDown={(e) => {
+              if (!isEditable) return;
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
                 if (!isResizingRef.current) setIsPopoverOpen(true);
-              }}
-            />
-            {resizeEnabled && (
+              }
+            }}
+            style={{ margin: 0, cursor: isEditable ? 'pointer' : undefined }}
+          >
+            {safeSrc ? (
+              <img
+                ref={imgRef}
+                src={safeSrc}
+                alt={node.attrs.alt ?? ''}
+                title={node.attrs.title ?? undefined}
+                style={
+                  numericWidth !== null && numericHeight !== null
+                    ? {
+                        display: 'block',
+                        width: `${numericWidth}px`,
+                        maxWidth: '100%',
+                        height: 'auto',
+                        aspectRatio: `${numericWidth} / ${numericHeight}`,
+                      }
+                    : {
+                        display: 'block',
+                        maxWidth: '100%',
+                        width: currentWidth ? `${currentWidth}px` : undefined,
+                        height: currentHeight ? `${currentHeight}px` : 'auto',
+                      }
+                }
+                draggable={false}
+              />
+            ) : null}
+            {node.attrs.caption && (
+              <figcaption
+                style={{
+                  fontSize: '1.2rem',
+                  color: '#666687',
+                  marginTop: '4px',
+                  lineHeight: 1.4,
+                  textAlign: 'center',
+                }}
+              >
+                {node.attrs.caption}
+              </figcaption>
+            )}
+            {isEditable && resizeEnabled && (
               <div className="image-resize-handle" onMouseDown={handleResizeStart} />
             )}
-          </div>
+          </figure>
         </Popover.Anchor>
         <Popover.Content side="bottom">
           <div
@@ -283,6 +371,7 @@ export function ImageNodeView({
                   onClick={() => handleAlign('left')}
                   icon={<TextAlignLeft />}
                   active={currentAlign === 'left'}
+                  toggle
                   disabled={false}
                   tooltip={formatMessage({
                     id: 'tiptap-editor.image.alignLeft',
@@ -294,6 +383,7 @@ export function ImageNodeView({
                   onClick={() => handleAlign('center')}
                   icon={<TextAlignCenter />}
                   active={currentAlign === 'center'}
+                  toggle
                   disabled={false}
                   tooltip={formatMessage({
                     id: 'tiptap-editor.image.alignCenter',
@@ -305,10 +395,32 @@ export function ImageNodeView({
                   onClick={() => handleAlign('right')}
                   icon={<TextAlignRight />}
                   active={currentAlign === 'right'}
+                  toggle
                   disabled={false}
                   tooltip={formatMessage({
                     id: 'tiptap-editor.image.alignRight',
                     defaultMessage: 'Align right',
+                  })}
+                  marginLeft={0}
+                />
+                <ToolbarButton
+                  onClick={() => {
+                    setIsPopoverOpen(false);
+                    setIsEditorOpen(true);
+                  }}
+                  icon={
+                    <span style={{ fontSize: '1.1rem', fontWeight: 600 }}>
+                      {formatMessage({
+                        id: 'tiptap-editor.image.cropEditLabel',
+                        defaultMessage: 'Crop/Edit',
+                      })}
+                    </span>
+                  }
+                  active={false}
+                  disabled={false}
+                  tooltip={formatMessage({
+                    id: 'tiptap-editor.image.openEditor',
+                    defaultMessage: 'Edit image (crop, rotate, caption)',
                   })}
                   marginLeft={0}
                 />
@@ -429,6 +541,49 @@ export function ImageNodeView({
           </div>
         </Popover.Content>
       </Popover.Root>
+      {isEditable && (
+        <ImageEditorModal
+          open={isEditorOpen}
+          src={safeSrc}
+          initialAlt={node.attrs.alt ?? ''}
+          initialCaption={node.attrs.caption ?? ''}
+          onClose={() => setIsEditorOpen(false)}
+          onSave={(edited) => {
+            if (!isSafeUrl(edited.src)) return;
+            fillRequestRef.current++;
+            const srcChanged = edited.src !== node.attrs.src;
+            let nextWidth = edited.width;
+            let nextHeight = edited.height;
+            if (
+              typeof node.attrs.width === 'number' &&
+              node.attrs.width > 0 &&
+              typeof edited.width === 'number' &&
+              edited.width > 0 &&
+              typeof edited.height === 'number' &&
+              edited.height > 0
+            ) {
+              nextWidth = node.attrs.width;
+              nextHeight = Math.max(
+                1,
+                Math.round((node.attrs.width * edited.height) / edited.width)
+              );
+            }
+            updateAttributes({
+              src: edited.src,
+              alt: edited.alt,
+              caption: edited.caption || null,
+              ...(nextWidth !== undefined ? { width: nextWidth } : {}),
+              ...(nextHeight !== undefined ? { height: nextHeight } : {}),
+              ...(srcChanged
+                ? {
+                    'data-asset-id': edited.assetId ?? null,
+                    'data-document-id': edited.documentId ?? null,
+                  }
+                : {}),
+            });
+          }}
+        />
+      )}
     </NodeViewWrapper>
   );
 }

@@ -1,15 +1,38 @@
 import { describe, it, expect, vi } from 'vitest';
 
 // Image.tsx now imports React components; mock them so pure attribute tests still run in node env
-vi.mock('@strapi/strapi/admin', () => ({ useFetchClient: () => ({ get: vi.fn() }) }));
+vi.mock('@strapi/strapi/admin', () => ({
+  useFetchClient: vi.fn(() => ({ get: vi.fn(), post: vi.fn(), put: vi.fn() })),
+}));
 vi.mock('@strapi/design-system', () => ({
+  Box: 'div',
+  Flex: 'div',
+  Typography: 'span',
+  Field: { Root: 'div', Label: 'label' },
+  Dialog: {
+    Root: 'div',
+    Content: 'div',
+    Header: 'div',
+    Body: 'div',
+    Footer: 'div',
+    Cancel: 'div',
+    Action: 'div',
+  },
+  SingleSelect: 'select',
+  SingleSelectOption: 'option',
   Tooltip: 'div',
   Button: 'button',
   Popover: { Root: 'div', Anchor: 'div', Content: 'div' },
   TextInput: 'input',
   IconButton: 'button',
 }));
-vi.mock('@strapi/icons', () => ({ Trash: 'span', Image: 'span' }));
+vi.mock('@strapi/icons', () => ({
+  Trash: 'span',
+  Image: 'span',
+  Pencil: 'span',
+  Cross: 'span',
+  ArrowClockwise: 'span',
+}));
 vi.mock('@tiptap/react', () => ({
   ReactNodeViewRenderer: vi.fn(),
   NodeViewWrapper: 'div',
@@ -190,6 +213,64 @@ describe('StrapiImage extension', () => {
         },
       });
       expect((configured as any).options.resize.alwaysPreserveAspectRatio).toBe(false);
+    });
+  });
+
+  describe('renderHTML and parseHTML with captions', () => {
+    const renderHTMLFn = (StrapiImage as any).config.renderHTML as (
+      this: { options: { HTMLAttributes: Record<string, unknown> } },
+      props: { HTMLAttributes: Record<string, unknown> }
+    ) => unknown[];
+
+    it('renders standalone img when no caption is present', () => {
+      const output = renderHTMLFn.call(
+        { options: { HTMLAttributes: {} } },
+        { HTMLAttributes: { src: 'https://example.com/photo.jpg', alt: 'Photo' } }
+      );
+      expect(output).toEqual([
+        'img',
+        { src: 'https://example.com/photo.jpg', alt: 'Photo' },
+      ]);
+    });
+
+    it('wraps img in figure with figcaption when data-caption is present', () => {
+      const output = renderHTMLFn.call(
+        { options: { HTMLAttributes: {} } },
+        {
+          HTMLAttributes: {
+            src: 'https://example.com/photo.jpg',
+            alt: 'Photo',
+            'data-caption': 'Sunset over Prague',
+          },
+        }
+      );
+      expect(output).toEqual([
+        'figure',
+        { class: 'strapi-image-figure' },
+        [
+          'img',
+          {
+            src: 'https://example.com/photo.jpg',
+            alt: 'Photo',
+            'data-caption': 'Sunset over Prague',
+          },
+        ],
+        ['figcaption', {}, 'Sunset over Prague'],
+      ]);
+    });
+
+    it('sanitizes unsafe javascript: and disallowed data: src URLs in renderHTML', () => {
+      const unsafeJs = renderHTMLFn.call(
+        { options: { HTMLAttributes: {} } },
+        { HTMLAttributes: { src: 'javascript:alert(1)', alt: 'Bad' } }
+      );
+      expect(unsafeJs).toEqual(['img', { src: '', alt: 'Bad' }]);
+
+      const disallowedBase64 = renderHTMLFn.call(
+        { options: { HTMLAttributes: {} } },
+        { HTMLAttributes: { src: 'data:image/png;base64,AAAA', alt: 'Inline' } }
+      );
+      expect(disallowedBase64).toEqual(['img', { src: '', alt: 'Inline' }]);
     });
   });
 });

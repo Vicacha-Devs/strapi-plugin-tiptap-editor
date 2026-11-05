@@ -49,6 +49,12 @@ vi.mock('../../admin/src/components/ToolbarButton', () => ({
   ToolbarButton: vi.fn(),
 }));
 
+vi.mock('react-intl', () => ({
+  useIntl: () => ({
+    formatMessage: ({ defaultMessage }: { id: string; defaultMessage: string }) => defaultMessage,
+  }),
+}));
+
 // ─── Import the hook under test ───────────────────────────────────────────────
 
 import { useTextColor } from '../../admin/src/extensions/TextColor';

@@ -6,6 +6,7 @@ import LinkDialog, { LinkDialogPayload } from '../components/LinkDialog';
 import { useRef, useState } from 'react';
 import { ToolbarButton } from '../components/ToolbarButton';
 import { useIntl } from 'react-intl';
+import { isSafeUrl } from '../../../shared/src/urlSafety';
 
 export function useLink(editor: Editor | null, props: { disabled?: boolean } = { disabled: false }) {
   const { formatMessage } = useIntl();
@@ -65,13 +66,16 @@ export function useLink(editor: Editor | null, props: { disabled?: boolean } = {
 
   const handleSaveEditedLink = ({ url }: LinkDialogPayload) => {
     if (!editor) return;
-    restoreSelection();
-    const chain = editor.chain().focus().extendMarkRange('link');
-    if (url === '') {
-      chain.unsetLink().run();
-    } else {
-      chain.updateAttributes('link', { href: url }).run();
+    const trimmed = url.trim();
+    if (trimmed === '') {
+      restoreSelection();
+      editor.chain().focus().extendMarkRange('link').unsetLink().run();
+      setShowLinkDialog(false);
+      return;
     }
+    if (!isSafeUrl(trimmed)) return;
+    restoreSelection();
+    editor.chain().focus().extendMarkRange('link').setLink({ href: trimmed }).run();
     setShowLinkDialog(false);
   };
 
@@ -84,8 +88,10 @@ export function useLink(editor: Editor | null, props: { disabled?: boolean } = {
 
   const handleSaveNewLink = ({ url }: LinkDialogPayload) => {
     if (!editor) return;
+    const trimmed = url.trim();
+    if (!isSafeUrl(trimmed)) return;
     restoreSelection();
-    editor.chain().focus().setLink({ href: url }).run();
+    editor.chain().focus().setLink({ href: trimmed }).run();
     setShowLinkDialog(false);
   };
 

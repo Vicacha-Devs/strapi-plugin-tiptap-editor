@@ -20,6 +20,7 @@ export function InlineComponentNodeView(props: NodeViewProps) {
   const name = props.node.type.name;
   const definition = getRichTextComponent(name);
   const enabled = Boolean(props.extension.options.enabled);
+  const canEdit = Boolean(enabled) && props.editor?.isEditable !== false;
   const options = (props.extension.options.component ?? {}) as Record<string, unknown>;
   const attrs = props.node.attrs as Record<string, unknown>;
   const label = definition ? formatLabel(definition.label, formatMessage) : name;
@@ -43,14 +44,16 @@ export function InlineComponentNodeView(props: NodeViewProps) {
           { label }
         )}
         title={summary ? `${label} · ${summary}` : label}
-        disabled={!enabled || !definition}
-        onClick={() => setEditing(true)}
+        disabled={!canEdit || !definition}
+        onClick={() => {
+          if (canEdit) setEditing(true);
+        }}
       >
         {Preview ? (
           <Preview
             attrs={attrs}
             options={options}
-            enabled={enabled}
+            enabled={canEdit}
             selected={props.selected}
             colors={colors}
           />
@@ -61,7 +64,7 @@ export function InlineComponentNodeView(props: NodeViewProps) {
           </>
         )}
       </button>
-      {definition && editing && (
+      {canEdit && definition && editing && (
         <ComponentDialog
           open
           mode="edit"

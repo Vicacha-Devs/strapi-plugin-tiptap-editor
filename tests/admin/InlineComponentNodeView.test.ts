@@ -164,4 +164,15 @@ describe('InlineComponentNodeView', () => {
     expect(find(button, byType('Typography'))?.props.children).toBe('badge');
     expect(find(tree, byType('ComponentDialog'))).toBeUndefined();
   });
+
+  it('disables the chip button and omits the dialog when editor.isEditable is false', () => {
+    state.editing = true;
+    const tree = InlineComponentNodeView({
+      ...buildProps({ enabled: true }),
+      editor: { isEditable: false },
+    });
+    const button = find(tree, byType('button'));
+    expect(button.props.disabled).toBe(true);
+    expect(find(tree, byType('ComponentDialog'))).toBeUndefined();
+  });
 });

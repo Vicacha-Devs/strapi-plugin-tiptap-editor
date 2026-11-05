@@ -13,6 +13,7 @@ import { NodeViewContent, NodeViewWrapper, ReactNodeViewRenderer } from '@tiptap
 import { MenuItem, SimpleMenu } from '@strapi/design-system';
 import { PuzzlePiece } from '@strapi/icons';
 import type { TiptapPresetConfig } from '../../../shared/src/types';
+import { isSafeUrl } from '../../../shared/src/urlSafety';
 import ComponentDialog from '../components/ComponentDialog';
 import { GenericComponentNodeView } from '../components/ComponentNodeView';
 import { InlineComponentNodeView } from '../components/InlineComponentNodeView';
@@ -56,10 +57,29 @@ export function createComponentExtension(
         key,
         {
           default: spec.default,
-          parseHTML: (element: HTMLElement) =>
-            decodeAttribute(element.getAttribute(dataAttributeName(key)), spec.default),
+          parseHTML: (element: HTMLElement) => {
+            const decoded = decodeAttribute(
+              element.getAttribute(dataAttributeName(key)),
+              spec.default
+            );
+            if (spec.form?.type === 'url') {
+              if (typeof decoded === 'string' && decoded.trim() !== '') {
+                return isSafeUrl(decoded.trim()) ? decoded : (spec.default ?? '');
+              }
+              if (decoded !== null && decoded !== undefined && typeof decoded !== 'string') {
+                return spec.default ?? '';
+              }
+            }
+            return decoded;
+          },
           renderHTML: (attrs: Record<string, unknown>) => {
-            const value = attrs[key];
+            let value = attrs[key];
+            if (spec.form?.type === 'url' && value !== undefined && value !== null) {
+              const strVal = String(value);
+              if (strVal.trim() !== '' && !isSafeUrl(strVal.trim())) {
+                value = spec.default ?? '';
+              }
+            }
             // A cleared value is written out as `data-x="null"`: dropping the attribute would make
             // the clipboard restore the schema default instead. String defaults are the exception,
             // since there an absent attribute already decodes back to the default.

@@ -248,8 +248,8 @@ export function buildExtensions(
     extensions.push(StrapiImage.configure({ enableContentCheck: true }));
   }
 
-  // Every registered component joins the schema regardless of the preset: a document written under a
-  // richer preset must still round-trip here, read-only, instead of losing its nodes on save.
+  // Every registered rich-text component joins the schema regardless of the preset: a document
+  // written under a richer preset must still round-trip here, read-only, instead of losing nodes.
   for (const resolved of resolveRichTextComponents(config)) {
     extensions.push(
       createComponentExtension(resolved.definition, {

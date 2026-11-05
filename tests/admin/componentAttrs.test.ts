@@ -143,6 +143,66 @@ describe('validateAttrs', () => {
       title: 'REQ',
     });
   });
+
+  it('validates url fields with isSafeUrl while keeping blank optional urls valid', () => {
+    const withUrl: AnyRichTextComponentDefinition = {
+      ...definition,
+      attributes: {
+        ...definition.attributes,
+        href: { default: '', form: { type: 'url', label: 'URL' } },
+      },
+    };
+    expect(
+      validateAttrs(withUrl, { title: 'x', href: 'javascript:alert(1)' }, messages).errors
+    ).toStrictEqual({ href: 'Enter a valid, safe URL' });
+    expect(
+      validateAttrs(
+        withUrl,
+        { title: 'x', href: 'java&#x09;script:alert(1)' },
+        { ...messages, invalidUrl: 'BAD_URL' }
+      ).errors
+    ).toStrictEqual({ href: 'BAD_URL' });
+    expect(
+      validateAttrs(withUrl, { title: 'x', href: '  https://example.com/docs  ' }, messages)
+    ).toMatchObject({
+      errors: {},
+      values: expect.objectContaining({ href: 'https://example.com/docs' }),
+    });
+    expect(validateAttrs(withUrl, { title: 'x', href: '' }, messages).errors).toStrictEqual({});
+  });
+
+  it('validates select fields against declared options', () => {
+    const withSelect: AnyRichTextComponentDefinition = {
+      ...definition,
+      attributes: {
+        ...definition.attributes,
+        variant: {
+          default: 'primary',
+          form: {
+            type: 'select',
+            label: 'Variant',
+            options: [
+              { value: 'primary', label: 'Primary' },
+              { value: 'secondary', label: 'Secondary' },
+            ],
+          },
+        },
+      },
+    };
+    expect(
+      validateAttrs(withSelect, { title: 'x', variant: 'bogus' }, messages).errors
+    ).toStrictEqual({ variant: 'Select a valid option' });
+    expect(
+      validateAttrs(
+        withSelect,
+        { title: 'x', variant: 'bogus' },
+        { ...messages, invalidOption: 'BAD_OPT' }
+      ).errors
+    ).toStrictEqual({ variant: 'BAD_OPT' });
+    expect(
+      validateAttrs(withSelect, { title: 'x', variant: 'secondary' }, messages).errors
+    ).toStrictEqual({});
+  });
 });
 
 describe('isContainerComponent', () => {

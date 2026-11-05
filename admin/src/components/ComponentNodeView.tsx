@@ -16,6 +16,8 @@ export function GenericComponentNodeView(props: NodeViewProps) {
   const name = props.node.type.name;
   const definition = getRichTextComponent(name);
   const enabled = Boolean(props.extension.options.enabled);
+  const isEditable = props.editor?.isEditable !== false;
+  const canModify = Boolean(enabled) && isEditable;
   const options = (props.extension.options.component ?? {}) as Record<string, unknown>;
   const attrs = props.node.attrs as Record<string, unknown>;
   const isContainer = definition ? isContainerComponent(definition) : false;
@@ -31,7 +33,11 @@ export function GenericComponentNodeView(props: NodeViewProps) {
       data-type={name}
       data-selected={props.selected || undefined}
     >
-      <div className="rich-text-component__header" contentEditable={false} data-drag-handle>
+      <div
+        className="rich-text-component__header"
+        contentEditable={false}
+        data-drag-handle={isEditable || undefined}
+      >
         {definition?.icon}
         <Typography variant="pi" fontWeight="bold">
           {definition ? formatLabel(definition.label, formatMessage) : name}
@@ -45,7 +51,7 @@ export function GenericComponentNodeView(props: NodeViewProps) {
           </Status>
         )}
         <Flex gap={1} marginLeft="auto">
-          {enabled && definition && (
+          {canModify && definition && (
             <IconButton
               onClick={() => setEditing(true)}
               label={formatMessage({
@@ -57,16 +63,18 @@ export function GenericComponentNodeView(props: NodeViewProps) {
               <Pencil />
             </IconButton>
           )}
-          <IconButton
-            onClick={() => props.deleteNode()}
-            label={formatMessage({
-              id: 'tiptap-editor.components.nodeView.delete',
-              defaultMessage: 'Delete component',
-            })}
-            variant="ghost"
-          >
-            <Trash />
-          </IconButton>
+          {isEditable && (
+            <IconButton
+              onClick={() => props.deleteNode()}
+              label={formatMessage({
+                id: 'tiptap-editor.components.nodeView.delete',
+                defaultMessage: 'Delete component',
+              })}
+              variant="ghost"
+            >
+              <Trash />
+            </IconButton>
+          )}
         </Flex>
       </div>
       <div className="rich-text-component__body">
@@ -74,7 +82,7 @@ export function GenericComponentNodeView(props: NodeViewProps) {
           <Preview
             attrs={attrs}
             options={options}
-            enabled={enabled}
+            enabled={canModify}
             selected={props.selected}
             colors={colors}
           >
@@ -91,7 +99,7 @@ export function GenericComponentNodeView(props: NodeViewProps) {
           </>
         )}
       </div>
-      {definition && editing && (
+      {canModify && definition && editing && (
         <ComponentDialog
           open
           mode="edit"

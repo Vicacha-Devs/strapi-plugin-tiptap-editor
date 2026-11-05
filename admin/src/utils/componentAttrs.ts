@@ -2,6 +2,7 @@ import type {
   RichTextAttributeFormField,
   RichTextAttributeSpec,
 } from '../../../shared/src/components/types';
+import { isSafeUrl } from '../../../shared/src/urlSafety';
 import type { AnyRichTextComponentDefinition } from '../registry/types';
 
 export type AttributeValues = Record<string, unknown>;
@@ -11,6 +12,8 @@ export interface ValidationMessages {
   invalidJson: string;
   invalidNumber: string;
   outOfRange: string;
+  invalidUrl?: string;
+  invalidOption?: string;
 }
 
 export const isContainerComponent = (definition: AnyRichTextComponentDefinition): boolean =>
@@ -80,11 +83,34 @@ export function validateAttrs(
 
     switch (field.type) {
       case 'text':
-      case 'url':
       case 'textarea':
-      case 'select':
         if (field.required && isBlank(raw)) errors[key] = messages.required;
         break;
+      case 'url': {
+        if (field.required && isBlank(raw)) {
+          errors[key] = messages.required;
+        } else if (!isBlank(raw)) {
+          const trimmed = String(raw).trim();
+          if (!isSafeUrl(trimmed)) {
+            errors[key] = messages.invalidUrl ?? 'Enter a valid, safe URL';
+          } else {
+            values[key] = trimmed;
+          }
+        }
+        break;
+      }
+      case 'select': {
+        if (field.required && isBlank(raw)) {
+          errors[key] = messages.required;
+        } else if (
+          !isBlank(raw) &&
+          Array.isArray(field.options) &&
+          !field.options.some((o) => o.value === raw)
+        ) {
+          errors[key] = messages.invalidOption ?? 'Select a valid option';
+        }
+        break;
+      }
       case 'number': {
         if (isBlank(raw)) {
           if (field.required) errors[key] = messages.required;

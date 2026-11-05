@@ -3,6 +3,7 @@ import {
   isComponentEnabled,
   type TiptapPresetConfig,
 } from '../../../shared/src/types';
+import { BUILT_IN_COMPONENT_SCHEMAS } from '../../../shared/src/components';
 import { isReservedNodeName, isValidComponentName } from '../../../shared/src/components/names';
 import { isInlineComponent } from '../../../shared/src/components/toNodeSpec';
 import { dataAttributeName } from '../utils/attributeCodec';
@@ -64,17 +65,32 @@ export function clearRichTextComponents(): void {
 
 /** Every registered component with the preset's enabled flag and options; warns once about names the preset enables but nobody registered. */
 export function resolveRichTextComponents(config: TiptapPresetConfig): ResolvedRichTextComponent[] {
+  const resolved: ResolvedRichTextComponent[] = listRichTextComponents().map((definition) => ({
+    definition,
+    enabled: isComponentEnabled(config, definition.name),
+    options: getComponentOptions(config, definition.name) ?? {},
+  }));
+
   for (const name of Object.keys(config.components ?? {})) {
-    if (!registry.has(name) && isComponentEnabled(config, name) && !warnedUnregistered.has(name)) {
+    if (registry.has(name)) continue;
+    const builtIn = BUILT_IN_COMPONENT_SCHEMAS.find((s) => s.name === name);
+    if (builtIn) {
+      if (isComponentEnabled(config, name)) {
+        resolved.push({
+          definition: builtIn,
+          enabled: true,
+          options: getComponentOptions(config, name) ?? {},
+        });
+      }
+      continue;
+    }
+    if (isComponentEnabled(config, name) && !warnedUnregistered.has(name)) {
       warnedUnregistered.add(name);
       console.warn(
         `[TiptapEditor] Preset enables rich-text component "${name}" but nothing registered it; call registerRichTextComponent() in src/admin/app.tsx`
       );
     }
   }
-  return listRichTextComponents().map((definition) => ({
-    definition,
-    enabled: isComponentEnabled(config, definition.name),
-    options: getComponentOptions(config, definition.name) ?? {},
-  }));
+
+  return resolved;
 }

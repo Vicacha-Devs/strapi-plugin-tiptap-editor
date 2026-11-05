@@ -675,7 +675,6 @@ const InnerEditor = forwardRef<HTMLDivElement, InnerEditorProps>(
         id: 'components',
         content: richTextComponents.componentsMenu,
       },
-      config.table && { id: 'tableSpacer', content: <Spacer margin={1} /> },
     ];
 
     const rawToolbarItems = toolbarItemCandidates.filter(isToolbarItem);

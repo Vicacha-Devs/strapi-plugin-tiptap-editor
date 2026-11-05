@@ -101,6 +101,36 @@ describe('isValidComponentName', () => {
     }
     expect(isReservedNodeName('button')).toBe(false);
   });
+
+  it('reserves all 20 built-in fork node and mark names so custom components cannot shadow them', () => {
+    const forkBuiltInNames = [
+      'video',
+      'audio',
+      'attachment',
+      'iframe',
+      'linker',
+      'informationPane',
+      'mathematics',
+      'leadParagraph',
+      'details',
+      'detailsSummary',
+      'detailsContent',
+      'conversationHistory',
+      'layoutContainer',
+      'layoutColumn',
+      'taskList',
+      'taskItem',
+      'pageBreak',
+      'tableOfContents',
+      'language',
+      'abbr',
+    ];
+    for (const name of forkBuiltInNames) {
+      expect(RESERVED_NODE_NAMES.has(name)).toBe(true);
+      expect(isReservedNodeName(name)).toBe(true);
+      expect(isValidComponentName(name)).toBe(false);
+    }
+  });
 });
 
 describe('built-in schemas', () => {

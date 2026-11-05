@@ -190,4 +190,16 @@ describe('GenericComponentNodeView', () => {
     expect(dialog.props.open).toBe(true);
     expect(dialog.props.initialAttrs).toStrictEqual(props.node.attrs);
   });
+
+  it('hides Edit, Delete, and dialog when editor.isEditable is false', () => {
+    state.editing = true;
+    const props = {
+      ...buildProps('button', { label: 'Read more' }),
+      editor: { isEditable: false },
+    };
+    const tree = GenericComponentNodeView(props);
+    expect(find(tree, byLabel('Edit component'))).toBeUndefined();
+    expect(find(tree, byLabel('Delete component'))).toBeUndefined();
+    expect(find(tree, byType('ComponentDialog'))).toBeUndefined();
+  });
 });

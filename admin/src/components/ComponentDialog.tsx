@@ -76,6 +76,14 @@ export const ComponentDialog: React.FC<ComponentDialogProps> = ({
         id: 'tiptap-editor.components.dialog.outOfRange',
         defaultMessage: 'Enter a number within the allowed range',
       }),
+      invalidUrl: formatMessage({
+        id: 'tiptap-editor.components.dialog.invalidUrl',
+        defaultMessage: 'Enter a valid, safe URL',
+      }),
+      invalidOption: formatMessage({
+        id: 'tiptap-editor.components.dialog.invalidOption',
+        defaultMessage: 'Select a valid option',
+      }),
     });
     if (Object.keys(result.errors).length > 0) {
       setErrors(result.errors);

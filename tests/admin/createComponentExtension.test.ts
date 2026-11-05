@@ -247,6 +247,28 @@ describe('createComponentExtension', () => {
       'mergeAttributes',
     ]);
   });
+
+  it('sanitizes unsafe URLs on parseHTML and renderHTML when spec.form.type is url', () => {
+    const withUrlForm = defineRichTextComponent({
+      name: 'cta',
+      label: 'CTA',
+      attributes: {
+        href: { default: '', form: { type: 'url', label: 'URL' } },
+      },
+    });
+    const attrs = (createComponentExtension(withUrlForm, ctx) as any).config.addAttributes();
+    const elementWith = (val: string) =>
+      ({ getAttribute: (n: string) => (n === 'data-href' ? val : null) }) as unknown as HTMLElement;
+
+    expect(attrs.href.parseHTML(elementWith('javascript:alert(1)'))).toBe('');
+    expect(attrs.href.parseHTML(elementWith('https://example.com'))).toBe('https://example.com');
+    expect(attrs.href.renderHTML({ href: 'javascript:alert(1)' })).toStrictEqual({
+      'data-href': '',
+    });
+    expect(attrs.href.renderHTML({ href: 'https://example.com' })).toStrictEqual({
+      'data-href': 'https://example.com',
+    });
+  });
 });
 
 describe('insertRichTextComponent', () => {

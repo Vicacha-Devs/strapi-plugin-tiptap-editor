@@ -1,0 +1,6 @@
+nodeLinker: hoisted
+allowBuilds:
+  '@swc/core': true
+  core-js-pure: false
+  esbuild: true
+  sharp: true

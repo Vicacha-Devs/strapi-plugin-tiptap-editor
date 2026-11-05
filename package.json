@@ -36,6 +36,7 @@
   "files": [
     "dist"
   ],
+  "packageManager": "pnpm@12.15.0",
   "scripts": {
     "build": "strapi-plugin build",
     "watch": "strapi-plugin watch",
